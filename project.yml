@@ -33,6 +33,7 @@ targets:
           - Resources/Info.plist
     settings:
       base:
+        PRODUCT_NAME: ComicReader
         PRODUCT_BUNDLE_IDENTIFIER: dev.louis.ComicReader
         INFOPLIST_FILE: ComicReader/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -52,6 +53,7 @@ targets:
       - target: ComicReader
     settings:
       base:
+        PRODUCT_NAME: ComicReaderTests
         PRODUCT_BUNDLE_IDENTIFIER: dev.louis.ComicReaderTests
 
   ComicReaderUITests:
@@ -63,6 +65,7 @@ targets:
       - target: ComicReader
     settings:
       base:
+        PRODUCT_NAME: ComicReaderUITests
         PRODUCT_BUNDLE_IDENTIFIER: dev.louis.ComicReaderUITests
         TEST_TARGET_NAME: ComicReader
 
