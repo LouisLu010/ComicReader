@@ -17,6 +17,22 @@
         }
       }
     },
+    "common.cancel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
     "common.close" : {
       "localizations" : {
         "en" : {
@@ -719,6 +735,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录不可用" } }
       }
     },
+    "library.detail.favorite" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Favorite" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收藏" } }
+      }
+    },
     "library.detail.metadata" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Details" } },
@@ -759,6 +781,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不可用" } }
+      }
+    },
+    "library.favorite.add" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add to Favorites" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "加入收藏" } }
+      }
+    },
+    "library.favorite.remove" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove from Favorites" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消收藏" } }
+      }
+    },
+    "library.favorite.status.added" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Added" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已收藏" } }
+      }
+    },
+    "library.favorite.status.none" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not Added" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未收藏" } }
       }
     },
     "library.grid.summary" : {
@@ -821,6 +867,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "No comics match this section yet." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此分类中暂时没有匹配的漫画。" } }
+      }
+    },
+    "library.state.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Favorites and reading progress are temporarily unavailable." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收藏和阅读进度暂时不可用。" } }
       }
     },
     "library.section.favorites" : {
@@ -933,6 +985,66 @@
             "value" : "版本"
           }
         }
+      }
+    },
+    "settings.library.rebuild" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rebuild Library Index" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重建书库索引" } }
+      }
+    },
+    "settings.library.rebuild.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recreate local library metadata from imported files without changing the originals." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从已导入文件重新建立本地书库元数据，不会修改原始文件。" } }
+      }
+    },
+    "settings.library.repair" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset Damaged Index" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置损坏索引" } }
+      }
+    },
+    "settings.library.repair.confirm.action" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset Index" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置索引" } }
+      }
+    },
+    "settings.library.repair.confirm.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This deletes the damaged local index, including favorites and reading progress. Imported comics and original folders remain unchanged. The index will then be rebuilt from imported files." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会删除损坏的本地索引，包括收藏和阅读进度。已导入漫画和原始文件夹不会改变，随后将从已导入文件重建索引。" } }
+      }
+    },
+    "settings.library.repair.confirm.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset the library index?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置书库索引？" } }
+      }
+    },
+    "settings.library.repair.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use this only when the local index cannot be opened. Resetting always requires confirmation." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅在本地索引无法打开时使用；重置前始终需要确认。" } }
+      }
+    },
+    "settings.library.repair.failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The index could not be reset. Imported files were not changed." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法重置索引，已导入文件未被修改。" } }
+      }
+    },
+    "settings.library.repairing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Resetting library index…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在重置书库索引…" } }
+      }
+    },
+    "settings.library.section" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Library Maintenance" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "书库维护" } }
       }
     },
     "settings.privacy.description" : {

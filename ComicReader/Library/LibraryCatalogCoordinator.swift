@@ -71,6 +71,16 @@ final class LibraryCatalogCoordinator {
         }
     }
 
+    func reloadAndReconcile(with libraryState: LibraryStateRepository) async {
+        await reload()
+
+        guard state == .loaded else {
+            return
+        }
+
+        await libraryState.reconcile(catalogItems: comics)
+    }
+
     func thumbnailURL(for comic: LibraryCatalogItem) -> URL? {
         guard comic.thumbnailAvailable, let layout else {
             return nil

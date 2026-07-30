@@ -6,6 +6,8 @@ struct LibraryComicGrid: View {
     let comics: [LibraryCatalogItem]
     let thumbnailURL: (LibraryCatalogItem) -> URL?
 
+    @Environment(LibraryStateRepository.self) private var libraryState
+
     private let columns = [
         GridItem(.adaptive(minimum: 164, maximum: 220), spacing: 18),
     ]
@@ -25,7 +27,8 @@ struct LibraryComicGrid: View {
                     } label: {
                         LibraryComicCard(
                             comic: comic,
-                            thumbnailURL: thumbnailURL(comic)
+                            thumbnailURL: thumbnailURL(comic),
+                            userState: libraryState.state(for: comic.id)
                         )
                     }
                     .buttonStyle(.plain)
@@ -43,6 +46,8 @@ struct ComicDetailView: View {
     let comic: LibraryCatalogItem
     let thumbnailURL: URL?
 
+    @Environment(LibraryStateRepository.self) private var libraryState
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -56,6 +61,22 @@ struct ComicDetailView: View {
         }
         .navigationTitle(comic.record.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task {
+                        await libraryState.toggleFavorite(for: comic.id)
+                    }
+                } label: {
+                    Label(
+                        favoriteActionTitle,
+                        systemImage: favoriteSymbolName
+                    )
+                }
+                .disabled(!libraryState.canModifyState(for: comic.id))
+                .accessibilityIdentifier("library.favorite")
+            }
+        }
         .accessibilityIdentifier("library.detail")
     }
 
@@ -108,6 +129,11 @@ struct ComicDetailView: View {
                 } label: {
                     Text("library.detail.thumbnail")
                 }
+                LabeledContent {
+                    Text(favoriteStatusKey)
+                } label: {
+                    Text("library.detail.favorite")
+                }
             }
         }
     }
@@ -139,11 +165,30 @@ struct ComicDetailView: View {
             ? "library.detail.thumbnail.available"
             : "library.detail.thumbnail.unavailable"
     }
+
+    private var favoriteActionTitle: LocalizedStringKey {
+        libraryState.state(for: comic.id).isFavorite
+            ? "library.favorite.remove"
+            : "library.favorite.add"
+    }
+
+    private var favoriteStatusKey: LocalizedStringKey {
+        libraryState.state(for: comic.id).isFavorite
+            ? "library.favorite.status.added"
+            : "library.favorite.status.none"
+    }
+
+    private var favoriteSymbolName: String {
+        libraryState.state(for: comic.id).isFavorite
+            ? "heart.fill"
+            : "heart"
+    }
 }
 
 private struct LibraryComicCard: View {
     let comic: LibraryCatalogItem
     let thumbnailURL: URL?
+    let userState: LibraryComicUserState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -151,11 +196,21 @@ private struct LibraryComicCard: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(0.71, contentMode: .fit)
 
-            Text(comic.record.displayName)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(comic.record.displayName)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
+                if userState.isFavorite {
+                    Image(systemName: "heart.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityHidden(true)
+                }
+            }
 
             Text(
                 String.localizedStringWithFormat(
@@ -171,6 +226,13 @@ private struct LibraryComicCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityValue(Text(favoriteStatusKey))
+    }
+
+    private var favoriteStatusKey: LocalizedStringKey {
+        userState.isFavorite
+            ? "library.favorite.status.added"
+            : "library.favorite.status.none"
     }
 }
 

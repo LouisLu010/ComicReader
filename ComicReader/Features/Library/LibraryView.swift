@@ -8,6 +8,7 @@ struct LibraryView: View {
     @Environment(FolderImportCoordinator.self) private var importCoordinator
     @Environment(ImportJobCoordinator.self) private var importJobs
     @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
+    @Environment(LibraryStateRepository.self) private var libraryState
 
     @State private var presentedPreview: ImportPreviewDestination?
     @State private var presentedReport: ImportReportDestination?
@@ -45,6 +46,11 @@ struct LibraryView: View {
                 } else if libraryCatalog.state == .failed,
                           libraryCatalog.comics.isEmpty {
                     LibraryCatalogFailureView()
+                }
+
+                if libraryState.status == .unavailable
+                    || libraryState.status == .failed {
+                    LibraryStateUnavailableView()
                 }
 
                 ImportFolderDropTarget(
@@ -116,7 +122,9 @@ struct LibraryView: View {
             ToolbarItem(placement: .secondaryAction) {
                 Button {
                     Task {
-                        await libraryCatalog.reload()
+                        await libraryCatalog.reloadAndReconcile(
+                            with: libraryState
+                        )
                     }
                 } label: {
                     Label("library.reload", systemImage: "arrow.clockwise")
@@ -166,17 +174,37 @@ struct LibraryView: View {
 
     private var displayedComics: [LibraryCatalogItem] {
         switch section {
-        case .all, .unread:
+        case .all:
             libraryCatalog.comicsByTitle
+        case .unread:
+            libraryState.unreadComics(in: libraryCatalog.comicsByTitle)
         case .recent:
             libraryCatalog.comics
-        case .continueReading, .favorites, .shelves, .settings:
+        case .continueReading:
+            libraryState.continueReadingComics(in: libraryCatalog.comics)
+        case .favorites:
+            libraryState.favoriteComics(in: libraryCatalog.comicsByTitle)
+        case .shelves, .settings:
             []
         }
     }
 
     private var showsEmptySection: Bool {
-        !libraryCatalog.comics.isEmpty && displayedComics.isEmpty
+        guard !libraryCatalog.comics.isEmpty,
+              displayedComics.isEmpty else {
+            return false
+        }
+
+        return !sectionRequiresUserState || libraryState.status == .ready
+    }
+
+    private var sectionRequiresUserState: Bool {
+        switch section {
+        case .continueReading, .favorites, .unread:
+            true
+        case .all, .recent, .shelves, .settings:
+            false
+        }
     }
 
     private var emptyLibrary: some View {
@@ -250,6 +278,18 @@ private struct LibraryCatalogFailureView: View {
             "library.loadFailed",
             systemImage: "exclamationmark.triangle.fill"
         )
+        .foregroundStyle(.orange)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibraryStateUnavailableView: View {
+    var body: some View {
+        Label(
+            "library.state.unavailable",
+            systemImage: "exclamationmark.triangle.fill"
+        )
+        .font(.subheadline)
         .foregroundStyle(.orange)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -438,5 +478,6 @@ private struct ImportSelectionBanner: View {
             .environment(FolderImportCoordinator())
             .environment(ImportJobCoordinator())
             .environment(LibraryCatalogCoordinator())
+            .environment(LibraryStateRepository())
     }
 }
