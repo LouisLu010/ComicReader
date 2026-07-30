@@ -191,7 +191,7 @@ final class TemporaryComicTree {
 
         let output = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
-            output,
+            output as CFMutableData,
             UTType.heic.identifier as CFString,
             1,
             nil
