@@ -13,11 +13,11 @@ final class ImportJobCoordinatorTests: XCTestCase {
             runSnapshot: completedSnapshot
         )
         let coordinator = ImportJobCoordinator(jobManager: manager)
-        let sourceURL = URL(fileURLWithPath: "/tmp/imported-comic")
+        let sourceBookmark = Self.bookmark("imported-comic")
 
         let startedJobID = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: sourceURL
+            sourceBookmark: sourceBookmark
         )
 
         XCTAssertEqual(startedJobID, jobID)
@@ -29,10 +29,10 @@ final class ImportJobCoordinatorTests: XCTestCase {
             expectedRunCount: 1
         )
 
-        let enqueuedSourceURLs = await manager.enqueuedSourceURLs()
+        let enqueuedSourceBookmarks = await manager.enqueuedSourceBookmarks()
         let runJobIDs = await manager.runJobIDs()
 
-        XCTAssertEqual(enqueuedSourceURLs, [sourceURL])
+        XCTAssertEqual(enqueuedSourceBookmarks, [sourceBookmark])
         XCTAssertEqual(runJobIDs, [jobID])
         XCTAssertEqual(coordinator.job(for: jobID), completedSnapshot)
         XCTAssertEqual(coordinator.jobs, [completedSnapshot])
@@ -51,7 +51,7 @@ final class ImportJobCoordinatorTests: XCTestCase {
 
         let startedJobID = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: URL(fileURLWithPath: "/tmp/import-failure")
+            sourceBookmark: Self.bookmark("import-failure")
         )
 
         XCTAssertNil(startedJobID)
@@ -215,15 +215,15 @@ final class ImportJobCoordinatorTests: XCTestCase {
             runDelayNanoseconds: 1_000_000_000
         )
         let coordinator = ImportJobCoordinator(jobManager: manager)
-        let sourceURL = URL(fileURLWithPath: "/tmp/duplicate-source")
+        let sourceBookmark = Self.bookmark("duplicate-source")
 
         let firstJobID = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: sourceURL
+            sourceBookmark: sourceBookmark
         )
         let secondJobID = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: sourceURL
+            sourceBookmark: sourceBookmark
         )
 
         XCTAssertEqual(firstJobID, jobID)
@@ -238,8 +238,8 @@ final class ImportJobCoordinatorTests: XCTestCase {
             expectedRunCount: 1
         )
 
-        let enqueuedSourceURLs = await manager.enqueuedSourceURLs()
-        XCTAssertEqual(enqueuedSourceURLs, [sourceURL])
+        let enqueuedSourceBookmarks = await manager.enqueuedSourceBookmarks()
+        XCTAssertEqual(enqueuedSourceBookmarks, [sourceBookmark])
     }
 
     func testPollingPublishesCopyingSnapshotBeforeRunFinishes() async {
@@ -265,7 +265,7 @@ final class ImportJobCoordinatorTests: XCTestCase {
 
         _ = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: URL(fileURLWithPath: "/tmp/progress-source")
+            sourceBookmark: Self.bookmark("progress-source")
         )
 
         await waitForJobUpdate(
@@ -296,7 +296,7 @@ final class ImportJobCoordinatorTests: XCTestCase {
 
         _ = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: URL(fileURLWithPath: "/tmp/run-failure")
+            sourceBookmark: Self.bookmark("run-failure")
         )
 
         await waitForJobUpdate(
@@ -335,7 +335,7 @@ final class ImportJobCoordinatorTests: XCTestCase {
 
         _ = await coordinator.startImport(
             draft: Self.draft(),
-            sourceURL: URL(fileURLWithPath: "/tmp/observer-race")
+            sourceBookmark: Self.bookmark("observer-race")
         )
 
         for _ in 0..<100 {
@@ -410,6 +410,10 @@ final class ImportJobCoordinatorTests: XCTestCase {
         ImportJobID(rawValue: UUID(uuidString: value)!)
     }
 
+    private static func bookmark(_ value: String) -> Data {
+        Data(value.utf8)
+    }
+
     private static func snapshot(
         id: ImportJobID,
         state: ImportJobState,
@@ -442,7 +446,7 @@ private actor RecordingImportJobManager: ImportJobManaging {
     private let snapshotDelayNanoseconds: UInt64
     private let restoreDelayNanoseconds: UInt64
     private var storedSnapshotFailuresRemaining: Int
-    private var sourceURLs: [URL] = []
+    private var sourceBookmarks: [Data] = []
     private var runIDs: [ImportJobID] = []
     private var resumeIDs: [ImportJobID] = []
     private var restores = 0
@@ -478,10 +482,10 @@ private actor RecordingImportJobManager: ImportJobManaging {
 
     func enqueue(
         _ draft: ImportPreviewDraft,
-        sourceURL: URL,
+        sourceBookmark: Data,
         targetComicID: ManagedComicID
     ) async throws -> ImportJobSnapshot {
-        sourceURLs.append(sourceURL)
+        sourceBookmarks.append(sourceBookmark)
 
         if shouldFailEnqueue {
             throw RecordingImportJobManagerError.enqueueFailed
@@ -542,8 +546,8 @@ private actor RecordingImportJobManager: ImportJobManaging {
         return restoreResultSnapshots
     }
 
-    func enqueuedSourceURLs() -> [URL] {
-        sourceURLs
+    func enqueuedSourceBookmarks() -> [Data] {
+        sourceBookmarks
     }
 
     func runJobIDs() -> [ImportJobID] {

@@ -10,6 +10,7 @@ struct LibraryView: View {
 
     @State private var presentedPreview: ImportPreviewDestination?
     @State private var presentedReport: ImportReportDestination?
+    @State private var isDropFailurePresented = false
 
     var body: some View {
         ScrollView {
@@ -36,6 +37,15 @@ struct LibraryView: View {
                 } else if importCoordinator.status == .failed {
                     ImportSelectionBanner(kind: .selectionFailed)
                 }
+
+                ImportFolderDropTarget(
+                    onPreparedSources: { preparation in
+                        importCoordinator.handlePreparedSources(preparation)
+                    },
+                    onDropFailure: {
+                        isDropFailurePresented = true
+                    }
+                )
 
                 if !importCoordinator.previewSessions.isEmpty {
                     ImportPreviewQueue(
@@ -96,6 +106,11 @@ struct LibraryView: View {
                     importJobs.dismissNotice()
                 }
             )
+        }
+        .alert("import.dropFailure.title", isPresented: $isDropFailurePresented) {
+            Button("common.ok", role: .cancel) {}
+        } message: {
+            Text("import.dropFailure.description")
         }
     }
 
@@ -168,7 +183,7 @@ struct LibraryView: View {
 private struct ImportPreviewDestination: Identifiable {
     let sessionID: ImportPreviewSession.ID
 
-    var id: URL {
+    var id: UUID {
         sessionID
     }
 }

@@ -37,7 +37,19 @@ actor RecoverableImportEngine {
         targetComicID: ManagedComicID = ManagedComicID()
     ) throws -> ImportJobSnapshot {
         let bookmark = try sourceAccess.makeBookmark(for: sourceURL)
-        let plan = try draft.freeze(sourceBookmark: bookmark)
+        return try enqueue(
+            draft,
+            sourceBookmark: bookmark,
+            targetComicID: targetComicID
+        )
+    }
+
+    func enqueue(
+        _ draft: ImportPreviewDraft,
+        sourceBookmark: Data,
+        targetComicID: ManagedComicID = ManagedComicID()
+    ) throws -> ImportJobSnapshot {
+        let plan = try draft.freeze(sourceBookmark: sourceBookmark)
         return try enqueue(plan, targetComicID: targetComicID)
     }
 

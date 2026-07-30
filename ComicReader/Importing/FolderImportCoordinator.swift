@@ -2,19 +2,23 @@ import Foundation
 import Observation
 
 struct ImportPreviewSession: Equatable, Identifiable, Sendable {
-    let sourceURL: URL
+    let source: ImportSourceDescriptor
     private(set) var draft: ImportPreviewDraft
 
-    var id: URL {
-        sourceURL
+    var id: UUID {
+        source.id
+    }
+
+    var sourceBookmark: Data {
+        source.bookmark
     }
 
     var manifest: ImportManifest {
         draft.manifest
     }
 
-    init(sourceURL: URL, manifest: ImportManifest) {
-        self.sourceURL = sourceURL
+    init(source: ImportSourceDescriptor, manifest: ImportManifest) {
+        self.source = source
         draft = ImportPreviewDraft(manifest: manifest)
     }
 
@@ -44,34 +48,64 @@ final class FolderImportCoordinator {
     private(set) var failedFolderNames: [String] = []
 
     private let scanner: any ImportScanning
+    private let sourceAccess: any ImportSourceAccessing
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var scanGeneration = 0
 
-    init(scanner: any ImportScanning = ImportScanner()) {
+    init(
+        scanner: any ImportScanning = ImportScanner(),
+        sourceAccess: any ImportSourceAccessing = SecurityScopedSourceAccess()
+    ) {
         self.scanner = scanner
+        self.sourceAccess = sourceAccess
     }
 
     func handleSelectedURLs(_ urls: [URL]) {
+        handlePreparedSources(
+            ImportSourcePreparer(sourceAccess: sourceAccess).prepare(urls)
+        )
+    }
+
+    func handleDroppedSources(_ sources: [ImportSourceDescriptor]) {
+        handlePreparedSources(ImportSourcePreparation(sources: sources))
+    }
+
+    func handlePreparedSources(_ preparation: ImportSourcePreparation) {
+        beginScanning(
+            preparation.sources,
+            rejectedFolderNames: preparation.rejectedDisplayNames
+        )
+    }
+
+    private func beginScanning(
+        _ sources: [ImportSourceDescriptor],
+        rejectedFolderNames: [String]
+    ) {
         scanTask?.cancel()
         scanGeneration += 1
         clearPreviewResults()
 
-        let sortedURLs = urls
-            .filter { !$0.lastPathComponent.isEmpty }
-            .sorted(by: urlOrder)
+        var seenBookmarks = Set<Data>()
+        let sortedSources = sources
+            .filter { !$0.displayName.isEmpty }
+            .filter { seenBookmarks.insert($0.bookmark).inserted }
+            .sorted(by: sourceOrder)
+        let sortedRejectedFolderNames = rejectedFolderNames.sorted(by: nameOrder)
 
-        guard !sortedURLs.isEmpty else {
+        guard !sortedSources.isEmpty else {
+            failedFolderNames = sortedRejectedFolderNames
             status = .failed
             return
         }
 
         let generation = scanGeneration
         status = .scanning(
-            folderNames: sortedURLs.map(\.lastPathComponent)
+            folderNames: sortedSources.map(\.displayName)
         )
         scanTask = Task { [weak self] in
             await self?.scan(
-                sortedURLs,
+                sortedSources,
+                rejectedFolderNames: sortedRejectedFolderNames,
                 generation: generation
             )
         }
@@ -124,25 +158,29 @@ final class FolderImportCoordinator {
     }
 
     private func scan(
-        _ urls: [URL],
+        _ sources: [ImportSourceDescriptor],
+        rejectedFolderNames: [String],
         generation: Int
     ) async {
         var sessions: [ImportPreviewSession] = []
-        var failures: [String] = []
+        var failures = rejectedFolderNames
 
-        for url in urls {
+        for source in sources {
             do {
                 try Task.checkCancellation()
+                let sourceURL = try sourceAccess.resolveBookmark(source.bookmark)
+                try sourceAccess.startAccessing(sourceURL)
+                defer { sourceAccess.stopAccessing(sourceURL) }
                 let manifest = try await scanner.scan(
-                    ImportScanRequest(rootURL: url)
+                    ImportScanRequest(rootURL: sourceURL)
                 )
                 sessions.append(
-                    ImportPreviewSession(sourceURL: url, manifest: manifest)
+                    ImportPreviewSession(source: source, manifest: manifest)
                 )
             } catch is CancellationError {
                 return
             } catch {
-                failures.append(url.lastPathComponent)
+                failures.append(source.displayName)
             }
         }
 
@@ -159,7 +197,7 @@ final class FolderImportCoordinator {
         }
 
         previewSessions = sessions
-        failedFolderNames = failures
+        failedFolderNames = failures.sorted(by: nameOrder)
         updatePreviewStatus()
         scanTask = nil
     }
@@ -178,15 +216,20 @@ final class FolderImportCoordinator {
         status = .preview(manifests: previewSessions.map(\.manifest))
     }
 
-    private func urlOrder(_ lhs: URL, _ rhs: URL) -> Bool {
-        let comparison = lhs.lastPathComponent.localizedStandardCompare(
-            rhs.lastPathComponent
-        )
+    private func sourceOrder(
+        _ lhs: ImportSourceDescriptor,
+        _ rhs: ImportSourceDescriptor
+    ) -> Bool {
+        let comparison = lhs.displayName.localizedStandardCompare(rhs.displayName)
 
         if comparison != .orderedSame {
             return comparison == .orderedAscending
         }
 
-        return lhs.path < rhs.path
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    private func nameOrder(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.localizedStandardCompare(rhs) == .orderedAscending
     }
 }

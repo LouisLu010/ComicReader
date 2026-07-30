@@ -18,11 +18,46 @@ struct SecurityScopedSourceAccess: ImportSourceAccessing {
         try startAccessing(sourceURL)
         defer { stopAccessing(sourceURL) }
 
-        return try sourceURL.bookmarkData(
-            options: .minimalBookmark,
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+        var coordinationError: NSError?
+        var bookmark: Data?
+        var capturedError: Error?
+
+        NSFileCoordinator().coordinate(
+            readingItemAt: sourceURL,
+            options: .withoutChanges,
+            error: &coordinationError
+        ) { coordinatedURL in
+            do {
+                let values = try coordinatedURL.resourceValues(
+                    forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isAliasFileKey]
+                )
+                guard values.isDirectory == true,
+                      values.isSymbolicLink != true,
+                      values.isAliasFile != true else {
+                    throw ImportSourceAccessError.invalidBookmark
+                }
+
+                bookmark = try coordinatedURL.bookmarkData(
+                    options: [],
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } catch {
+                capturedError = error
+            }
+        }
+
+        if coordinationError != nil {
+            throw ImportSourceAccessError.accessDenied
+        }
+        if let error = capturedError as? ImportSourceAccessError {
+            throw error
+        }
+        guard let bookmark else {
+            throw ImportSourceAccessError.invalidBookmark
+        }
+
+        return bookmark
     }
 
     func resolveBookmark(_ bookmark: Data) throws -> URL {

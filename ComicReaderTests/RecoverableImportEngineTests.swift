@@ -96,6 +96,28 @@ final class RecoverableImportEngineTests: XCTestCase {
         XCTAssertEqual(snapshots, [queued])
     }
 
+    func testEnqueueWithPreparedBookmarkPreservesItWithoutCreatingAnother() async throws {
+        let sandbox = try TemporaryImportSandbox(sourceName: "Prepared Bookmark")
+        try sandbox.sourceTree.png("Chapter/01.png")
+        let manifest = try await scan(sandbox)
+        let layout = ImportStorageLayout(rootURL: sandbox.appManagedRootURL)
+        let preparedBookmark = Data("prepared-bookmark".utf8)
+        let engine = RecoverableImportEngine(
+            layout: layout,
+            sourceAccess: BookmarkCreationDeniedSourceAccess(),
+            capacityProvider: FixedCapacityProvider(value: .max),
+            thumbnailGenerator: TestThumbnailGenerator()
+        )
+
+        let queued = try await engine.enqueue(
+            ImportPreviewDraft(manifest: manifest),
+            sourceBookmark: preparedBookmark
+        )
+        let storedPlan = try JSONImportJobStore(layout: layout).load(queued.id).plan
+
+        XCTAssertEqual(storedPlan.sourceBookmark, preparedBookmark)
+    }
+
     func testInsufficientSpacePausesBeforeCopyWithoutChangingSource() async throws {
         let sandbox = try TemporaryImportSandbox(sourceName: "No Space")
         try sandbox.sourceTree.png("Chapter/01.png")
@@ -920,6 +942,20 @@ private struct DenyingSourceAccess: ImportSourceAccessing {
     func startAccessing(_ sourceURL: URL) throws {
         throw ImportSourceAccessError.accessDenied
     }
+
+    func stopAccessing(_ sourceURL: URL) {}
+}
+
+private struct BookmarkCreationDeniedSourceAccess: ImportSourceAccessing {
+    func makeBookmark(for sourceURL: URL) throws -> Data {
+        throw ImportSourceAccessError.accessDenied
+    }
+
+    func resolveBookmark(_ bookmark: Data) throws -> URL {
+        throw ImportSourceAccessError.invalidBookmark
+    }
+
+    func startAccessing(_ sourceURL: URL) throws {}
 
     func stopAccessing(_ sourceURL: URL) {}
 }

@@ -418,7 +418,7 @@ struct ImportPreviewView: View {
 
         guard await importJobs.startImport(
             draft: session.draft,
-            sourceURL: session.sourceURL
+            sourceBookmark: session.sourceBookmark
         ) != nil else {
             editorNotice = .couldNotStart
             return

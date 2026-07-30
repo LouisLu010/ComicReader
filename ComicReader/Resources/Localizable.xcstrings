@@ -65,6 +65,70 @@
         }
       }
     },
+    "import.dropTarget.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop folders from Files here. They stay in place until you confirm the import."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将“文件”中的文件夹拖到这里；确认导入前，原文件始终保留在原处。"
+          }
+        }
+      }
+    },
+    "import.dropTarget.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop Comic Folders"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖入漫画文件夹"
+          }
+        }
+      }
+    },
+    "import.dropFailure.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This folder could not be kept available for preview. Choose it from Files instead."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件夹无法在预览期间保持可访问。请改用“文件”选择它。"
+          }
+        }
+      }
+    },
+    "import.dropFailure.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder Could Not Be Dropped"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法拖入该文件夹"
+          }
+        }
+      }
+    },
     "import.jobs.cancel" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop" } },

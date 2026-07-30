@@ -4,7 +4,7 @@ import Observation
 protocol ImportJobManaging: Sendable {
     func enqueue(
         _ draft: ImportPreviewDraft,
-        sourceURL: URL,
+        sourceBookmark: Data,
         targetComicID: ManagedComicID
     ) async throws -> ImportJobSnapshot
     func run(_ jobID: ImportJobID) async throws -> ImportJobSnapshot
@@ -24,12 +24,12 @@ struct RecoverableImportJobManager: ImportJobManaging {
 
     func enqueue(
         _ draft: ImportPreviewDraft,
-        sourceURL: URL,
+        sourceBookmark: Data,
         targetComicID: ManagedComicID
     ) async throws -> ImportJobSnapshot {
         try await engine.enqueue(
             draft,
-            sourceURL: sourceURL,
+            sourceBookmark: sourceBookmark,
             targetComicID: targetComicID
         )
     }
@@ -83,8 +83,8 @@ final class ImportJobCoordinator {
         ImportJobID: Task<Void, Never>
     ] = [:]
     @ObservationIgnored private var observationTokens: [ImportJobID: UUID] = [:]
-    @ObservationIgnored private var pendingSourceURLs = Set<URL>()
-    @ObservationIgnored private var sourceURLsByJobID: [ImportJobID: URL] = [:]
+    @ObservationIgnored private var pendingSourceBookmarks = Set<Data>()
+    @ObservationIgnored private var sourceBookmarksByJobID: [ImportJobID: Data] = [:]
 
     init(jobManager: any ImportJobManaging) {
         self.jobManager = jobManager
@@ -105,29 +105,29 @@ final class ImportJobCoordinator {
 
     func startImport(
         draft: ImportPreviewDraft,
-        sourceURL: URL
+        sourceBookmark: Data
     ) async -> ImportJobID? {
         guard let jobManager else {
             notice = .storageUnavailable
             return nil
         }
 
-        guard !sourceURLsByJobID.values.contains(sourceURL),
-              pendingSourceURLs.insert(sourceURL).inserted else {
+        guard !sourceBookmarksByJobID.values.contains(sourceBookmark),
+              pendingSourceBookmarks.insert(sourceBookmark).inserted else {
             notice = .couldNotStart
             return nil
         }
         defer {
-            pendingSourceURLs.remove(sourceURL)
+            pendingSourceBookmarks.remove(sourceBookmark)
         }
 
         do {
             let snapshot = try await jobManager.enqueue(
                 draft,
-                sourceURL: sourceURL,
+                sourceBookmark: sourceBookmark,
                 targetComicID: ManagedComicID()
             )
-            sourceURLsByJobID[snapshot.id] = sourceURL
+            sourceBookmarksByJobID[snapshot.id] = sourceBookmark
             upsert(snapshot)
             activeJobIDs.insert(snapshot.id)
             startObserving(snapshot.id)
@@ -356,7 +356,7 @@ final class ImportJobCoordinator {
         }
 
         if snapshot.state.isTerminal {
-            sourceURLsByJobID.removeValue(forKey: snapshot.id)
+            sourceBookmarksByJobID.removeValue(forKey: snapshot.id)
         }
     }
 }

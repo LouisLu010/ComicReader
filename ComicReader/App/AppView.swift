@@ -19,8 +19,9 @@ struct AppView: View {
             onCompletion: { result in
                 switch result {
                 case let .success(urls):
+                    let preparation = ImportSourcePreparer().prepare(urls)
                     Task { @MainActor in
-                        importCoordinator.handleSelectedURLs(urls)
+                        importCoordinator.handlePreparedSources(preparation)
                     }
                 case .failure:
                     Task { @MainActor in

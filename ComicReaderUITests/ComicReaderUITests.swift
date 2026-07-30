@@ -21,5 +21,9 @@ final class ComicReaderUITests: XCTestCase {
             app.buttons["import.toolbarButton"]
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["import.dropTarget"]
+                .waitForExistence(timeout: 5)
+        )
     }
 }
