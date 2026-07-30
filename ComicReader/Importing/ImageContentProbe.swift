@@ -138,8 +138,8 @@ struct ImageContentProbe {
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: 1,
-            kCGImageSourceShouldCache: false,
-            kCGImageSourceShouldCacheImmediately: false,
+            kCGImageSourceShouldCache: true,
+            kCGImageSourceShouldCacheImmediately: true,
         ] as CFDictionary
 
         guard CGImageSourceCreateThumbnailAtIndex(

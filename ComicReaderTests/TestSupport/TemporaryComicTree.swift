@@ -1,4 +1,7 @@
+import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 enum TestImageFormat: CaseIterable, Hashable {
     case jpeg
@@ -50,9 +53,20 @@ final class TemporaryComicTree {
         _ relativePath: String,
         format: TestImageFormat
     ) throws -> URL {
+        let data: Data
+
+        switch format {
+        case .heic:
+            data = try Self.encodedHEIC(asHEIF: false)
+        case .heif:
+            data = try Self.encodedHEIC(asHEIF: true)
+        default:
+            data = Self.imageDataByFormat[format]!
+        }
+
         try file(
             relativePath,
-            data: Self.imageDataByFormat[format]!
+            data: data
         )
     }
 
@@ -149,4 +163,58 @@ final class TemporaryComicTree {
     private static func decode(_ base64: String) -> Data {
         Data(base64Encoded: base64)!
     }
+
+    private static func encodedHEIC(asHEIF: Bool) throws -> Data {
+        guard let context = CGContext(
+            data: nil,
+            width: 2,
+            height: 3,
+            bitsPerComponent: 8,
+            bytesPerRow: 8,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw TemporaryComicTreeError.cannotCreateTestImage
+        }
+
+        context.setFillColor(
+            red: 1,
+            green: 0,
+            blue: 0,
+            alpha: 1
+        )
+        context.fill(CGRect(x: 0, y: 0, width: 2, height: 3))
+
+        guard let image = context.makeImage() else {
+            throw TemporaryComicTreeError.cannotCreateTestImage
+        }
+
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            UTType.heic.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw TemporaryComicTreeError.cannotCreateTestImage
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw TemporaryComicTreeError.cannotCreateTestImage
+        }
+
+        var data = output as Data
+        if asHEIF {
+            guard data.count >= 12 else {
+                throw TemporaryComicTreeError.cannotCreateTestImage
+            }
+            data.replaceSubrange(8..<12, with: Data("mif1".utf8))
+        }
+        return data
+    }
+}
+
+private enum TemporaryComicTreeError: Error {
+    case cannotCreateTestImage
 }

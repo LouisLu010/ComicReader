@@ -9,7 +9,10 @@ final class ComicReaderUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.otherElements["library.empty"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.empty"]
+                .waitForExistence(timeout: 5)
+        )
         XCTAssertTrue(app.buttons["import.button"].exists)
         XCTAssertTrue(app.buttons["import.toolbarButton"].exists)
     }
