@@ -7,6 +7,7 @@ struct LibraryView: View {
 
     @Environment(FolderImportCoordinator.self) private var importCoordinator
     @Environment(ImportJobCoordinator.self) private var importJobs
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
 
     @State private var presentedPreview: ImportPreviewDestination?
     @State private var presentedReport: ImportReportDestination?
@@ -38,6 +39,14 @@ struct LibraryView: View {
                     ImportSelectionBanner(kind: .selectionFailed)
                 }
 
+                if libraryCatalog.state == .loading,
+                   libraryCatalog.comics.isEmpty {
+                    LibraryCatalogLoadingView()
+                } else if libraryCatalog.state == .failed,
+                          libraryCatalog.comics.isEmpty {
+                    LibraryCatalogFailureView()
+                }
+
                 ImportFolderDropTarget(
                     onPreparedSources: { preparation in
                         importCoordinator.handlePreparedSources(preparation)
@@ -46,6 +55,18 @@ struct LibraryView: View {
                         isDropFailurePresented = true
                     }
                 )
+
+                if !displayedComics.isEmpty {
+                    LibraryComicGrid(
+                        title: section.title,
+                        comics: displayedComics,
+                        thumbnailURL: { comic in
+                            libraryCatalog.thumbnailURL(for: comic)
+                        }
+                    )
+                } else if showsEmptySection {
+                    LibrarySectionEmptyView(section: section)
+                }
 
                 if !importCoordinator.previewSessions.isEmpty {
                     ImportPreviewQueue(
@@ -91,6 +112,17 @@ struct LibraryView: View {
                 }
                 .accessibilityIdentifier("import.toolbarButton")
             }
+
+            ToolbarItem(placement: .secondaryAction) {
+                Button {
+                    Task {
+                        await libraryCatalog.reload()
+                    }
+                } label: {
+                    Label("library.reload", systemImage: "arrow.clockwise")
+                }
+                .accessibilityIdentifier("library.reload")
+            }
         }
         .sheet(item: $presentedPreview) { destination in
             ImportPreviewView(sessionID: destination.sessionID)
@@ -115,7 +147,8 @@ struct LibraryView: View {
     }
 
     private var showsEmptyLibrary: Bool {
-        guard importCoordinator.previewSessions.isEmpty,
+        guard libraryCatalog.comics.isEmpty,
+              importCoordinator.previewSessions.isEmpty,
               importJobs.jobs.isEmpty else {
             return false
         }
@@ -124,7 +157,26 @@ struct LibraryView: View {
             return false
         }
 
+        if libraryCatalog.state == .loading || libraryCatalog.state == .failed {
+            return false
+        }
+
         return true
+    }
+
+    private var displayedComics: [LibraryCatalogItem] {
+        switch section {
+        case .all, .unread:
+            libraryCatalog.comicsByTitle
+        case .recent:
+            libraryCatalog.comics
+        case .continueReading, .favorites, .shelves, .settings:
+            []
+        }
+    }
+
+    private var showsEmptySection: Bool {
+        !libraryCatalog.comics.isEmpty && displayedComics.isEmpty
     }
 
     private var emptyLibrary: some View {
@@ -177,6 +229,43 @@ struct LibraryView: View {
         case .couldNotContinue:
             "import.workflow.continueFailed.message"
         }
+    }
+}
+
+private struct LibraryCatalogLoadingView: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+            Text("library.loading")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("library.loading")
+    }
+}
+
+private struct LibraryCatalogFailureView: View {
+    var body: some View {
+        Label(
+            "library.loadFailed",
+            systemImage: "exclamationmark.triangle.fill"
+        )
+        .foregroundStyle(.orange)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibrarySectionEmptyView: View {
+    let section: LibrarySection
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(section.title, systemImage: section.systemImage)
+        } description: {
+            Text("library.section.empty.description")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 }
 
@@ -348,5 +437,6 @@ private struct ImportSelectionBanner: View {
         LibraryView(section: .all) {}
             .environment(FolderImportCoordinator())
             .environment(ImportJobCoordinator())
+            .environment(LibraryCatalogCoordinator())
     }
 }

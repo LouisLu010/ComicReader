@@ -9,7 +9,9 @@ struct AppView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            detail
+            NavigationStack {
+                detail
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .fileImporter(
@@ -83,4 +85,6 @@ struct AppView: View {
 #Preview {
     AppView(router: AppRouter())
         .environment(FolderImportCoordinator())
+        .environment(ImportJobCoordinator())
+        .environment(LibraryCatalogCoordinator())
 }

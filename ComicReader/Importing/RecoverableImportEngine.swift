@@ -921,6 +921,11 @@ actor RecoverableImportEngine {
             ManagedComicDescriptor(plan: plan, journal: journal),
             to: metadataURL.appendingPathComponent("import-descriptor.json")
         )
+        // The complete descriptor can recreate this display-only catalog record.
+        try? write(
+            LibraryCatalogRecord(plan: plan, journal: journal),
+            to: metadataURL.appendingPathComponent("library-catalog.json")
+        )
         try write(
             receipt,
             to: metadataURL.appendingPathComponent("commit-receipt.json")
@@ -965,36 +970,6 @@ private struct ImportCommitReceipt: Codable, Equatable {
     let jobID: ImportJobID
     let targetComicID: ManagedComicID
     let revision: ImportPreviewRevision
-}
-
-private struct ManagedComicDescriptor: Codable {
-    static let currentSchemaVersion = 1
-
-    let schemaVersion: Int
-    let jobID: ImportJobID
-    let targetComicID: ManagedComicID
-    let revision: ImportPreviewRevision
-    let sourceRootName: String
-    let displayName: String
-    let sortLocaleIdentifier: String
-    let collections: [ImportCollectionCandidate]
-    let chapters: [FrozenImportChapter]
-    let workItems: [FrozenImportWorkItem]
-    let coverPageID: ImportPageCandidate.ID
-
-    init(plan: FrozenImportPlan, journal: ImportJobJournal) {
-        schemaVersion = Self.currentSchemaVersion
-        jobID = plan.id
-        targetComicID = journal.targetComicID
-        revision = plan.revision
-        sourceRootName = plan.sourceRootName
-        displayName = plan.displayName
-        sortLocaleIdentifier = plan.sortLocaleIdentifier
-        collections = plan.collections
-        chapters = plan.chapters
-        workItems = plan.workItems
-        coverPageID = plan.coverPageID
-    }
 }
 
 private extension FrozenImportPlan {

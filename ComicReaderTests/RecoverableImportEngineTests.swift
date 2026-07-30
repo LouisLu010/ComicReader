@@ -68,6 +68,30 @@ final class RecoverableImportEngineTests: XCTestCase {
 
         XCTAssertFalse(descriptor.contains("sourceBookmark"))
         XCTAssertFalse(descriptor.contains(sandbox.sourceDirectoryURL.path))
+        let catalogRecordURL = layout.libraryCatalogURL(for: targetComicID)
+        let catalogRecord = try XCTUnwrap(
+            String(
+                data: Data(contentsOf: catalogRecordURL),
+                encoding: .utf8
+            )
+        )
+        XCTAssertFalse(catalogRecord.contains("sourceBookmark"))
+        XCTAssertFalse(catalogRecord.contains(sandbox.sourceDirectoryURL.path))
+        XCTAssertEqual(
+            try JSONDecoder().decode(
+                LibraryCatalogRecord.self,
+                from: Data(contentsOf: catalogRecordURL)
+            ).id,
+            targetComicID
+        )
+        try FileManager.default.removeItem(at: catalogRecordURL)
+        let rebuiltCatalog = try await FileSystemLibraryCatalogLoader(
+            layout: layout
+        ).loadCatalog()
+        XCTAssertEqual(rebuiltCatalog.comics.map(\.id), [targetComicID])
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: catalogRecordURL.path)
+        )
         XCTAssertFalse(
             FileManager.default.fileExists(
                 atPath: layout.creatingJobDirectory(for: queued.id).path

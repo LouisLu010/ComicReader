@@ -240,6 +240,12 @@ final class ImportJobCoordinator {
         }
     }
 
+    var completedJobIDs: [ImportJobID] {
+        jobs.compactMap { snapshot in
+            snapshot.state.phase == .completed ? snapshot.id : nil
+        }
+    }
+
     func job(for jobID: ImportJobID) -> ImportJobSnapshot? {
         jobs.first { $0.id == jobID }
     }

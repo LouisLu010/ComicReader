@@ -695,6 +695,96 @@
         }
       }
     },
+    "library.detail.chapters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Chapters" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "话数" } }
+      }
+    },
+    "library.detail.contents" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Contents" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录结构" } }
+      }
+    },
+    "library.detail.contents.empty.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No recognized chapters are available in this import." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此导入中没有可用的已识别章节。" } }
+      }
+    },
+    "library.detail.contents.empty.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Contents Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录不可用" } }
+      }
+    },
+    "library.detail.metadata" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Details" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入信息" } }
+      }
+    },
+    "library.detail.pageCount" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 页" } }
+      }
+    },
+    "library.detail.pages" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "页数" } }
+      }
+    },
+    "library.detail.summary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld chapters · %2$lld pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld 话 · %2$lld 页" } }
+      }
+    },
+    "library.detail.thumbnail" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cover thumbnail" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "封面缩略图" } }
+      }
+    },
+    "library.detail.thumbnail.available" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已生成" } }
+      }
+    },
+    "library.detail.thumbnail.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不可用" } }
+      }
+    },
+    "library.grid.summary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld chapters · %2$lld pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld 话 · %2$lld 页" } }
+      }
+    },
+    "library.loadFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "ComicReader could not load the local library right now." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "漫画阅读器暂时无法加载本地书库。" } }
+      }
+    },
+    "library.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading library…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载书库…" } }
+      }
+    },
+    "library.reload" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reload Library" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新加载书库" } }
+      }
+    },
     "library.section.all" : {
       "localizations" : {
         "en" : {
@@ -725,6 +815,12 @@
             "value" : "继续阅读"
           }
         }
+      }
+    },
+    "library.section.empty.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No comics match this section yet." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此分类中暂时没有匹配的漫画。" } }
       }
     },
     "library.section.favorites" : {
