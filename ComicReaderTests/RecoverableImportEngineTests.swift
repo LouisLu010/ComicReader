@@ -293,6 +293,7 @@ final class RecoverableImportEngineTests: XCTestCase {
     func testThumbnailFailureKeepsPublishedOriginalsAndCompletes() async throws {
         let sandbox = try TemporaryImportSandbox(sourceName: "Thumbnail Failure")
         let coverURL = try sandbox.sourceTree.png("cover.png")
+        try sandbox.sourceTree.png("Chapter/01.png")
         let sourceSnapshot = try sandbox.sourceSnapshot()
         let manifest = try await scan(sandbox)
         let layout = ImportStorageLayout(rootURL: sandbox.appManagedRootURL)
