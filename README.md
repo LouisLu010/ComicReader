@@ -30,8 +30,11 @@ ComicReader 是一款面向 iPad 的免费、本地优先漫画阅读器。目�
 
 | 里程碑 | 目标 | 当前状态 |
 |---|---|---|
-| M0 | 仓库、Xcode 工程、测试与 CI 基线 | 开发中 |
-| M1 | 文件夹识别、可恢复导入、基础书库与 3 种阅读模式 | 待开始 |
+| M0 | 仓库、Xcode 工程、测试与 CI 基线 | 已完成 |
+| M1.1 | 领域模型、目录识别、格式探测与导入清单 | 已完成 |
+| M1.2 | 导入预览与可恢复复制 | 待开始 |
+| M1.3 | 基础书库 | 待开始 |
+| M1.4 | 3 种阅读模式 | 待开始 |
 | M2 | 增量更新、完整本地管理与完整 iPad 体验 | 待开始 |
 | M3 | iCloud 元数据同步、性能硬化与公开发布工程 | 待开始 |
 
@@ -57,11 +60,13 @@ open ComicReader.xcodeproj
 
 ## GitHub Actions 构建
 
-计划中的 CI 行为如下：
+当前 CI 行为如下：
 
 - Pull Request：编译、测试和静态检查，不保留 IPA；
 - `main`：生成短期的未签名 IPA、dSYM 和构建信息 Artifact；
 - `v*` Tag：生成版本化未签名产物并附加到 GitHub Release。
+
+可在 [GitHub Actions](https://github.com/LouisLu010/ComicReader/actions) 下载最近一次 `main` 构建产物。短期 Artifact 默认保留 7 天。
 
 仓库与 CI 不存放证书、私钥、Provisioning Profile 或签名密码，也不负责安装。未签名 IPA 需由使用者在仓库之外自行签名。
 
