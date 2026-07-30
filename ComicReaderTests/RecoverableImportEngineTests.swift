@@ -75,6 +75,27 @@ final class RecoverableImportEngineTests: XCTestCase {
         )
     }
 
+    func testStoredJobSnapshotsExposeQueuedJobsBeforeRecoveryRuns() async throws {
+        let sandbox = try TemporaryImportSandbox(sourceName: "Stored Jobs")
+        try sandbox.sourceTree.png("Chapter/01.png")
+        let manifest = try await scan(sandbox)
+        let layout = ImportStorageLayout(rootURL: sandbox.appManagedRootURL)
+        let engine = RecoverableImportEngine(
+            layout: layout,
+            sourceAccess: TestSourceAccess(rootURL: sandbox.sourceDirectoryURL),
+            capacityProvider: FixedCapacityProvider(value: .max),
+            thumbnailGenerator: TestThumbnailGenerator()
+        )
+
+        let queued = try await engine.enqueue(
+            ImportPreviewDraft(manifest: manifest),
+            sourceURL: sandbox.sourceDirectoryURL
+        )
+        let snapshots = try await engine.storedJobSnapshots()
+
+        XCTAssertEqual(snapshots, [queued])
+    }
+
     func testInsufficientSpacePausesBeforeCopyWithoutChangingSource() async throws {
         let sandbox = try TemporaryImportSandbox(sourceName: "No Space")
         try sandbox.sourceTree.png("Chapter/01.png")
@@ -404,7 +425,7 @@ final class RecoverableImportEngineTests: XCTestCase {
             capacityProvider: FixedCapacityProvider(value: .max),
             thumbnailGenerator: TestThumbnailGenerator()
         )
-        let restored = await resumedEngine.restorePendingJobs()
+        let restored = try await resumedEngine.restorePendingJobs()
 
         XCTAssertEqual(restored.map(\.state.phase), [.paused])
         XCTAssertEqual(restored.first?.state.pause?.code, .userCancelled)
@@ -471,7 +492,7 @@ final class RecoverableImportEngineTests: XCTestCase {
             capacityProvider: FixedCapacityProvider(value: .max),
             thumbnailGenerator: TestThumbnailGenerator()
         )
-        let restored = await restoredEngine.restorePendingJobs()
+        let restored = try await restoredEngine.restorePendingJobs()
         let completed = try await restoredEngine.snapshot(for: queued.id)
 
         XCTAssertEqual(restored.map(\.state.phase), [.completed])
@@ -594,7 +615,7 @@ final class RecoverableImportEngineTests: XCTestCase {
             capacityProvider: FixedCapacityProvider(value: .max),
             thumbnailGenerator: TestThumbnailGenerator()
         )
-        let restored = await restoredEngine.restorePendingJobs()
+        let restored = try await restoredEngine.restorePendingJobs()
 
         XCTAssertEqual(restored.map(\.state.phase), [.completed])
         XCTAssertEqual(
@@ -656,7 +677,7 @@ final class RecoverableImportEngineTests: XCTestCase {
             capacityProvider: FixedCapacityProvider(value: .max),
             thumbnailGenerator: TestThumbnailGenerator()
         )
-        let restored = await restoredEngine.restorePendingJobs()
+        let restored = try await restoredEngine.restorePendingJobs()
 
         XCTAssertEqual(restored.map(\.state.phase), [.completed])
         XCTAssertEqual(

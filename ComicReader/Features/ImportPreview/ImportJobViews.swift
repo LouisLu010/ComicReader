@@ -81,7 +81,7 @@ private struct ImportJobRow: View {
                         .buttonStyle(.bordered)
                 }
 
-                if snapshot.state.phase == .paused && !isActive {
+                if canResume && !isActive {
                     Button("import.jobs.resume", action: onResume)
                         .buttonStyle(.borderedProminent)
                 }
@@ -114,8 +114,20 @@ private struct ImportJobRow: View {
         switch snapshot.state.phase {
         case .queued, .checkingSpace, .copying, .verifying:
             true
-        case .paused, .commitPrepared, .committing, .generatingThumbnail,
-                .completed, .failed:
+        case .paused:
+            isActive
+        case .commitPrepared, .committing, .generatingThumbnail, .completed,
+                .failed:
+            false
+        }
+    }
+
+    private var canResume: Bool {
+        switch snapshot.state.phase {
+        case .paused, .queued:
+            true
+        case .checkingSpace, .copying, .verifying, .commitPrepared, .committing,
+                .generatingThumbnail, .completed, .failed:
             false
         }
     }
@@ -123,56 +135,52 @@ private struct ImportJobRow: View {
     private var phaseSymbol: String {
         switch snapshot.state.phase {
         case .queued, .checkingSpace, .copying, .verifying:
-            "arrow.down.circle"
+            return "arrow.down.circle"
         case .paused:
-            "pause.circle"
+            return "pause.circle"
         case .commitPrepared, .committing, .generatingThumbnail:
-            "checkmark.seal"
+            return "checkmark.seal"
         case .completed:
-            "checkmark.circle.fill"
+            return "checkmark.circle.fill"
         case .failed:
-            "xmark.octagon.fill"
+            return "xmark.octagon.fill"
         }
     }
 
     private var phaseColor: Color {
         switch snapshot.state.phase {
         case .paused:
-            .orange
+            return .orange
         case .failed:
-            .red
+            return .red
         case .completed:
-            .green
+            return .green
         case .queued, .checkingSpace, .copying, .verifying, .commitPrepared,
                 .committing, .generatingThumbnail:
-            .accentColor
+            return .accentColor
         }
     }
 
     private var phaseLocalizationKey: LocalizedStringKey {
-        if isActive, !snapshot.state.isTerminal {
-            return "import.jobs.copying"
-        }
-
         switch snapshot.state.phase {
         case .queued:
-            "import.jobs.queued"
+            return "import.jobs.queued"
         case .checkingSpace:
-            "import.jobs.checkingSpace"
+            return "import.jobs.checkingSpace"
         case .copying:
-            "import.jobs.copying"
+            return "import.jobs.copying"
         case .verifying:
-            "import.jobs.verifying"
+            return "import.jobs.verifying"
         case .paused:
-            "import.jobs.paused"
+            return "import.jobs.paused"
         case .commitPrepared, .committing:
-            "import.jobs.committing"
+            return "import.jobs.committing"
         case .generatingThumbnail:
-            "import.jobs.generatingThumbnail"
+            return "import.jobs.generatingThumbnail"
         case .completed:
-            "import.jobs.completed"
+            return "import.jobs.completed"
         case .failed:
-            "import.jobs.failed"
+            return "import.jobs.failed"
         }
     }
 }

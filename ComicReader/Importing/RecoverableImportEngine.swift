@@ -204,10 +204,16 @@ actor RecoverableImportEngine {
         return try await run(jobID)
     }
 
-    func restorePendingJobs() async -> [ImportJobSnapshot] {
-        guard let jobIDs = try? store.jobIDs() else {
-            return []
+    func storedJobSnapshots() throws -> [ImportJobSnapshot] {
+        let jobIDs = try store.jobIDs()
+
+        return jobIDs.compactMap { jobID in
+            try? snapshot(for: jobID)
         }
+    }
+
+    func restorePendingJobs() async throws -> [ImportJobSnapshot] {
+        let jobIDs = try store.jobIDs()
 
         var snapshots: [ImportJobSnapshot] = []
 

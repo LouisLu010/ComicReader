@@ -403,6 +403,10 @@ struct ImportPreviewView: View {
     }
 
     private func startImport() async {
+        guard !isStartingImport else {
+            return
+        }
+
         guard let session = currentSession else {
             return
         }
