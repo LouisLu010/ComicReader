@@ -40,6 +40,7 @@ struct ImageContentProbe {
             return result(
                 from: source,
                 mediaType: mediaType,
+                fileURL: fileURL,
                 fileName: fileName,
                 sourceRelativePath: sourceRelativePath,
                 byteCount: byteCount,
@@ -93,6 +94,7 @@ struct ImageContentProbe {
     private func result(
         from source: CGImageSource,
         mediaType: ImportImageMediaType,
+        fileURL: URL,
         fileName: String,
         sourceRelativePath: SourceRelativePath,
         byteCount: Int64,
@@ -134,10 +136,27 @@ struct ImageContentProbe {
             )
         }
 
+        guard isStructurallyComplete(
+            fileURL: fileURL,
+            mediaType: mediaType,
+            byteCount: byteCount
+        ) else {
+            return unreadablePage(
+                mediaType: mediaType,
+                fileName: fileName,
+                sourceRelativePath: sourceRelativePath,
+                byteCount: byteCount
+            )
+        }
+
+        let maxPixelSize = validationThumbnailMaxPixelSize(
+            width: width,
+            height: height
+        )
         let validationOptions = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 1,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
             kCGImageSourceShouldCache: true,
             kCGImageSourceShouldCacheImmediately: true,
         ] as CFDictionary
@@ -173,6 +192,48 @@ struct ImageContentProbe {
         )
 
         return .page(page, issue: nil)
+    }
+
+    private func validationThumbnailMaxPixelSize(
+        width: Int,
+        height: Int
+    ) -> Int {
+        let minimumDimension = min(width, height)
+        let maximumDimension = max(width, height)
+        let aspectRatioCeiling = maximumDimension / minimumDimension
+            + (maximumDimension % minimumDimension == 0 ? 0 : 1)
+
+        return min(
+            maximumDimension,
+            max(64, aspectRatioCeiling)
+        )
+    }
+
+    private func isStructurallyComplete(
+        fileURL: URL,
+        mediaType: ImportImageMediaType,
+        byteCount: Int64
+    ) -> Bool {
+        guard mediaType == .jpeg else {
+            return true
+        }
+
+        guard byteCount >= 2 else {
+            return false
+        }
+
+        do {
+            let handle = try FileHandle(forReadingFrom: fileURL)
+            defer { try? handle.close() }
+
+            try handle.seek(
+                toOffset: UInt64(byteCount - 2)
+            )
+            let marker = try handle.read(upToCount: 2) ?? Data()
+            return marker == Data([0xFF, 0xD9])
+        } catch {
+            return false
+        }
     }
 
     private func unreadablePage(
