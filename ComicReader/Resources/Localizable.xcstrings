@@ -17,6 +17,38 @@
         }
       }
     },
+    "common.close" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
+    "common.ok" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
+      }
+    },
     "import.action" : {
       "localizations" : {
         "en" : {
@@ -31,6 +63,96 @@
             "value" : "导入文件夹"
           }
         }
+      }
+    },
+    "import.jobs.cancel" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止" } }
+      }
+    },
+    "import.jobs.checkingSpace" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Checking available space" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查可用空间" } }
+      }
+    },
+    "import.jobs.committing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Finishing import" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在完成导入" } }
+      }
+    },
+    "import.jobs.completed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Imported" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已导入" } }
+      }
+    },
+    "import.jobs.copying" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copying original files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在复制原图" } }
+      }
+    },
+    "import.jobs.failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import could not finish" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入未能完成" } }
+      }
+    },
+    "import.jobs.generatingThumbnail" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Creating cover thumbnail" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在生成封面缩略图" } }
+      }
+    },
+    "import.jobs.paused" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Needs attention before continuing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要处理后才能继续" } }
+      }
+    },
+    "import.jobs.progress" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld of %2$lld pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$lld / %2$lld 页" } }
+      }
+    },
+    "import.jobs.queued" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Waiting to import" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待导入" } }
+      }
+    },
+    "import.jobs.report" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Report" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "报告" } }
+      }
+    },
+    "import.jobs.restoring" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restoring unfinished imports" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在恢复未完成的导入" } }
+      }
+    },
+    "import.jobs.resume" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Resume" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } }
+      }
+    },
+    "import.jobs.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Tasks" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入任务" } }
+      }
+    },
+    "import.jobs.verifying" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Verifying copied files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在校验已复制的文件" } }
       }
     },
     "import.failed.description" : {
@@ -65,6 +187,12 @@
         }
       }
     },
+    "import.preview.chapterName" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Chapter name" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "章节名称" } }
+      }
+    },
     "import.preview.chapterPages" : {
       "localizations" : {
         "en" : {
@@ -79,6 +207,24 @@
             "value" : "%lld 页"
           }
         }
+      }
+    },
+    "import.preview.copyEstimate" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Space needed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所需空间" } }
+      }
+    },
+    "import.preview.coverSelected" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected cover" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前封面" } }
+      }
+    },
+    "import.preview.coverSection" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Standalone cover pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "独立封面页" } }
       }
     },
     "import.preview.cover" : {
@@ -113,6 +259,60 @@
         }
       }
     },
+    "import.preview.displayName" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Display name" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示名称" } }
+      }
+    },
+    "import.preview.editError" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep a name for this item before importing." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请为该项目保留一个名称后再导入。" } }
+      }
+    },
+    "import.preview.failedScans.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld folder(s) could not be recognized. Other folders are still ready to review." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个文件夹无法识别，其他文件夹仍可继续预览。" } }
+      }
+    },
+    "import.preview.files" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Files to copy" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待复制文件" } }
+      }
+    },
+    "import.preview.includeChapter" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Include this chapter" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入这一话" } }
+      }
+    },
+    "import.preview.issues" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recognition warnings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "识别警告" } }
+      }
+    },
+    "import.preview.moveDown" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move down" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下移" } }
+      }
+    },
+    "import.preview.moveUp" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move up" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上移" } }
+      }
+    },
+    "import.preview.noReadableContent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose at least one chapter with a readable page." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请至少选择一话包含可读图片的章节。" } }
+      }
+    },
     "import.preview.noCover" : {
       "localizations" : {
         "en" : {
@@ -127,6 +327,60 @@
             "value" : "未找到"
           }
         }
+      }
+    },
+    "import.preview.readablePages" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Readable chapter pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可读章节页" } }
+      }
+    },
+    "import.preview.ready.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Review the detected structure, cover, included chapters, and copy space before any file is copied." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在复制任何文件前，确认识别结构、封面、章节选择和所需空间。" } }
+      }
+    },
+    "import.preview.ready.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready to Review" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待确认的导入" } }
+      }
+    },
+    "import.preview.review" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Review import" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看预览" } }
+      }
+    },
+    "import.preview.root" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Top-level pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "根目录页面" } }
+      }
+    },
+    "import.preview.setCover" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use as cover" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设为封面" } }
+      }
+    },
+    "import.preview.start" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Import" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始导入" } }
+      }
+    },
+    "import.preview.startError" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import was not started. Review the selection and try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入没有开始，请检查选择后重试。" } }
+      }
+    },
+    "import.preview.summarySection" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Summary" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入摘要" } }
       }
     },
     "import.preview.space" : {
@@ -161,6 +415,18 @@
         }
       }
     },
+    "import.preview.unavailable.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This preview is no longer available. No files were copied." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "该预览已不可用，尚未复制任何文件。" } }
+      }
+    },
+    "import.preview.unavailable.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预览不可用" } }
+      }
+    },
     "import.preview.title" : {
       "localizations" : {
         "en" : {
@@ -175,6 +441,84 @@
             "value" : "识别预览"
           }
         }
+      }
+    },
+    "import.report.copyFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A source file could not be copied." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有来源文件无法复制。" } }
+      }
+    },
+    "import.report.runtimeIssues" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import warnings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入警告" } }
+      }
+    },
+    "import.report.scanIssues" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recognition warnings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "识别警告" } }
+      }
+    },
+    "import.report.summary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Summary" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "摘要" } }
+      }
+    },
+    "import.report.thumbnail" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cover thumbnail" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "封面缩略图" } }
+      }
+    },
+    "import.report.thumbnailFailed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The cover thumbnail was not created. Original files are available." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能生成封面缩略图，原图文件仍可使用。" } }
+      }
+    },
+    "import.report.thumbnailGenerated" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Created" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已生成" } }
+      }
+    },
+    "import.report.thumbnailNotStarted" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not requested" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未开始" } }
+      }
+    },
+    "import.report.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Report" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入报告" } }
+      }
+    },
+    "import.report.unavailable.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A report is available after this import finishes." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入完成后即可查看报告。" } }
+      }
+    },
+    "import.report.unavailable.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Report Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "报告不可用" } }
+      }
+    },
+    "import.report.verifiedChapters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Verified chapters" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已校验章节" } }
+      }
+    },
+    "import.report.verifiedPages" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Verified pages" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已校验页面" } }
       }
     },
     "import.scanning.count" : {
@@ -239,6 +583,36 @@
             "value" : "已选择文件夹"
           }
         }
+      }
+    },
+    "import.workflow.continueFailed.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The import task could not continue. Its copied files are kept for recovery." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入任务无法继续，已复制的文件会保留以便恢复。" } }
+      }
+    },
+    "import.workflow.operationFailed.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Needs Attention" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入需要处理" } }
+      }
+    },
+    "import.workflow.startFailed.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The import was not started. No source files were changed." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入没有开始，来源文件未发生变化。" } }
+      }
+    },
+    "import.workflow.storageUnavailable.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "ComicReader cannot prepare its local import storage right now." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "漫画阅读器暂时无法准备本地导入存储。" } }
+      }
+    },
+    "import.workflow.storageUnavailable.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Storage Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入存储不可用" } }
       }
     },
     "library.empty.description" : {

@@ -67,9 +67,11 @@ struct AppView: View {
 
     private var importerBinding: Binding<Bool> {
         Binding(
-            get: { router.presentedImporter != nil },
+            get: { router.presentedImporter == .folders },
             set: { isPresented in
-                if !isPresented {
+                if isPresented {
+                    router.presentedImporter = .folders
+                } else {
                     router.presentedImporter = nil
                 }
             }
