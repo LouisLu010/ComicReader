@@ -13,7 +13,13 @@ final class ComicReaderUITests: XCTestCase {
             app.descendants(matching: .any)["library.empty"]
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(app.buttons["import.button"].exists)
-        XCTAssertTrue(app.buttons["import.toolbarButton"].exists)
+        XCTAssertTrue(
+            app.buttons["import.button"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.buttons["import.toolbarButton"]
+                .waitForExistence(timeout: 5)
+        )
     }
 }

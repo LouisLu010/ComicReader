@@ -43,6 +43,7 @@ struct LibraryView: View {
     private var emptyLibrary: some View {
         ContentUnavailableView {
             Label(section.title, systemImage: section.systemImage)
+                .accessibilityIdentifier("library.empty")
         } description: {
             Text("library.empty.description")
         } actions: {
@@ -52,7 +53,6 @@ struct LibraryView: View {
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("import.button")
         }
-        .accessibilityIdentifier("library.empty")
     }
 }
 
