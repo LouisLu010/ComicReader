@@ -31,6 +31,18 @@ final class FolderImportCoordinatorTests: XCTestCase {
             coordinator.status,
             .preview(manifests: [manifest, manifest])
         )
+        XCTAssertEqual(
+            coordinator.previewSessions.map(\.sourceURL),
+            [
+                URL(fileURLWithPath: "/tmp/chapter2"),
+                URL(fileURLWithPath: "/tmp/chapter10"),
+            ]
+        )
+        XCTAssertEqual(
+            coordinator.previewSessions.map(\.draft.manifest),
+            [manifest, manifest]
+        )
+        XCTAssertEqual(coordinator.failedFolderNames, [])
     }
 
     func testEmptySelectionFailsGracefully() {
@@ -41,23 +53,36 @@ final class FolderImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.status, .failed)
     }
 
-    func testPickerFailureFailsGracefully() {
-        let coordinator = FolderImportCoordinator()
+    func testPickerFailureFailsGracefully() async {
+        let scanner = RecordingImportScanner(outcome: .success(Self.manifest()))
+        let coordinator = FolderImportCoordinator(scanner: scanner)
+        coordinator.handleSelectedURLs(
+            [URL(fileURLWithPath: "/tmp/comic")]
+        )
+        await waitForScanToFinish(coordinator)
+        XCTAssertFalse(coordinator.previewSessions.isEmpty)
 
         coordinator.handleSelectionFailure()
 
         XCTAssertEqual(coordinator.status, .failed)
+        XCTAssertEqual(coordinator.previewSessions, [])
+        XCTAssertEqual(coordinator.failedFolderNames, [])
     }
 
-    func testResetClearsPreviousSelection() {
-        let coordinator = FolderImportCoordinator()
+    func testResetClearsPreviousSelection() async {
+        let scanner = RecordingImportScanner(outcome: .success(Self.manifest()))
+        let coordinator = FolderImportCoordinator(scanner: scanner)
         coordinator.handleSelectedURLs(
             [URL(fileURLWithPath: "/tmp/comic")]
         )
+        await waitForScanToFinish(coordinator)
+        XCTAssertFalse(coordinator.previewSessions.isEmpty)
 
         coordinator.reset()
 
         XCTAssertEqual(coordinator.status, .idle)
+        XCTAssertEqual(coordinator.previewSessions, [])
+        XCTAssertEqual(coordinator.failedFolderNames, [])
     }
 
     func testScannerFailureDoesNotExposeUnderlyingError() async {
@@ -70,6 +95,130 @@ final class FolderImportCoordinatorTests: XCTestCase {
         await waitForScanToFinish(coordinator)
 
         XCTAssertEqual(coordinator.status, .failed)
+        XCTAssertEqual(coordinator.previewSessions, [])
+        XCTAssertEqual(coordinator.failedFolderNames, ["comic"])
+    }
+
+    func testBatchSelectionKeepsSuccessfulSessionsWhenAnotherFolderFails() async {
+        let successfulManifest = Self.manifest(sourceRootName: "chapter2")
+        let scanner = SelectiveImportScanner(
+            manifests: ["chapter2": successfulManifest],
+            failedRootNames: ["chapter10"]
+        )
+        let coordinator = FolderImportCoordinator(scanner: scanner)
+        let urls = [
+            URL(fileURLWithPath: "/tmp/chapter10"),
+            URL(fileURLWithPath: "/tmp/chapter2"),
+        ]
+
+        coordinator.handleSelectedURLs(urls)
+        await waitForScanToFinish(coordinator)
+        let requestedRootNames = await scanner.requestedRootNames()
+
+        XCTAssertEqual(
+            requestedRootNames,
+            ["chapter2", "chapter10"]
+        )
+        XCTAssertEqual(
+            coordinator.status,
+            .preview(manifests: [successfulManifest])
+        )
+        XCTAssertEqual(
+            coordinator.previewSessions.map(\.sourceURL),
+            [URL(fileURLWithPath: "/tmp/chapter2")]
+        )
+        XCTAssertEqual(
+            coordinator.previewSessions.first?.draft.manifest,
+            successfulManifest
+        )
+        XCTAssertEqual(coordinator.failedFolderNames, ["chapter10"])
+
+        let removed = coordinator.removePreviewSession(
+            withID: URL(fileURLWithPath: "/tmp/chapter2")
+        )
+
+        XCTAssertEqual(removed?.sourceURL, URL(fileURLWithPath: "/tmp/chapter2"))
+        XCTAssertEqual(coordinator.status, .failed)
+        XCTAssertEqual(coordinator.previewSessions, [])
+        XCTAssertEqual(coordinator.failedFolderNames, ["chapter10"])
+    }
+
+    func testPreviewDraftUpdatesPersistForTheMatchingSession() async throws {
+        let manifest = Self.manifest()
+        let scanner = RecordingImportScanner(outcome: .success(manifest))
+        let coordinator = FolderImportCoordinator(scanner: scanner)
+        let sourceURL = URL(fileURLWithPath: "/tmp/comic")
+
+        coordinator.handleSelectedURLs([sourceURL])
+        await waitForScanToFinish(coordinator)
+        let session = try XCTUnwrap(coordinator.previewSessions.first)
+
+        try coordinator.updatePreviewDraft(for: session.id) { draft in
+            try draft.setDisplayName("Renamed Comic")
+        }
+
+        let updatedSession = try XCTUnwrap(coordinator.previewSessions.first)
+        XCTAssertEqual(updatedSession.sourceURL, sourceURL)
+        XCTAssertEqual(updatedSession.manifest, manifest)
+        XCTAssertEqual(updatedSession.draft.displayName, "Renamed Comic")
+        XCTAssertEqual(
+            coordinator.status,
+            .preview(manifests: [manifest])
+        )
+    }
+
+    func testPreviewDraftUpdateFailureLeavesStoredSessionUnchanged() async throws {
+        let manifest = Self.manifest()
+        let scanner = RecordingImportScanner(outcome: .success(manifest))
+        let coordinator = FolderImportCoordinator(scanner: scanner)
+        let sourceURL = URL(fileURLWithPath: "/tmp/comic")
+
+        coordinator.handleSelectedURLs([sourceURL])
+        await waitForScanToFinish(coordinator)
+        let session = try XCTUnwrap(coordinator.previewSessions.first)
+
+        XCTAssertThrowsError(
+            try coordinator.updatePreviewDraft(for: session.id) { draft in
+                try draft.setDisplayName("Temporary Name")
+                throw RecordingImportScannerError.failed
+            }
+        ) { error in
+            XCTAssertEqual(error as? RecordingImportScannerError, .failed)
+        }
+
+        XCTAssertEqual(coordinator.previewSessions, [session])
+    }
+
+    func testPreviewDraftUpdateRejectsAnUnknownSession() {
+        let coordinator = FolderImportCoordinator()
+        let unknownID = URL(fileURLWithPath: "/tmp/missing")
+
+        XCTAssertThrowsError(
+            try coordinator.updatePreviewDraft(for: unknownID) { _ in }
+        ) { error in
+            XCTAssertEqual(
+                error as? FolderImportCoordinatorError,
+                .unknownPreviewSession
+            )
+        }
+        XCTAssertNil(coordinator.removePreviewSession(withID: unknownID))
+    }
+
+    func testRemovingTheLastConfirmedSessionReturnsToIdle() async throws {
+        let scanner = RecordingImportScanner(outcome: .success(Self.manifest()))
+        let coordinator = FolderImportCoordinator(scanner: scanner)
+        let sourceURL = URL(fileURLWithPath: "/tmp/comic")
+
+        coordinator.handleSelectedURLs([sourceURL])
+        await waitForScanToFinish(coordinator)
+        let session = try XCTUnwrap(coordinator.previewSessions.first)
+
+        let removed = coordinator.removePreviewSession(withID: session.id)
+
+        XCTAssertEqual(removed, session)
+        XCTAssertEqual(coordinator.status, .idle)
+        XCTAssertEqual(coordinator.previewSessions, [])
+        XCTAssertEqual(coordinator.failedFolderNames, [])
     }
 
     private func waitForScanToFinish(
@@ -92,9 +241,11 @@ final class FolderImportCoordinatorTests: XCTestCase {
         )
     }
 
-    private static func manifest() -> ImportManifest {
+    private static func manifest(
+        sourceRootName: String = "Stub Comic"
+    ) -> ImportManifest {
         ImportManifest(
-            sourceRootName: "Stub Comic",
+            sourceRootName: sourceRootName,
             sortLocaleIdentifier: "en_US_POSIX",
             collections: [],
             chapters: [],
@@ -135,6 +286,39 @@ private actor RecordingImportScanner: ImportScanning {
     }
 }
 
-private enum RecordingImportScannerError: Error, Sendable {
+private enum RecordingImportScannerError: Error, Equatable, Sendable {
     case failed
+}
+
+private actor SelectiveImportScanner: ImportScanning {
+    private let manifests: [String: ImportManifest]
+    private let failedRootNames: Set<String>
+    private var rootNames: [String] = []
+
+    init(
+        manifests: [String: ImportManifest],
+        failedRootNames: Set<String>
+    ) {
+        self.manifests = manifests
+        self.failedRootNames = failedRootNames
+    }
+
+    func scan(_ request: ImportScanRequest) async throws -> ImportManifest {
+        let rootName = request.rootURL.lastPathComponent
+        rootNames.append(rootName)
+
+        if failedRootNames.contains(rootName) {
+            throw RecordingImportScannerError.failed
+        }
+
+        guard let manifest = manifests[rootName] else {
+            throw RecordingImportScannerError.failed
+        }
+
+        return manifest
+    }
+
+    func requestedRootNames() -> [String] {
+        rootNames
+    }
 }

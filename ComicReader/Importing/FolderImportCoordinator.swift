@@ -1,6 +1,34 @@
 import Foundation
 import Observation
 
+struct ImportPreviewSession: Equatable, Identifiable, Sendable {
+    let sourceURL: URL
+    private(set) var draft: ImportPreviewDraft
+
+    var id: URL {
+        sourceURL
+    }
+
+    var manifest: ImportManifest {
+        draft.manifest
+    }
+
+    init(sourceURL: URL, manifest: ImportManifest) {
+        self.sourceURL = sourceURL
+        draft = ImportPreviewDraft(manifest: manifest)
+    }
+
+    mutating func updateDraft(
+        _ update: (inout ImportPreviewDraft) throws -> Void
+    ) rethrows {
+        try update(&draft)
+    }
+}
+
+enum FolderImportCoordinatorError: Error, Equatable, Sendable {
+    case unknownPreviewSession
+}
+
 enum FolderImportStatus: Equatable {
     case idle
     case scanning(folderNames: [String])
@@ -12,6 +40,8 @@ enum FolderImportStatus: Equatable {
 @Observable
 final class FolderImportCoordinator {
     private(set) var status: FolderImportStatus = .idle
+    private(set) var previewSessions: [ImportPreviewSession] = []
+    private(set) var failedFolderNames: [String] = []
 
     private let scanner: any ImportScanning
     @ObservationIgnored private var scanTask: Task<Void, Never>?
@@ -24,6 +54,7 @@ final class FolderImportCoordinator {
     func handleSelectedURLs(_ urls: [URL]) {
         scanTask?.cancel()
         scanGeneration += 1
+        clearPreviewResults()
 
         let sortedURLs = urls
             .filter { !$0.lastPathComponent.isEmpty }
@@ -50,6 +81,7 @@ final class FolderImportCoordinator {
         scanTask?.cancel()
         scanTask = nil
         scanGeneration += 1
+        clearPreviewResults()
         status = .failed
     }
 
@@ -57,42 +89,93 @@ final class FolderImportCoordinator {
         scanTask?.cancel()
         scanTask = nil
         scanGeneration += 1
+        clearPreviewResults()
         status = .idle
+    }
+
+    func updatePreviewDraft(
+        for sessionID: ImportPreviewSession.ID,
+        _ update: (inout ImportPreviewDraft) throws -> Void
+    ) throws {
+        guard let index = previewSessions.firstIndex(where: {
+            $0.id == sessionID
+        }) else {
+            throw FolderImportCoordinatorError.unknownPreviewSession
+        }
+
+        var session = previewSessions[index]
+        try session.updateDraft(update)
+        previewSessions[index] = session
+    }
+
+    @discardableResult
+    func removePreviewSession(
+        withID sessionID: ImportPreviewSession.ID
+    ) -> ImportPreviewSession? {
+        guard let index = previewSessions.firstIndex(where: {
+            $0.id == sessionID
+        }) else {
+            return nil
+        }
+
+        let session = previewSessions.remove(at: index)
+        updatePreviewStatus()
+        return session
     }
 
     private func scan(
         _ urls: [URL],
         generation: Int
     ) async {
-        do {
-            var manifests: [ImportManifest] = []
+        var sessions: [ImportPreviewSession] = []
+        var failures: [String] = []
 
-            for url in urls {
+        for url in urls {
+            do {
                 try Task.checkCancellation()
-                manifests.append(
-                    try await scanner.scan(
-                        ImportScanRequest(rootURL: url)
-                    )
+                let manifest = try await scanner.scan(
+                    ImportScanRequest(rootURL: url)
                 )
-            }
-
-            try Task.checkCancellation()
-            guard generation == scanGeneration else {
+                sessions.append(
+                    ImportPreviewSession(sourceURL: url, manifest: manifest)
+                )
+            } catch is CancellationError {
                 return
+            } catch {
+                failures.append(url.lastPathComponent)
             }
+        }
 
-            status = .preview(manifests: manifests)
-            scanTask = nil
+        do {
+            try Task.checkCancellation()
         } catch is CancellationError {
             return
         } catch {
-            guard generation == scanGeneration else {
-                return
-            }
-
-            status = .failed
-            scanTask = nil
+            return
         }
+
+        guard generation == scanGeneration else {
+            return
+        }
+
+        previewSessions = sessions
+        failedFolderNames = failures
+        updatePreviewStatus()
+        scanTask = nil
+    }
+
+    private func clearPreviewResults() {
+        previewSessions = []
+        failedFolderNames = []
+    }
+
+    private func updatePreviewStatus() {
+        guard !previewSessions.isEmpty else {
+            status = failedFolderNames.isEmpty ? .idle : .failed
+            return
+        }
+
+        status = .preview(manifests: previewSessions.map(\.manifest))
     }
 
     private func urlOrder(_ lhs: URL, _ rhs: URL) -> Bool {
