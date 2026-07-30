@@ -1,0 +1,53 @@
+name: Version Tag Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  PROJECT: ComicReader.xcodeproj
+  SCHEME: ComicReader
+  TEST_DESTINATION: platform=iOS Simulator,name=iPad Pro 13-inch (M4),OS=18.5
+
+jobs:
+  build-test-and-release:
+    name: Build, test, and release
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Generate Xcode project
+        run: bash .github/workflows/scripts/generate-project.sh
+
+      - name: Build and run tests
+        run: bash .github/workflows/scripts/run-tests.sh
+
+      - name: Build unsigned release assets
+        run: |
+          ARTIFACT_LABEL="$GITHUB_REF_NAME" \
+            bash .github/workflows/scripts/build-unsigned.sh
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP"/ComicReaderArtifacts/* \
+            --verify-tag \
+            --generate-notes \
+            --title "$GITHUB_REF_NAME"

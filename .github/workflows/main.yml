@@ -1,0 +1,51 @@
+name: Main Unsigned Artifact
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-unsigned-artifact
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  PROJECT: ComicReader.xcodeproj
+  SCHEME: ComicReader
+  TEST_DESTINATION: platform=iOS Simulator,name=iPad Pro 13-inch (M4),OS=18.5
+
+jobs:
+  build-test-and-package:
+    name: Build, test, and package
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generate Xcode project
+        run: bash .github/workflows/scripts/generate-project.sh
+
+      - name: Build and run tests
+        run: bash .github/workflows/scripts/run-tests.sh
+
+      - name: Build unsigned IPA
+        run: |
+          ARTIFACT_LABEL="main-${GITHUB_SHA:0:7}" \
+            bash .github/workflows/scripts/build-unsigned.sh
+
+      - name: Upload short-lived artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: comicreader-main-unsigned-${{ github.sha }}
+          path: ${{ runner.temp }}/ComicReaderArtifacts/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

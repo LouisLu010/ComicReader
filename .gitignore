@@ -1,0 +1,54 @@
+# macOS
+.DS_Store
+
+# Xcode 用户状态
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Xcode 与 Swift 构建产物
+/ComicReader.xcodeproj/
+DerivedData/
+build/
+.build/
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.ipa
+Payload/
+Artifacts/
+
+# Swift Package Manager 本地状态
+.swiftpm/xcode/xcuserdata/
+
+# 调试、覆盖率与临时文件
+*.profraw
+*.profdata
+*.result
+*.tmp
+*.log
+
+# 本地私密配置
+.env
+.env.*
+!.env.example
+
+# Apple 签名材料
+*.cer
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+
+# 私人漫画与测试书库
+/LocalComics/
+/PrivateFixtures/
+
+# 编辑器
+.idea/
+.vscode/
+*~
+
+# Package.resolved 必须提交，以锁定依赖版本。
+!Package.resolved
