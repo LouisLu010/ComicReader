@@ -7,25 +7,28 @@ struct LibraryView: View {
     @Environment(FolderImportCoordinator.self) private var importCoordinator
 
     var body: some View {
-        VStack(spacing: 20) {
-            if importCoordinator.status != .idle {
-                ImportSelectionBanner(status: importCoordinator.status)
-            }
-
-            ContentUnavailableView {
-                Label(section.title, systemImage: section.systemImage)
-            } description: {
-                Text("library.empty.description")
-            } actions: {
-                Button(action: onImport) {
-                    Label("import.action", systemImage: "folder.badge.plus")
+        Group {
+            switch importCoordinator.status {
+            case let .preview(manifests):
+                ImportManifestDebugView(manifests: manifests)
+            case let .scanning(folderNames):
+                VStack(spacing: 20) {
+                    ImportSelectionBanner(
+                        status: .scanning(folderNames: folderNames)
+                    )
+                    emptyLibrary
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("import.button")
+                .padding()
+            case .idle, .failed:
+                VStack(spacing: 20) {
+                    if importCoordinator.status == .failed {
+                        ImportSelectionBanner(status: .failed)
+                    }
+                    emptyLibrary
+                }
+                .padding()
             }
-            .accessibilityIdentifier("library.empty")
         }
-        .padding()
         .navigationTitle(section.title)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -35,6 +38,21 @@ struct LibraryView: View {
                 .accessibilityIdentifier("import.toolbarButton")
             }
         }
+    }
+
+    private var emptyLibrary: some View {
+        ContentUnavailableView {
+            Label(section.title, systemImage: section.systemImage)
+        } description: {
+            Text("library.empty.description")
+        } actions: {
+            Button(action: onImport) {
+                Label("import.action", systemImage: "folder.badge.plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("import.button")
+        }
+        .accessibilityIdentifier("library.empty")
     }
 }
 
@@ -46,20 +64,25 @@ private struct ImportSelectionBanner: View {
             switch status {
             case .idle:
                 EmptyView()
-            case let .selected(names):
+            case let .scanning(folderNames):
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("import.selection.title", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                    Label {
+                        Text("import.scanning.title")
+                    } icon: {
+                        ProgressView()
+                    }
                     Text(
                         String.localizedStringWithFormat(
-                            String(localized: "import.selection.count"),
-                            names.count
+                            String(localized: "import.scanning.count"),
+                            folderNames.count
                         )
                     )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            case .preview:
+                EmptyView()
             case .failed:
                 VStack(alignment: .leading, spacing: 6) {
                     Label("import.failed.title", systemImage: "exclamationmark.triangle.fill")

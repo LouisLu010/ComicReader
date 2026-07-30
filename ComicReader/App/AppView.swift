@@ -16,7 +16,18 @@ struct AppView: View {
             isPresented: importerBinding,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: true,
-            onCompletion: importCoordinator.handle
+            onCompletion: { result in
+                switch result {
+                case let .success(urls):
+                    Task { @MainActor in
+                        importCoordinator.handleSelectedURLs(urls)
+                    }
+                case .failure:
+                    Task { @MainActor in
+                        importCoordinator.handleSelectionFailure()
+                    }
+                }
+            }
         )
         .focusedSceneValue(\.importFoldersAction) {
             router.presentedImporter = .folders

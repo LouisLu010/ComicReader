@@ -42,6 +42,16 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   build-for-testing
 
+readonly TEST_APP_PATH="$TEST_DERIVED_DATA/Build/Products/Debug-iphonesimulator/ComicReader.app"
+readonly TEST_PRIVACY_MANIFEST="$TEST_APP_PATH/PrivacyInfo.xcprivacy"
+
+if [[ ! -f "$TEST_PRIVACY_MANIFEST" ]]; then
+  echo "::error title=Missing privacy manifest::Expected $TEST_PRIVACY_MANIFEST in the app bundle."
+  exit 1
+fi
+
+/usr/bin/plutil -lint "$TEST_PRIVACY_MANIFEST"
+
 xcodebuild \
   -project "$PROJECT" \
   -scheme "$SCHEME" \

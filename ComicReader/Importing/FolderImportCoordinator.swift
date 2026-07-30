@@ -3,7 +3,8 @@ import Observation
 
 enum FolderImportStatus: Equatable {
     case idle
-    case selected(names: [String])
+    case scanning(folderNames: [String])
+    case preview(manifests: [ImportManifest])
     case failed
 }
 
@@ -12,21 +13,97 @@ enum FolderImportStatus: Equatable {
 final class FolderImportCoordinator {
     private(set) var status: FolderImportStatus = .idle
 
-    func handle(_ result: Result<[URL], Error>) {
-        switch result {
-        case let .success(urls):
-            let names = urls
-                .map(\.lastPathComponent)
-                .filter { !$0.isEmpty }
-                .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    private let scanner: any ImportScanning
+    @ObservationIgnored private var scanTask: Task<Void, Never>?
+    @ObservationIgnored private var scanGeneration = 0
 
-            status = names.isEmpty ? .failed : .selected(names: names)
-        case .failure:
+    init(scanner: any ImportScanning = ImportScanner()) {
+        self.scanner = scanner
+    }
+
+    func handleSelectedURLs(_ urls: [URL]) {
+        scanTask?.cancel()
+        scanGeneration += 1
+
+        let sortedURLs = urls
+            .filter { !$0.lastPathComponent.isEmpty }
+            .sorted(by: urlOrder)
+
+        guard !sortedURLs.isEmpty else {
             status = .failed
+            return
+        }
+
+        let generation = scanGeneration
+        status = .scanning(
+            folderNames: sortedURLs.map(\.lastPathComponent)
+        )
+        scanTask = Task { [weak self] in
+            await self?.scan(
+                sortedURLs,
+                generation: generation
+            )
         }
     }
 
+    func handleSelectionFailure() {
+        scanTask?.cancel()
+        scanTask = nil
+        scanGeneration += 1
+        status = .failed
+    }
+
     func reset() {
+        scanTask?.cancel()
+        scanTask = nil
+        scanGeneration += 1
         status = .idle
+    }
+
+    private func scan(
+        _ urls: [URL],
+        generation: Int
+    ) async {
+        do {
+            var manifests: [ImportManifest] = []
+
+            for url in urls {
+                try Task.checkCancellation()
+                manifests.append(
+                    try await scanner.scan(
+                        ImportScanRequest(rootURL: url)
+                    )
+                )
+            }
+
+            try Task.checkCancellation()
+            guard generation == scanGeneration else {
+                return
+            }
+
+            status = .preview(manifests: manifests)
+            scanTask = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == scanGeneration else {
+                return
+            }
+
+            status = .failed
+            scanTask = nil
+        }
+    }
+
+    private func urlOrder(_ lhs: URL, _ rhs: URL) -> Bool {
+        let comparison = lhs.lastPathComponent.localizedStandardCompare(
+            rhs.lastPathComponent
+        )
+
+        if comparison != .orderedSame {
+            return comparison == .orderedAscending
+        }
+
+        return lhs.path < rhs.path
     }
 }

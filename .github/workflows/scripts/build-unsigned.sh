@@ -73,6 +73,7 @@ targeted_device_family="$(jq -r '.TARGETED_DEVICE_FAMILY' <<< "$app_settings" | 
 
 readonly APP_PATH="$target_build_dir/$full_product_name"
 readonly DSYM_PATH="$dsym_folder_path/$dsym_file_name"
+readonly PRIVACY_MANIFEST_PATH="$APP_PATH/PrivacyInfo.xcprivacy"
 
 if [[ ! -d "$APP_PATH" ]]; then
   echo "::error title=Missing app product::Expected app product at $APP_PATH."
@@ -83,6 +84,13 @@ if [[ ! -d "$DSYM_PATH" ]]; then
   echo "::error title=Missing dSYM::Expected dSYM at $DSYM_PATH."
   exit 1
 fi
+
+if [[ ! -f "$PRIVACY_MANIFEST_PATH" ]]; then
+  echo "::error title=Missing privacy manifest::Expected PrivacyInfo.xcprivacy at the app bundle root."
+  exit 1
+fi
+
+/usr/bin/plutil -lint "$PRIVACY_MANIFEST_PATH"
 
 if [[ "$deployment_target" != "17.0" ]]; then
   echo "::error title=Unexpected deployment target::Expected iPadOS 17.0, got $deployment_target."
