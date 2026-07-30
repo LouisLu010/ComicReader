@@ -112,10 +112,14 @@ struct ImportFileCopier: Sendable {
         cancellationToken: ImportCancellationToken
     ) throws -> ImportFileVerification {
         let fileManager = FileManager.default
-        try fileManager.createDirectory(
-            at: partialURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        do {
+            try fileManager.createDirectory(
+                at: partialURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        } catch {
+            throw ImportCopyError.copyFailed
+        }
         try? fileManager.removeItem(at: partialURL)
 
         var didComplete = false
@@ -125,74 +129,97 @@ struct ImportFileCopier: Sendable {
             }
         }
 
-        let verification = try CoordinatedFileAccess().read(at: sourceURL) {
-            coordinatedSourceURL in
-            try cancellationToken.throwIfCancelled()
-            let sourceValues = try coordinatedSourceURL.resourceValues(
-                forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
-            )
-            guard sourceValues.isRegularFile == true,
-                  sourceValues.isSymbolicLink != true,
-                  let sourceSize = sourceValues.fileSize,
-                  Int64(sourceSize) == workItem.expectedByteCount else {
-                throw ImportCopyError.sourceChanged
-            }
-
-            if let expectedFingerprint = workItem.expectedLightweightFingerprint {
-                let actualFingerprint = try LightweightContentFingerprint.make(
-                    fileURL: coordinatedSourceURL,
-                    byteCount: Int64(sourceSize)
+        let verification: ImportFileVerification
+        do {
+            verification = try CoordinatedFileAccess().read(at: sourceURL) {
+                coordinatedSourceURL in
+                try cancellationToken.throwIfCancelled()
+                let sourceValues = try coordinatedSourceURL.resourceValues(
+                    forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
                 )
-                guard actualFingerprint == expectedFingerprint else {
+                guard sourceValues.isRegularFile == true,
+                      sourceValues.isSymbolicLink != true,
+                      let sourceSize = sourceValues.fileSize,
+                      Int64(sourceSize) == workItem.expectedByteCount else {
                     throw ImportCopyError.sourceChanged
                 }
-            }
 
-            guard fileManager.createFile(
-                atPath: partialURL.path,
-                contents: nil
-            ) else {
-                throw ImportCopyError.copyFailed
-            }
-
-            let sourceHandle = try FileHandle(forReadingFrom: coordinatedSourceURL)
-            defer { try? sourceHandle.close() }
-            let destinationHandle = try FileHandle(forWritingTo: partialURL)
-            defer { try? destinationHandle.close() }
-            var digest = SHA256()
-            var byteCount = Int64(0)
-
-            while true {
-                try cancellationToken.throwIfCancelled()
-                let data = try sourceHandle.read(upToCount: chunkByteCount) ?? Data()
-                guard !data.isEmpty else {
-                    break
+                if let expectedFingerprint = workItem.expectedLightweightFingerprint {
+                    let actualFingerprint = try LightweightContentFingerprint.make(
+                        fileURL: coordinatedSourceURL,
+                        byteCount: Int64(sourceSize)
+                    )
+                    guard actualFingerprint == expectedFingerprint else {
+                        throw ImportCopyError.sourceChanged
+                    }
                 }
 
-                digest.update(data: data)
-                try destinationHandle.write(contentsOf: data)
-                let sum = byteCount.addingReportingOverflow(Int64(data.count))
-                guard !sum.overflow else {
+                guard fileManager.createFile(
+                    atPath: partialURL.path,
+                    contents: nil
+                ) else {
                     throw ImportCopyError.copyFailed
                 }
-                byteCount = sum.partialValue
-            }
 
-            try destinationHandle.synchronize()
-            guard byteCount == workItem.expectedByteCount else {
-                throw ImportCopyError.sourceChanged
-            }
+                let sourceHandle = try FileHandle(
+                    forReadingFrom: coordinatedSourceURL
+                )
+                defer { try? sourceHandle.close() }
 
-            guard let sourceDigest = ImportSHA256Digest(
-                rawValue: Self.hexadecimalString(digest.finalize())
-            ) else {
-                throw ImportCopyError.copyFailed
-            }
+                let destinationHandle: FileHandle
+                do {
+                    destinationHandle = try FileHandle(forWritingTo: partialURL)
+                } catch {
+                    throw ImportCopyError.copyFailed
+                }
+                defer { try? destinationHandle.close() }
+                var digest = SHA256()
+                var byteCount = Int64(0)
 
-            return ImportFileVerification(
-                byteCount: byteCount,
-                sha256: sourceDigest
-            )
+                while true {
+                    try cancellationToken.throwIfCancelled()
+                    let data = try sourceHandle.read(upToCount: chunkByteCount) ?? Data()
+                    guard !data.isEmpty else {
+                        break
+                    }
+
+                    digest.update(data: data)
+                    do {
+                        try destinationHandle.write(contentsOf: data)
+                    } catch {
+                        throw ImportCopyError.copyFailed
+                    }
+                    let sum = byteCount.addingReportingOverflow(Int64(data.count))
+                    guard !sum.overflow else {
+                        throw ImportCopyError.copyFailed
+                    }
+                    byteCount = sum.partialValue
+                }
+
+                do {
+                    try destinationHandle.synchronize()
+                } catch {
+                    throw ImportCopyError.copyFailed
+                }
+                guard byteCount == workItem.expectedByteCount else {
+                    throw ImportCopyError.sourceChanged
+                }
+
+                guard let sourceDigest = ImportSHA256Digest(
+                    rawValue: Self.hexadecimalString(digest.finalize())
+                ) else {
+                    throw ImportCopyError.copyFailed
+                }
+
+                return ImportFileVerification(
+                    byteCount: byteCount,
+                    sha256: sourceDigest
+                )
+            }
+        } catch let error as ImportCopyError {
+            throw error
+        } catch {
+            throw Self.copyErrorForSourceRead(error)
         }
 
         didComplete = true
@@ -245,5 +272,34 @@ struct ImportFileCopier: Sendable {
 
     private static func hexadecimalString(_ digest: SHA256.Digest) -> String {
         digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func copyErrorForSourceRead(_ error: Error) -> ImportCopyError {
+        let error = error as NSError
+
+        if error.domain == NSCocoaErrorDomain,
+           [
+               CocoaError.Code.fileNoSuchFile.rawValue,
+               CocoaError.Code.fileReadNoSuchFile.rawValue,
+           ].contains(error.code) {
+            return .sourceChanged
+        }
+
+        if error.domain == NSCocoaErrorDomain,
+           error.code == CocoaError.Code.fileReadNoPermission.rawValue {
+            return .sourceUnavailable
+        }
+
+        if error.domain == NSPOSIXErrorDomain,
+           [1, 13].contains(error.code) {
+            return .sourceUnavailable
+        }
+
+        if error.domain == NSPOSIXErrorDomain,
+           error.code == 2 {
+            return .sourceChanged
+        }
+
+        return .copyFailed
     }
 }

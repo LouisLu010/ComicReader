@@ -11,6 +11,7 @@ actor RecoverableImportEngine {
     private let capacityProvider: any ImportCapacityProviding
     private let fileCopier: ImportFileCopier
     private let thumbnailGenerator: any ImportThumbnailGenerating
+    private let faultInjector: any ImportExecutionFaultInjecting
     private var activeJobIDs = Set<ImportJobID>()
     private var cancellationTokens: [ImportJobID: ImportCancellationToken] = [:]
 
@@ -19,13 +20,15 @@ actor RecoverableImportEngine {
         sourceAccess: any ImportSourceAccessing = SecurityScopedSourceAccess(),
         capacityProvider: any ImportCapacityProviding = ImportantUsageCapacityProvider(),
         fileCopier: ImportFileCopier = ImportFileCopier(),
-        thumbnailGenerator: any ImportThumbnailGenerating = ImageIOImportThumbnailGenerator()
+        thumbnailGenerator: any ImportThumbnailGenerating = ImageIOImportThumbnailGenerator(),
+        faultInjector: any ImportExecutionFaultInjecting = NoImportExecutionFaultInjector()
     ) {
         store = JSONImportJobStore(layout: layout)
         self.sourceAccess = sourceAccess
         self.capacityProvider = capacityProvider
         self.fileCopier = fileCopier
         self.thumbnailGenerator = thumbnailGenerator
+        self.faultInjector = faultInjector
     }
 
     func enqueue(
@@ -196,7 +199,7 @@ actor RecoverableImportEngine {
         }
 
         journal.cancellationRequested = false
-        journal.state = journal.commitIntent == nil ? .queued : .commitPrepared
+        prepareForResume(&journal, plan: loaded.plan)
         try persist(journal, for: loaded.plan)
         return try await run(jobID)
     }
@@ -222,10 +225,8 @@ actor RecoverableImportEngine {
                 if journal.state.pause?.code == .userCancelled {
                     snapshots.append(journal.snapshot(using: loaded.plan))
                 } else {
-                    journal.state = journal.commitIntent == nil
-                        ? .queued
-                        : .commitPrepared
                     journal.cancellationRequested = false
+                    prepareForResume(&journal, plan: loaded.plan)
                     do {
                         try persist(journal, for: loaded.plan)
                         let snapshot = try await run(jobID)
@@ -306,6 +307,9 @@ actor RecoverableImportEngine {
                     journal: journal
                 )
                 try persist(journal, for: plan)
+                try await reachCopyFaultPoint(
+                    .beforeCopy(jobID: plan.id, pageID: workItem.id)
+                )
 
                 let verification = try await fileCopier.copySource(
                     from: sourceURL,
@@ -334,6 +338,9 @@ actor RecoverableImportEngine {
                     return journal
                 }
                 try persist(journal, for: plan)
+                try await reachCopyFaultPoint(
+                    .afterPreparedCheckpoint(jobID: plan.id, pageID: workItem.id)
+                )
 
                 guard !FileManager.default.fileExists(atPath: finalURL.path) else {
                     throw ImportCopyError.verificationFailed
@@ -346,6 +353,11 @@ actor RecoverableImportEngine {
                     return journal
                 }
                 try persist(journal, for: plan)
+                try await reachCopyFaultPoint(
+                    .afterVerifiedCheckpoint(jobID: plan.id, pageID: workItem.id)
+                )
+            } catch let error as ImportInjectedFault where error == .simulatedProcessInterruption {
+                throw error
             } catch let error as ImportCopyError {
                 switch error {
                 case .cancelled:
@@ -493,6 +505,11 @@ actor RecoverableImportEngine {
         var journal = journal
         let payloadURL = store.layout.payloadURL(for: plan.id)
         let libraryURL = store.layout.libraryURL(for: journal.targetComicID)
+        let rootURL = FileManager.default.fileExists(atPath: payloadURL.path)
+            ? payloadURL
+            : libraryURL
+        let cancellationToken = cancellationTokens[plan.id]
+            ?? ImportCancellationToken()
 
         guard allWorkItemsAreVerified(in: journal) else {
             journal.state = .paused(.stagingCorrupted(plan.coverPageIDPath))
@@ -500,12 +517,31 @@ actor RecoverableImportEngine {
             return journal.snapshot(using: plan)
         }
 
-        guard await verifyReadablePages(
+        if journal.commitIntent == nil,
+           cancellationRequested(for: plan.id, journal: journal) {
+            return try pauseForCancellation(journal, plan: plan)
+        }
+
+        guard await verifyStagedWorkItems(
             in: plan,
-            rootURL: FileManager.default.fileExists(atPath: payloadURL.path)
-                ? payloadURL
-                : libraryURL
+            journal: journal,
+            rootURL: rootURL,
+            cancellationToken: cancellationToken
         ) else {
+            if journal.commitIntent == nil,
+               cancellationRequested(for: plan.id, journal: journal) {
+                return try pauseForCancellation(journal, plan: plan)
+            }
+            journal.state = .paused(.stagingCorrupted(plan.coverPageIDPath))
+            try persist(journal, for: plan)
+            return journal.snapshot(using: plan)
+        }
+
+        guard await verifyReadablePages(in: plan, rootURL: rootURL) else {
+            if journal.commitIntent == nil,
+               cancellationRequested(for: plan.id, journal: journal) {
+                return try pauseForCancellation(journal, plan: plan)
+            }
             journal.state = .paused(.stagingCorrupted(plan.coverPageIDPath))
             try persist(journal, for: plan)
             return journal.snapshot(using: plan)
@@ -518,6 +554,24 @@ actor RecoverableImportEngine {
         )
 
         if journal.commitIntent == nil {
+            if cancellationRequested(for: plan.id, journal: journal) {
+                return try pauseForCancellation(journal, plan: plan)
+            }
+
+            do {
+                try await faultInjector.reach(.beforeCommitIntent(plan.id))
+            } catch let error as ImportInjectedFault where error == .simulatedProcessInterruption {
+                throw error
+            } catch {
+                journal.state = .failed(.commitFailed)
+                try persist(journal, for: plan)
+                return journal.snapshot(using: plan)
+            }
+
+            if cancellationRequested(for: plan.id, journal: journal) {
+                return try pauseForCancellation(journal, plan: plan)
+            }
+
             do {
                 try writePayloadMetadata(
                     plan: plan,
@@ -537,6 +591,16 @@ actor RecoverableImportEngine {
                 try persist(journal, for: plan)
                 return journal.snapshot(using: plan)
             }
+
+            do {
+                try await faultInjector.reach(.afterCommitPrepared(plan.id))
+            } catch let error as ImportInjectedFault where error == .simulatedProcessInterruption {
+                throw error
+            } catch {
+                journal.state = .failed(.commitFailed)
+                try persist(journal, for: plan)
+                return journal.snapshot(using: plan)
+            }
         }
 
         if FileManager.default.fileExists(atPath: libraryURL.path) {
@@ -553,6 +617,16 @@ actor RecoverableImportEngine {
             }
 
             do {
+                try await faultInjector.reach(.beforePayloadMove(plan.id))
+            } catch let error as ImportInjectedFault where error == .simulatedProcessInterruption {
+                throw error
+            } catch {
+                journal.state = .failed(.commitFailed)
+                try persist(journal, for: plan)
+                return journal.snapshot(using: plan)
+            }
+
+            do {
                 journal.state = .committing
                 try persist(journal, for: plan)
                 try FileManager.default.moveItem(at: payloadURL, to: libraryURL)
@@ -560,6 +634,14 @@ actor RecoverableImportEngine {
                 journal.state = .failed(.commitFailed)
                 try persist(journal, for: plan)
                 return journal.snapshot(using: plan)
+            }
+
+            do {
+                try await faultInjector.reach(.afterPayloadMoved(plan.id))
+            } catch let error as ImportInjectedFault where error == .simulatedProcessInterruption {
+                throw error
+            } catch {
+                throw ImportInjectedFault.simulatedProcessInterruption
             }
         }
 
@@ -571,6 +653,7 @@ actor RecoverableImportEngine {
                 $0.id == plan.coverPageID
             }) {
                 do {
+                    try await faultInjector.reach(.beforeThumbnail(plan.id))
                     try await thumbnailGenerator.generate(
                         from: libraryWorkItemURL(
                             for: coverWorkItem,
@@ -579,6 +662,8 @@ actor RecoverableImportEngine {
                         to: store.layout.thumbnailURL(for: journal.targetComicID)
                     )
                     journal.thumbnailStatus = .generated
+                } catch let error as ImportInjectedFault where error == .simulatedProcessInterruption {
+                    throw error
                 } catch {
                     journal.thumbnailStatus = .failed
                     journal.runtimeIssues.append(.thumbnailFailed)
@@ -607,18 +692,53 @@ actor RecoverableImportEngine {
         rootURL: URL
     ) async -> Bool {
         for workItem in plan.workItems where workItem.pageState == .readable {
-            if !await fileCopier.verifyReadableImage(
+            if !(await fileCopier.verifyReadableImage(
                 at: managedWorkItemURL(
                     rootURL: rootURL,
                     managedRelativePath: workItem.managedRelativePath
                 ),
                 workItem: workItem
-            ) {
+            )) {
                 return false
             }
         }
 
         return true
+    }
+
+    private func verifyStagedWorkItems(
+        in plan: FrozenImportPlan,
+        journal: ImportJobJournal,
+        rootURL: URL,
+        cancellationToken: ImportCancellationToken
+    ) async -> Bool {
+        for workItem in plan.workItems {
+            guard let checkpoint = checkpoint(for: workItem.id, in: journal),
+                  let verification = checkpoint.verification,
+                  await fileCopier.verifyExisting(
+                      at: managedWorkItemURL(
+                          rootURL: rootURL,
+                          managedRelativePath: workItem.managedRelativePath
+                      ),
+                      expected: verification,
+                      cancellationToken: cancellationToken
+                  ) else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func pauseForCancellation(
+        _ journal: ImportJobJournal,
+        plan: FrozenImportPlan
+    ) throws -> ImportJobSnapshot {
+        var journal = journal
+        journal.cancellationRequested = true
+        journal.state = .paused(.userCancelled)
+        try persist(journal, for: plan)
+        return journal.snapshot(using: plan)
     }
 
     private func remainingSpaceEstimate(
@@ -648,6 +768,29 @@ actor RecoverableImportEngine {
         journal.checkpoints.allSatisfy { $0.phase == .verified }
     }
 
+    private func prepareForResume(
+        _ journal: inout ImportJobJournal,
+        plan: FrozenImportPlan
+    ) {
+        let hasStagedPayload = FileManager.default.fileExists(
+            atPath: store.layout.payloadURL(for: plan.id).path
+        )
+        let hasPublishedLibrary = FileManager.default.fileExists(
+            atPath: store.layout.libraryURL(for: journal.targetComicID).path
+        )
+
+        if journal.state.pause?.code == .stagingCorrupted,
+           journal.commitIntent != nil,
+           hasStagedPayload,
+           !hasPublishedLibrary {
+            journal.commitIntent = nil
+            journal.state = .queued
+            return
+        }
+
+        journal.state = journal.commitIntent == nil ? .queued : .commitPrepared
+    }
+
     private func checkpoint(
         for pageID: ImportPageCandidate.ID,
         in journal: ImportJobJournal
@@ -664,6 +807,21 @@ actor RecoverableImportEngine {
         }
 
         return (try? store.load(jobID).journal.cancellationRequested) ?? false
+    }
+
+    private func reachCopyFaultPoint(
+        _ point: ImportExecutionFaultPoint
+    ) async throws {
+        do {
+            try await faultInjector.reach(point)
+        } catch let error as ImportInjectedFault {
+            switch error {
+            case .simulatedProcessInterruption:
+                throw error
+            case .copyFailed, .commitMoveFailed:
+                throw ImportCopyError.copyFailed
+            }
+        }
     }
 
     private func stagedWorkItemURL(

@@ -309,7 +309,9 @@ struct ImportJobJournal: Codable, Equatable, Sendable {
             && commitIntent.revision == planRevision
             && (requiresCommitIntent
                 || state.phase == .failed
-                || state.pause?.code == .commitConflict)
+                || state.pause?.code == .commitConflict
+                || state.pause?.code == .stagingCorrupted
+                || state.pause?.code == .interrupted)
     }
 
     func isCompatible(with plan: FrozenImportPlan) -> Bool {

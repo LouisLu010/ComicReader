@@ -5,13 +5,7 @@ struct CoordinatedFileAccess {
         at url: URL,
         _ accessor: (URL) throws -> Value
     ) throws -> Value {
-        let didStartSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if didStartSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
+        // 目录级 security scope 由导入引擎在整个复制期间持有。
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinationError: NSError?
         var accessResult: Swift.Result<Value, Error>?

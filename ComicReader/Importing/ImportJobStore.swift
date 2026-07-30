@@ -22,6 +22,13 @@ struct ImportStorageLayout: Sendable {
         )
     }
 
+    func creatingJobDirectory(for jobID: ImportJobID) -> URL {
+        importsURL.appendingPathComponent(
+            "." + jobID.rawValue.uuidString.lowercased() + ".partial",
+            isDirectory: true
+        )
+    }
+
     func planURL(for jobID: ImportJobID) -> URL {
         jobDirectory(for: jobID).appendingPathComponent("plan.json")
     }
@@ -59,6 +66,31 @@ enum ImportJobStoreError: Error, Equatable, Sendable {
     case inconsistentJournal
 }
 
+private final class ImportJobCreationRegistry: @unchecked Sendable {
+    static let shared = ImportJobCreationRegistry()
+
+    private let lock = NSLock()
+    private var activePaths = Set<String>()
+
+    func begin(_ directoryURL: URL) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return activePaths.insert(directoryURL.path).inserted
+    }
+
+    func end(_ directoryURL: URL) {
+        lock.lock()
+        activePaths.remove(directoryURL.path)
+        lock.unlock()
+    }
+
+    func contains(_ directoryURL: URL) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return activePaths.contains(directoryURL.path)
+    }
+}
+
 struct JSONImportJobStore: Sendable {
     let layout: ImportStorageLayout
 
@@ -91,29 +123,53 @@ struct JSONImportJobStore: Sendable {
         try ensureBaseDirectories()
 
         let jobDirectory = layout.jobDirectory(for: plan.id)
-        guard !FileManager.default.fileExists(atPath: jobDirectory.path) else {
+        let creatingDirectory = layout.creatingJobDirectory(for: plan.id)
+        guard ImportJobCreationRegistry.shared.begin(creatingDirectory) else {
+            throw ImportJobStoreError.jobAlreadyExists
+        }
+        defer { ImportJobCreationRegistry.shared.end(creatingDirectory) }
+
+        guard !FileManager.default.fileExists(atPath: jobDirectory.path),
+              !FileManager.default.fileExists(atPath: creatingDirectory.path) else {
             throw ImportJobStoreError.jobAlreadyExists
         }
 
         try FileManager.default.createDirectory(
-            at: jobDirectory,
+            at: creatingDirectory,
             withIntermediateDirectories: false
-        )
-        try FileManager.default.createDirectory(
-            at: layout.payloadURL(for: plan.id),
-            withIntermediateDirectories: true
         )
 
         do {
-            try write(plan, to: layout.planURL(for: plan.id))
+            let payloadURL = creatingDirectory.appendingPathComponent(
+                "payload",
+                isDirectory: true
+            )
+            try FileManager.default.createDirectory(
+                at: payloadURL,
+                withIntermediateDirectories: true
+            )
+            try write(
+                plan,
+                to: creatingDirectory.appendingPathComponent("plan.json")
+            )
             let journal = ImportJobJournal(
                 plan: plan,
                 targetComicID: targetComicID
             )
-            try save(journal, for: plan)
+            guard journal.isCompatible(with: plan) else {
+                throw ImportJobStoreError.inconsistentJournal
+            }
+            try write(
+                journal,
+                to: creatingDirectory.appendingPathComponent("journal.json")
+            )
+            try FileManager.default.moveItem(
+                at: creatingDirectory,
+                to: jobDirectory
+            )
             return journal
         } catch {
-            try? FileManager.default.removeItem(at: jobDirectory)
+            try? FileManager.default.removeItem(at: creatingDirectory)
             throw error
         }
     }
@@ -146,6 +202,7 @@ struct JSONImportJobStore: Sendable {
 
     func jobIDs() throws -> [ImportJobID] {
         try ensureBaseDirectories()
+        removeInterruptedCreates()
 
         let directories = try FileManager.default.contentsOfDirectory(
             at: layout.importsURL,
@@ -191,6 +248,40 @@ struct JSONImportJobStore: Sendable {
             )
             try excludeFromBackup(directoryURL)
         }
+    }
+
+    private func removeInterruptedCreates() {
+        guard let directories = try? FileManager.default.contentsOfDirectory(
+            at: layout.importsURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: []
+        ) else {
+            return
+        }
+
+        for directoryURL in directories where isCreatingJobDirectory(directoryURL) {
+            guard !ImportJobCreationRegistry.shared.contains(directoryURL) else {
+                continue
+            }
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+    }
+
+    private func isCreatingJobDirectory(_ directoryURL: URL) -> Bool {
+        guard let values = try? directoryURL.resourceValues(
+            forKeys: [.isDirectoryKey]
+        ), values.isDirectory == true else {
+            return false
+        }
+
+        let name = directoryURL.lastPathComponent
+        let suffix = ".partial"
+        guard name.hasPrefix("."), name.hasSuffix(suffix) else {
+            return false
+        }
+
+        let rawJobID = String(name.dropFirst().dropLast(suffix.count))
+        return UUID(uuidString: rawJobID) != nil
     }
 
     private func write<Value: Encodable>(
