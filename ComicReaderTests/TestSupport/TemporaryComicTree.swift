@@ -64,7 +64,7 @@ final class TemporaryComicTree {
             data = Self.imageDataByFormat[format]!
         }
 
-        try file(
+        return try file(
             relativePath,
             data: data
         )
