@@ -135,6 +135,62 @@ final class ImportPreviewDraftTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(FrozenImportPlan.self, from: data), first)
     }
 
+    func testFreezeRetainsImageMetadataNeededForReaderLayouts() async throws {
+        let tree = try TemporaryComicTree(name: "Reader Metadata")
+        try tree.jpegWithRightOrientation("Chapter/01.jpg")
+        let manifest = try await scan(tree)
+        let page = try XCTUnwrap(manifest.pages.first)
+        let plan = try ImportPreviewDraft(manifest: manifest).freeze(
+            sourceBookmark: Data("bookmark".utf8)
+        )
+        let workItem = try XCTUnwrap(
+            plan.workItems.first(where: { $0.id == page.id })
+        )
+
+        XCTAssertEqual(workItem.pixelSize, page.pixelSize)
+        XCTAssertEqual(workItem.orientation, page.orientation)
+    }
+
+    func testFrozenWorkItemDecodesWithoutReaderMetadataFields() throws {
+        let workItem = FrozenImportWorkItem(
+            id: ImportPageCandidate.ID(rawValue: "page"),
+            sourceRelativePath: SourceRelativePath(
+                components: ["Chapter", "01.png"]
+            ),
+            managedRelativePath: ManagedRelativePath(
+                components: ["original", "Chapter", "01.png"]
+            ),
+            originalFileName: "01.png",
+            detectedFormat: .png,
+            expectedByteCount: 1,
+            expectedLightweightFingerprint: nil,
+            pixelSize: ImportPixelSize(width: 1200, height: 1800),
+            orientation: .right,
+            pageState: .readable,
+            isCover: false
+        )
+        var legacyPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(workItem)
+            ) as? [String: Any]
+        )
+
+        legacyPayload.removeValue(forKey: "pixelSize")
+        legacyPayload.removeValue(forKey: "orientation")
+
+        let decoded = try JSONDecoder().decode(
+            FrozenImportWorkItem.self,
+            from: JSONSerialization.data(
+                withJSONObject: legacyPayload,
+                options: [.sortedKeys]
+            )
+        )
+
+        XCTAssertEqual(decoded.id, workItem.id)
+        XCTAssertNil(decoded.pixelSize)
+        XCTAssertNil(decoded.orientation)
+    }
+
     func testFrozenPlanExcludesIssuesFromDeselectedDirectories() async throws {
         let tree = try TemporaryComicTree(name: "Issue Scope")
         try tree.png("Included/01.png")

@@ -384,6 +384,8 @@ struct ImportPreviewDraft: Equatable, Sendable {
                 detectedFormat: page.detectedFormat,
                 expectedByteCount: page.byteCount,
                 expectedLightweightFingerprint: page.lightweightFingerprint,
+                pixelSize: page.pixelSize,
+                orientation: page.orientation,
                 pageState: page.state,
                 isCover: page.id == coverPageID
             )
@@ -547,8 +549,36 @@ struct FrozenImportWorkItem: Codable, Equatable, Identifiable, Sendable {
     let detectedFormat: ImportImageMediaType
     let expectedByteCount: Int64
     let expectedLightweightFingerprint: String?
+    let pixelSize: ImportPixelSize?
+    let orientation: ImportImageOrientation?
     let pageState: ImportPageState
     let isCover: Bool
+
+    init(
+        id: ImportPageCandidate.ID,
+        sourceRelativePath: SourceRelativePath,
+        managedRelativePath: ManagedRelativePath,
+        originalFileName: String,
+        detectedFormat: ImportImageMediaType,
+        expectedByteCount: Int64,
+        expectedLightweightFingerprint: String?,
+        pixelSize: ImportPixelSize? = nil,
+        orientation: ImportImageOrientation? = nil,
+        pageState: ImportPageState,
+        isCover: Bool
+    ) {
+        self.id = id
+        self.sourceRelativePath = sourceRelativePath
+        self.managedRelativePath = managedRelativePath
+        self.originalFileName = originalFileName
+        self.detectedFormat = detectedFormat
+        self.expectedByteCount = expectedByteCount
+        self.expectedLightweightFingerprint = expectedLightweightFingerprint
+        self.pixelSize = pixelSize
+        self.orientation = orientation
+        self.pageState = pageState
+        self.isCover = isCover
+    }
 }
 
 struct ManagedRelativePath: Codable, Hashable, Sendable {
