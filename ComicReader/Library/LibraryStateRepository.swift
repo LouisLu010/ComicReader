@@ -267,6 +267,7 @@ private actor LibraryStateStore {
 @Observable
 final class LibraryStateRepository {
     private(set) var status: LibraryStateRepositoryStatus = .unconfigured
+    private(set) var isWriteAvailable = false
     private(set) var statesByComicID: [ManagedComicID: LibraryComicUserState] = [:]
 
     @ObservationIgnored private var store: LibraryStateStore?
@@ -275,16 +276,30 @@ final class LibraryStateRepository {
         LibraryStateStore,
         Never
     >?
+    @ObservationIgnored private let prepareStoreCreation: @Sendable (
+        ModelContainer
+    ) async -> Void
     @ObservationIgnored private var indexedComicIDs = Set<ManagedComicID>()
+    @ObservationIgnored private var configurationGeneration = 0
+
+    init(
+        prepareStoreCreation: @escaping @Sendable (
+            ModelContainer
+        ) async -> Void = { _ in }
+    ) {
+        self.prepareStoreCreation = prepareStoreCreation
+    }
 
     func configure(modelContainer: ModelContainer?) async {
         guard let modelContainer else {
+            configurationGeneration += 1
             storeCreationTask?.cancel()
             storeCreationTask = nil
             store = nil
             configuredContainer = nil
             indexedComicIDs = []
             statesByComicID = [:]
+            isWriteAvailable = false
             status = .unavailable
             return
         }
@@ -294,8 +309,10 @@ final class LibraryStateRepository {
                 return
             }
 
+            let generation = configurationGeneration
             let createdStore = await storeCreationTask.value
-            guard configuredContainer === modelContainer else {
+            guard generation == configurationGeneration,
+                  configuredContainer === modelContainer else {
                 return
             }
 
@@ -307,15 +324,24 @@ final class LibraryStateRepository {
             return
         }
 
+        configurationGeneration += 1
+        let generation = configurationGeneration
         storeCreationTask?.cancel()
+        store = nil
+        indexedComicIDs = []
+        statesByComicID = [:]
+        isWriteAvailable = false
         status = .loading
         configuredContainer = modelContainer
+        let prepareStoreCreation = self.prepareStoreCreation
         let creationTask = Task.detached(priority: .userInitiated) {
-            LibraryStateStore(modelContainer: modelContainer)
+            await prepareStoreCreation(modelContainer)
+            return LibraryStateStore(modelContainer: modelContainer)
         }
         storeCreationTask = creationTask
         let createdStore = await creationTask.value
-        guard configuredContainer === modelContainer else {
+        guard generation == configurationGeneration,
+              configuredContainer === modelContainer else {
             return
         }
 
@@ -326,30 +352,66 @@ final class LibraryStateRepository {
 
     func reload() async {
         guard let store else {
-            status = .unavailable
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
             return
         }
 
+        let generation = configurationGeneration
         status = .loading
         do {
-            apply(try await store.snapshot())
+            let snapshot = try await store.snapshot()
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
             status = .ready
         } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return
+            }
+
+            isWriteAvailable = false
             status = .failed
         }
     }
 
     func reconcile(catalogItems: [LibraryCatalogItem]) async {
         guard let store else {
-            status = .unavailable
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
             return
         }
 
+        let generation = configurationGeneration
         status = .loading
         do {
-            apply(try await store.reconcile(catalogItems: catalogItems))
+            let snapshot = try await store.reconcile(
+                catalogItems: catalogItems
+            )
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
             status = .ready
         } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return
+            }
+
+            isWriteAvailable = false
             status = .failed
         }
     }
@@ -364,16 +426,33 @@ final class LibraryStateRepository {
 
     func toggleFavorite(for comicID: ManagedComicID) async {
         guard let store else {
-            status = .unavailable
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
             return
         }
 
+        let generation = configurationGeneration
         do {
-            if let snapshot = try await store.toggleFavorite(for: comicID) {
+            let snapshot = try await store.toggleFavorite(for: comicID)
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return
+            }
+
+            if let snapshot {
                 apply(snapshot)
             }
+            isWriteAvailable = true
             status = .ready
         } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return
+            }
+
+            isWriteAvailable = false
             status = .failed
         }
     }
@@ -384,20 +463,28 @@ final class LibraryStateRepository {
         for comicID: ManagedComicID
     ) async -> Bool {
         guard progress.isValid, let store else {
-            if store == nil {
+            if store == nil, storeCreationTask == nil {
+                isWriteAvailable = false
                 status = .unavailable
             }
             return false
         }
 
+        let generation = configurationGeneration
         do {
             let result = try await store.recordProgress(
                 progress,
                 for: comicID
             )
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+            isWriteAvailable = true
 
             switch result {
             case .missingComic:
+                status = .ready
                 return false
             case let .rejected(snapshot):
                 apply(snapshot)
@@ -409,6 +496,12 @@ final class LibraryStateRepository {
                 return true
             }
         } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            isWriteAvailable = false
             status = .failed
             return false
         }

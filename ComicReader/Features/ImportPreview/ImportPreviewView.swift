@@ -5,6 +5,8 @@ struct ImportPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(FolderImportCoordinator.self) private var importCoordinator
     @Environment(ImportJobCoordinator.self) private var importJobs
+    @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(LibraryPersistenceController.self) private var persistence
 
     let sessionID: ImportPreviewSession.ID
 
@@ -102,7 +104,13 @@ struct ImportPreviewView: View {
                 value: draft.manifest.issues.count.formatted()
             )
 
-            if !canStartImport {
+            if !allowsLibraryWrites {
+                Label(
+                    "import.workflow.readOnly.message",
+                    systemImage: "lock.fill"
+                )
+                .foregroundStyle(.orange)
+            } else if !hasReadableContent {
                 Label(
                     "import.preview.noReadableContent",
                     systemImage: "exclamationmark.triangle.fill"
@@ -251,6 +259,14 @@ struct ImportPreviewView: View {
     }
 
     private var canStartImport: Bool {
+        allowsLibraryWrites && hasReadableContent
+    }
+
+    private var allowsLibraryWrites: Bool {
+        persistence.status == .ready && libraryState.isWriteAvailable
+    }
+
+    private var hasReadableContent: Bool {
         guard let draft = currentDraft else {
             return false
         }
@@ -403,7 +419,7 @@ struct ImportPreviewView: View {
     }
 
     private func startImport() async {
-        guard !isStartingImport else {
+        guard allowsLibraryWrites, !isStartingImport else {
             return
         }
 

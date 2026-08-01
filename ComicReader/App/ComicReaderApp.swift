@@ -13,6 +13,9 @@ struct ComicReaderApp: App {
                 .environment(importJobs)
                 .environment(libraryState)
                 .environment(persistence)
+                .task {
+                    await persistence.openApplicationStore()
+                }
         }
         .commands {
             ComicReaderCommands()

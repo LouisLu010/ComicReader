@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 struct AppView: View {
     @Bindable var router: AppRouter
     @Environment(FolderImportCoordinator.self) private var importCoordinator
+    @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(LibraryPersistenceController.self) private var persistence
 
     var body: some View {
         NavigationSplitView {
@@ -32,9 +34,7 @@ struct AppView: View {
                 }
             }
         )
-        .focusedSceneValue(\.importFoldersAction) {
-            router.presentedImporter = .folders
-        }
+        .focusedSceneValue(\.importFoldersCommand, importFoldersCommand)
     }
 
     private var sidebar: some View {
@@ -63,6 +63,9 @@ struct AppView: View {
             SettingsView()
         case let section:
             LibraryView(section: section) {
+                guard allowsLibraryWrites else {
+                    return
+                }
                 router.presentedImporter = .folders
             }
         }
@@ -70,15 +73,31 @@ struct AppView: View {
 
     private var importerBinding: Binding<Bool> {
         Binding(
-            get: { router.presentedImporter == .folders },
+            get: {
+                allowsLibraryWrites
+                    && router.presentedImporter == .folders
+            },
             set: { isPresented in
-                if isPresented {
+                if isPresented, allowsLibraryWrites {
                     router.presentedImporter = .folders
                 } else {
                     router.presentedImporter = nil
                 }
             }
         )
+    }
+
+    private var importFoldersCommand: ImportFoldersCommand {
+        ImportFoldersCommand(isEnabled: allowsLibraryWrites) {
+            guard allowsLibraryWrites else {
+                return
+            }
+            router.presentedImporter = .folders
+        }
+    }
+
+    private var allowsLibraryWrites: Bool {
+        persistence.status == .ready && libraryState.isWriteAvailable
     }
 }
 

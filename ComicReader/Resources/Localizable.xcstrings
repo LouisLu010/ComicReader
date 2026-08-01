@@ -677,6 +677,18 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入需要处理" } }
       }
     },
+    "import.workflow.readOnly.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The library is temporarily read-only while its local index is unavailable. Wait for maintenance to finish, or repair it in Settings if prompted." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地索引不可用时，书库会暂时进入只读状态。请等待维护完成；若出现提示，请先在“设置”中修复。" } }
+      }
+    },
+    "import.workflow.readOnly.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Library Is Read-Only" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "书库处于只读状态" } }
+      }
+    },
     "import.workflow.startFailed.message" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The import was not started. No source files were changed." } },
@@ -871,8 +883,14 @@
     },
     "library.state.unavailable" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Favorites and reading progress are temporarily unavailable." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收藏和阅读进度暂时不可用。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The library is temporarily read-only. Repair or rebuild its local index in Settings; imported comics remain unchanged." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "书库暂时处于只读状态。请在“设置”中修复或重建本地索引；已导入漫画不会改变。" } }
+      }
+    },
+    "library.index.opening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Opening library index…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在打开书库索引…" } }
       }
     },
     "library.section.favorites" : {
@@ -1039,6 +1057,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Resetting library index…" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在重置书库索引…" } }
+      }
+    },
+    "settings.library.opening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Opening library index…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在打开书库索引…" } }
       }
     },
     "settings.library.section" : {

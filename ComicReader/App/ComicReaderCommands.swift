@@ -1,26 +1,31 @@
 import SwiftUI
 
 struct ComicReaderCommands: Commands {
-    @FocusedValue(\.importFoldersAction) private var importFoldersAction
+    @FocusedValue(\.importFoldersCommand) private var importFoldersCommand
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
             Button("import.action") {
-                importFoldersAction?()
+                importFoldersCommand?.perform()
             }
             .keyboardShortcut("o", modifiers: .command)
-            .disabled(importFoldersAction == nil)
+            .disabled(importFoldersCommand?.isEnabled != true)
         }
     }
 }
 
-private struct ImportFoldersActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+struct ImportFoldersCommand {
+    let isEnabled: Bool
+    let perform: () -> Void
+}
+
+private struct ImportFoldersCommandKey: FocusedValueKey {
+    typealias Value = ImportFoldersCommand
 }
 
 extension FocusedValues {
-    var importFoldersAction: (() -> Void)? {
-        get { self[ImportFoldersActionKey.self] }
-        set { self[ImportFoldersActionKey.self] = newValue }
+    var importFoldersCommand: ImportFoldersCommand? {
+        get { self[ImportFoldersCommandKey.self] }
+        set { self[ImportFoldersCommandKey.self] = newValue }
     }
 }

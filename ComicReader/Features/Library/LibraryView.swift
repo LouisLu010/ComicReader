@@ -9,6 +9,7 @@ struct LibraryView: View {
     @Environment(ImportJobCoordinator.self) private var importJobs
     @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
     @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(LibraryPersistenceController.self) private var persistence
 
     @State private var presentedPreview: ImportPreviewDestination?
     @State private var presentedReport: ImportReportDestination?
@@ -48,19 +49,23 @@ struct LibraryView: View {
                     LibraryCatalogFailureView()
                 }
 
-                if libraryState.status == .unavailable
-                    || libraryState.status == .failed {
+                if persistence.status == .opening {
+                    LibraryIndexOpeningView()
+                } else if libraryState.status == .unavailable
+                            || libraryState.status == .failed {
                     LibraryStateUnavailableView()
                 }
 
-                ImportFolderDropTarget(
-                    onPreparedSources: { preparation in
-                        importCoordinator.handlePreparedSources(preparation)
-                    },
-                    onDropFailure: {
-                        isDropFailurePresented = true
-                    }
-                )
+                if allowsLibraryWrites {
+                    ImportFolderDropTarget(
+                        onPreparedSources: { preparation in
+                            importCoordinator.handlePreparedSources(preparation)
+                        },
+                        onDropFailure: {
+                            isDropFailurePresented = true
+                        }
+                    )
+                }
 
                 if !displayedComics.isEmpty {
                     LibraryComicGrid(
@@ -89,6 +94,7 @@ struct LibraryView: View {
                     ImportJobListView(
                         jobs: importJobs.jobs,
                         isActive: importJobs.isActive,
+                        allowsLibraryWrites: allowsLibraryWrites,
                         onCancel: importJobs.cancel,
                         onResume: importJobs.resume,
                         onShowReport: { jobID in
@@ -117,19 +123,22 @@ struct LibraryView: View {
                     Label("import.action", systemImage: "folder.badge.plus")
                 }
                 .accessibilityIdentifier("import.toolbarButton")
+                .disabled(!allowsLibraryWrites)
             }
 
             ToolbarItem(placement: .secondaryAction) {
                 Button {
+                    guard allowsLibraryWrites else {
+                        return
+                    }
                     Task {
-                        await libraryCatalog.reloadAndReconcile(
-                            with: libraryState
-                        )
+                        await reloadCatalogAndReconcileIfWritable()
                     }
                 } label: {
                     Label("library.reload", systemImage: "arrow.clockwise")
                 }
                 .accessibilityIdentifier("library.reload")
+                .disabled(!allowsLibraryWrites)
             }
         }
         .sheet(item: $presentedPreview) { destination in
@@ -170,6 +179,20 @@ struct LibraryView: View {
         }
 
         return true
+    }
+
+    private var allowsLibraryWrites: Bool {
+        persistence.status == .ready && libraryState.isWriteAvailable
+    }
+
+    private func reloadCatalogAndReconcileIfWritable() async {
+        guard await libraryCatalog.reload(),
+              !Task.isCancelled,
+              allowsLibraryWrites else {
+            return
+        }
+
+        await libraryState.reconcile(catalogItems: libraryCatalog.comics)
     }
 
     private var displayedComics: [LibraryCatalogItem] {
@@ -219,6 +242,7 @@ struct LibraryView: View {
             }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("import.button")
+            .disabled(!allowsLibraryWrites)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)
@@ -241,6 +265,8 @@ struct LibraryView: View {
         switch notice {
         case .storageUnavailable:
             "import.workflow.storageUnavailable.title"
+        case .libraryReadOnly:
+            "import.workflow.readOnly.title"
         case .couldNotStart, .couldNotContinue:
             "import.workflow.operationFailed.title"
         }
@@ -252,6 +278,8 @@ struct LibraryView: View {
         switch notice {
         case .storageUnavailable:
             "import.workflow.storageUnavailable.message"
+        case .libraryReadOnly:
+            "import.workflow.readOnly.message"
         case .couldNotStart:
             "import.workflow.startFailed.message"
         case .couldNotContinue:
@@ -280,6 +308,18 @@ private struct LibraryCatalogFailureView: View {
         )
         .foregroundStyle(.orange)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibraryIndexOpeningView: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+            Text("library.index.opening")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("library.openingIndex")
     }
 }
 
@@ -479,5 +519,8 @@ private struct ImportSelectionBanner: View {
             .environment(ImportJobCoordinator())
             .environment(LibraryCatalogCoordinator())
             .environment(LibraryStateRepository())
+            .environment(
+                LibraryPersistenceController(previewModelContainer: nil)
+            )
     }
 }

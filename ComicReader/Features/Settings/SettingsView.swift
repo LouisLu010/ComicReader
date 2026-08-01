@@ -12,9 +12,7 @@ struct SettingsView: View {
             Section("settings.library.section") {
                 Button {
                     Task {
-                        await libraryCatalog.reloadAndReconcile(
-                            with: libraryState
-                        )
+                        await rebuildLibraryIndex()
                     }
                 } label: {
                     Label(
@@ -22,19 +20,20 @@ struct SettingsView: View {
                         systemImage: "arrow.triangle.2.circlepath"
                     )
                 }
-                .disabled(
-                    persistence.status != .ready
-                        || libraryState.status == .unavailable
-                        || libraryState.status == .unconfigured
-                        || libraryState.status == .loading
-                )
+                .disabled(!canRebuildLibraryIndex)
                 .accessibilityIdentifier("settings.rebuildIndex")
 
                 Text("settings.library.rebuild.description")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                if persistence.status == .recovering {
+                if persistence.status == .opening {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("settings.library.opening")
+                    }
+                    .accessibilityIdentifier("settings.openingIndex")
+                } else if persistence.status == .recovering {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("settings.library.repairing")
@@ -97,6 +96,26 @@ struct SettingsView: View {
     private var showsRecoveryControls: Bool {
         persistence.status == .recoveryRequired
             || persistence.status == .recoveryFailed
+    }
+
+    private var canRebuildLibraryIndex: Bool {
+        guard persistence.status == .ready else {
+            return false
+        }
+
+        return libraryState.status == .ready
+            || libraryState.status == .failed
+    }
+
+    private func rebuildLibraryIndex() async {
+        // 重建是用户明确触发的索引修复，可在 repository.failed 后重试。
+        guard await libraryCatalog.reload(),
+              !Task.isCancelled,
+              canRebuildLibraryIndex else {
+            return
+        }
+
+        await libraryState.reconcile(catalogItems: libraryCatalog.comics)
     }
 }
 

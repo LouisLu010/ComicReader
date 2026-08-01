@@ -202,12 +202,28 @@ final class LibraryCatalogLoaderTests: XCTestCase {
             layout: layout
         )
 
-        await coordinator.reload()
+        let didLoad = await coordinator.reload()
 
+        XCTAssertTrue(didLoad)
         XCTAssertEqual(coordinator.state, .loaded)
         XCTAssertEqual(coordinator.comics, [comic])
         XCTAssertEqual(coordinator.comicsByTitle, [comic])
         XCTAssertEqual(coordinator.ignoredEntryCount, 1)
+    }
+
+    @MainActor
+    func testCoordinatorReturnsFalseWhenCatalogLoadingFails() async {
+        let coordinator = LibraryCatalogCoordinator(
+            loader: FailingLibraryCatalogLoader(),
+            layout: ImportStorageLayout(
+                rootURL: FileManager.default.temporaryDirectory
+            )
+        )
+
+        let didLoad = await coordinator.reload()
+
+        XCTAssertFalse(didLoad)
+        XCTAssertEqual(coordinator.state, .failed)
     }
 
     private func makeSandboxURL() throws -> URL {
@@ -325,4 +341,14 @@ private actor FixedLibraryCatalogLoader: LibraryCatalogLoading {
     func loadCatalog() async throws -> LibraryCatalogLoadResult {
         result
     }
+}
+
+private actor FailingLibraryCatalogLoader: LibraryCatalogLoading {
+    func loadCatalog() async throws -> LibraryCatalogLoadResult {
+        throw LibraryCatalogLoaderTestError.loadFailed
+    }
+}
+
+private enum LibraryCatalogLoaderTestError: Error, Sendable {
+    case loadFailed
 }

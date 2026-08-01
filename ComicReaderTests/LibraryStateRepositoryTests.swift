@@ -31,6 +31,126 @@ final class LibraryStateRepositoryTests: XCTestCase {
     }
 
     @MainActor
+    func testConfigurationGenerationRejectsABAStoreCreation() async throws {
+        let container = try makeContainer()
+        let creationGate = StoreCreationGate()
+        defer {
+            Task {
+                await creationGate.release(0)
+                await creationGate.release(1)
+            }
+        }
+        let repository = LibraryStateRepository(
+            prepareStoreCreation: { _ in
+                await creationGate.suspendInvocation()
+            }
+        )
+
+        let originalConfiguration = Task { @MainActor in
+            await repository.configure(modelContainer: container)
+        }
+        guard await waitForStoreCreationStart(
+            creationGate,
+            invocation: 0
+        ) else {
+            return
+        }
+        await repository.configure(modelContainer: nil)
+
+        let replacementConfiguration = Task { @MainActor in
+            await repository.configure(modelContainer: container)
+        }
+        guard await waitForStoreCreationStart(
+            creationGate,
+            invocation: 1
+        ) else {
+            return
+        }
+
+        await creationGate.release(0)
+        await originalConfiguration.value
+        XCTAssertEqual(repository.status, .loading)
+        XCTAssertFalse(repository.isWriteAvailable)
+
+        await creationGate.release(1)
+        await replacementConfiguration.value
+        XCTAssertEqual(repository.status, .ready)
+        XCTAssertTrue(repository.isWriteAvailable)
+    }
+
+    @MainActor
+    func testContainerSwitchDetachesOldStoreWhileReplacementLoads() async throws {
+        let firstContainer = try makeContainer()
+        let secondContainer = try makeContainer()
+        let creationGate = StoreCreationGate()
+        defer {
+            Task {
+                await creationGate.release(0)
+                await creationGate.release(1)
+            }
+        }
+        let repository = LibraryStateRepository(
+            prepareStoreCreation: { _ in
+                await creationGate.suspendInvocation()
+            }
+        )
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000410"),
+            title: "Detached Store Comic",
+            importedAt: .distantPast
+        )
+
+        let firstConfiguration = Task { @MainActor in
+            await repository.configure(modelContainer: firstContainer)
+        }
+        guard await waitForStoreCreationStart(
+            creationGate,
+            invocation: 0
+        ) else {
+            return
+        }
+        await creationGate.release(0)
+        await firstConfiguration.value
+        await repository.reconcile(catalogItems: [comic])
+        XCTAssertTrue(repository.isWriteAvailable)
+
+        let replacementConfiguration = Task { @MainActor in
+            await repository.configure(modelContainer: secondContainer)
+        }
+        guard await waitForStoreCreationStart(
+            creationGate,
+            invocation: 1
+        ) else {
+            return
+        }
+
+        let didRecord = await repository.recordProgress(
+            LibraryReadingProgress(
+                chapterID: "chapter-1",
+                pageID: "page-1",
+                pageOffset: 0.5,
+                zoomScale: 1
+            ),
+            for: comic.id
+        )
+
+        XCTAssertFalse(didRecord)
+        XCTAssertEqual(repository.status, .loading)
+        XCTAssertFalse(repository.isWriteAvailable)
+        XCTAssertEqual(repository.state(for: comic.id), .empty)
+
+        await creationGate.release(1)
+        await replacementConfiguration.value
+        XCTAssertEqual(repository.status, .ready)
+        XCTAssertTrue(repository.isWriteAvailable)
+
+        let firstStoreVerifier = await makeRepository(
+            container: firstContainer
+        )
+        XCTAssertNil(firstStoreVerifier.state(for: comic.id).progress)
+    }
+
+    @MainActor
     func testReconcileUpdatesCatalogWithoutOverwritingUserState() async throws {
         let container = try makeContainer()
         let repository = await makeRepository(container: container)
@@ -373,6 +493,66 @@ final class LibraryStateRepositoryTests: XCTestCase {
     }
 
     @MainActor
+    func testProgressMergeObservesNewerSaveFromAnotherContext() async throws {
+        let container = try makeContainer()
+        let firstRepository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000413"),
+            title: "Cross Context Comic",
+            importedAt: .distantPast
+        )
+        await firstRepository.reconcile(catalogItems: [comic])
+        await assertRecords(
+            LibraryReadingProgress(
+                chapterID: "chapter-1",
+                pageID: "page-1",
+                pageOffset: 0,
+                zoomScale: 1,
+                updatedAt: Date(timeIntervalSince1970: 50)
+            ),
+            for: comic.id,
+            using: firstRepository
+        )
+
+        let secondRepository = await makeRepository(container: container)
+        let newerProgress = LibraryReadingProgress(
+            chapterID: "chapter-2",
+            pageID: "page-8",
+            pageOffset: 0.8,
+            zoomScale: 2,
+            isCompleted: true,
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+        await assertRecords(
+            newerProgress,
+            for: comic.id,
+            using: secondRepository
+        )
+
+        let didRecordStaleProgress = await firstRepository.recordProgress(
+            LibraryReadingProgress(
+                chapterID: "chapter-1",
+                pageID: "page-3",
+                pageOffset: 0.3,
+                zoomScale: 1,
+                updatedAt: Date(timeIntervalSince1970: 100)
+            ),
+            for: comic.id
+        )
+
+        XCTAssertFalse(didRecordStaleProgress)
+        XCTAssertEqual(
+            firstRepository.state(for: comic.id).progress,
+            newerProgress
+        )
+        let restoredRepository = await makeRepository(container: container)
+        XCTAssertEqual(
+            restoredRepository.state(for: comic.id).progress,
+            newerProgress
+        )
+    }
+
+    @MainActor
     func testReconcileDoesNotDiscardStateForTemporarilyMissingCatalogItems() async throws {
         let repository = await makeRepository(container: try makeContainer())
         let retained = catalogItem(
@@ -573,5 +753,70 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
     private func managedComicID(_ value: String) -> ManagedComicID {
         ManagedComicID(rawValue: UUID(uuidString: value)!)
+    }
+
+    @MainActor
+    private func waitForStoreCreationStart(
+        _ gate: StoreCreationGate,
+        invocation: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async -> Bool {
+        guard await gate.waitUntilStarted(invocation) else {
+            // 预先释放迟到的调用，避免失败测试留下永久挂起的任务。
+            await gate.release(invocation)
+            XCTFail(
+                "Timed out waiting for store creation to start.",
+                file: file,
+                line: line
+            )
+            return false
+        }
+
+        return true
+    }
+}
+
+private actor StoreCreationGate {
+    private var nextInvocation = 0
+    private var startedInvocations = Set<Int>()
+    private var releaseContinuations: [
+        Int: CheckedContinuation<Void, Never>
+    ] = [:]
+    private var releasedInvocations = Set<Int>()
+
+    func suspendInvocation() async {
+        let invocation = nextInvocation
+        nextInvocation += 1
+        startedInvocations.insert(invocation)
+
+        guard releasedInvocations.remove(invocation) == nil else {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            releaseContinuations[invocation] = continuation
+        }
+    }
+
+    func waitUntilStarted(_ invocation: Int) async -> Bool {
+        for _ in 0..<200 {
+            if startedInvocations.contains(invocation) {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        return startedInvocations.contains(invocation)
+    }
+
+    func release(_ invocation: Int) {
+        if let continuation = releaseContinuations.removeValue(
+            forKey: invocation
+        ) {
+            continuation.resume()
+        } else {
+            releasedInvocations.insert(invocation)
+        }
     }
 }

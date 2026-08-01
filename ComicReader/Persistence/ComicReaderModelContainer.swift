@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-enum ComicReaderModelContainerOpenResult {
+enum ComicReaderModelContainerOpenResult: Sendable {
     case opened(ModelContainer)
     case recoveryRequired(ComicReaderModelStoreRecovery)
 }

@@ -40,10 +40,11 @@ final class LibraryCatalogCoordinator {
         }
     }
 
-    func reload() async {
+    @discardableResult
+    func reload() async -> Bool {
         guard let loader else {
             state = .failed
-            return
+            return false
         }
 
         reloadGeneration += 1
@@ -53,28 +54,28 @@ final class LibraryCatalogCoordinator {
         do {
             let result = try await loader.loadCatalog()
             guard !Task.isCancelled, generation == reloadGeneration else {
-                return
+                return false
             }
 
             comics = result.comics
             comicsByTitle = result.comics.sorted(by: Self.titleOrder)
             ignoredEntryCount = result.ignoredEntryCount
             state = .loaded
+            return true
         } catch is CancellationError {
-            return
+            return false
         } catch {
             guard generation == reloadGeneration else {
-                return
+                return false
             }
 
             state = .failed
+            return false
         }
     }
 
     func reloadAndReconcile(with libraryState: LibraryStateRepository) async {
-        await reload()
-
-        guard state == .loaded else {
+        guard await reload(), !Task.isCancelled else {
             return
         }
 

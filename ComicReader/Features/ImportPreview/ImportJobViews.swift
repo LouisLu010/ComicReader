@@ -4,6 +4,7 @@ import SwiftUI
 struct ImportJobListView: View {
     let jobs: [ImportJobSnapshot]
     let isActive: (ImportJobID) -> Bool
+    let allowsLibraryWrites: Bool
     let onCancel: (ImportJobID) -> Void
     let onResume: (ImportJobID) -> Void
     let onShowReport: (ImportJobID) -> Void
@@ -17,6 +18,7 @@ struct ImportJobListView: View {
                 ImportJobRow(
                     snapshot: snapshot,
                     isActive: isActive(snapshot.id),
+                    allowsLibraryWrites: allowsLibraryWrites,
                     onCancel: { onCancel(snapshot.id) },
                     onResume: { onResume(snapshot.id) },
                     onShowReport: { onShowReport(snapshot.id) }
@@ -30,6 +32,7 @@ struct ImportJobListView: View {
 private struct ImportJobRow: View {
     let snapshot: ImportJobSnapshot
     let isActive: Bool
+    let allowsLibraryWrites: Bool
     let onCancel: () -> Void
     let onResume: () -> Void
     let onShowReport: () -> Void
@@ -79,11 +82,13 @@ private struct ImportJobRow: View {
                 if isActive && canCancel {
                     Button("import.jobs.cancel", action: onCancel)
                         .buttonStyle(.bordered)
+                        .disabled(!allowsLibraryWrites)
                 }
 
                 if canResume && !isActive {
                     Button("import.jobs.resume", action: onResume)
                         .buttonStyle(.borderedProminent)
+                        .disabled(!allowsLibraryWrites)
                 }
 
                 if snapshot.report != nil {

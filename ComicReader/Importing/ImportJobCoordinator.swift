@@ -61,6 +61,7 @@ struct RecoverableImportJobManager: ImportJobManaging {
 
 enum ImportJobWorkflowNotice: String, Equatable, Identifiable, Sendable {
     case storageUnavailable
+    case libraryReadOnly
     case couldNotStart
     case couldNotContinue
 
@@ -75,22 +76,31 @@ final class ImportJobCoordinator {
     private(set) var jobs: [ImportJobSnapshot] = []
     private(set) var isRestoring = false
     private(set) var notice: ImportJobWorkflowNotice?
+    private(set) var allowsLibraryWrites: Bool
 
     @ObservationIgnored private var jobManager: (any ImportJobManaging)?
     private var activeJobIDs = Set<ImportJobID>()
     @ObservationIgnored private var hasRestoredPendingJobs = false
+    @ObservationIgnored private var shouldRetryRestoreWhenWritable = false
     @ObservationIgnored private var progressTasks: [
         ImportJobID: Task<Void, Never>
     ] = [:]
     @ObservationIgnored private var observationTokens: [ImportJobID: UUID] = [:]
     @ObservationIgnored private var pendingSourceBookmarks = Set<Data>()
     @ObservationIgnored private var sourceBookmarksByJobID: [ImportJobID: Data] = [:]
+    /// 已进入 Manager 的操作允许收尾到安全检查点；generation 只阻止后续写链路。
+    @ObservationIgnored private var libraryWriteGeneration = 0
 
-    init(jobManager: any ImportJobManaging) {
+    init(
+        jobManager: any ImportJobManaging,
+        allowsLibraryWrites: Bool = true
+    ) {
         self.jobManager = jobManager
+        self.allowsLibraryWrites = allowsLibraryWrites
     }
 
     init() {
+        allowsLibraryWrites = false
         do {
             let layout = try JSONImportJobStore.applicationSupportLayout()
             jobManager = RecoverableImportJobManager(
@@ -107,6 +117,12 @@ final class ImportJobCoordinator {
         draft: ImportPreviewDraft,
         sourceBookmark: Data
     ) async -> ImportJobID? {
+        guard allowsLibraryWrites else {
+            notice = .libraryReadOnly
+            return nil
+        }
+        let writeGeneration = libraryWriteGeneration
+
         guard let jobManager else {
             notice = .storageUnavailable
             return nil
@@ -127,23 +143,53 @@ final class ImportJobCoordinator {
                 sourceBookmark: sourceBookmark,
                 targetComicID: ManagedComicID()
             )
+            guard isLibraryWriteAllowed(writeGeneration) else {
+                sourceBookmarksByJobID[snapshot.id] = sourceBookmark
+                upsert(snapshot)
+                publishInvalidatedWriteNotice(
+                    writeGeneration: writeGeneration,
+                    fallback: .couldNotStart
+                )
+                return snapshot.id
+            }
+
             sourceBookmarksByJobID[snapshot.id] = sourceBookmark
             upsert(snapshot)
             activeJobIDs.insert(snapshot.id)
-            startObserving(snapshot.id)
+            startObserving(
+                snapshot.id,
+                writeGeneration: writeGeneration
+            )
 
             Task { @MainActor [weak self] in
-                await self?.runExistingJob(snapshot.id, resuming: false)
+                await self?.runExistingJob(
+                    snapshot.id,
+                    resuming: false,
+                    writeGeneration: writeGeneration
+                )
             }
 
             return snapshot.id
         } catch {
-            notice = .couldNotStart
+            if isLibraryWriteAllowed(writeGeneration) {
+                notice = .couldNotStart
+            } else {
+                publishInvalidatedWriteNotice(
+                    writeGeneration: writeGeneration,
+                    fallback: .couldNotStart
+                )
+            }
             return nil
         }
     }
 
     func cancel(_ jobID: ImportJobID) {
+        guard allowsLibraryWrites else {
+            notice = .libraryReadOnly
+            return
+        }
+        let writeGeneration = libraryWriteGeneration
+
         guard let jobManager else {
             notice = .storageUnavailable
             return
@@ -153,37 +199,84 @@ final class ImportJobCoordinator {
             guard let self else {
                 return
             }
+            guard isLibraryWriteAllowed(writeGeneration) else {
+                publishInvalidatedWriteNotice(
+                    writeGeneration: writeGeneration,
+                    fallback: .couldNotContinue
+                )
+                return
+            }
 
             do {
                 let snapshot = try await jobManager.cancel(jobID)
                 upsert(snapshot)
+                guard isLibraryWriteAllowed(writeGeneration) else {
+                    publishInvalidatedWriteNotice(
+                        writeGeneration: writeGeneration,
+                        fallback: .couldNotContinue
+                    )
+                    return
+                }
             } catch {
-                await refreshSnapshot(jobID)
-                notice = .couldNotContinue
+                guard isLibraryWriteAllowed(writeGeneration) else {
+                    publishInvalidatedWriteNotice(
+                        writeGeneration: writeGeneration,
+                        fallback: .couldNotContinue
+                    )
+                    return
+                }
+
+                await refreshSnapshot(
+                    jobID,
+                    writeGeneration: writeGeneration
+                )
+                if isLibraryWriteAllowed(writeGeneration) {
+                    notice = .couldNotContinue
+                }
             }
         }
     }
 
     func resume(_ jobID: ImportJobID) {
+        guard allowsLibraryWrites else {
+            notice = .libraryReadOnly
+            return
+        }
+        let writeGeneration = libraryWriteGeneration
+
         guard jobManager != nil, !activeJobIDs.contains(jobID) else {
             return
         }
 
         let shouldResume = job(for: jobID)?.state.phase == .paused
         activeJobIDs.insert(jobID)
-        startObserving(jobID)
+        startObserving(jobID, writeGeneration: writeGeneration)
 
         Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
 
-            await runExistingJob(jobID, resuming: shouldResume)
+            await runExistingJob(
+                jobID,
+                resuming: shouldResume,
+                writeGeneration: writeGeneration
+            )
         }
     }
 
     func restorePendingJobs() async {
-        guard !hasRestoredPendingJobs, !isRestoring, !Task.isCancelled else {
+        guard allowsLibraryWrites else {
+            notice = .libraryReadOnly
+            return
+        }
+        let writeGeneration = libraryWriteGeneration
+
+        guard !hasRestoredPendingJobs, !Task.isCancelled else {
+            return
+        }
+        guard !isRestoring else {
+            shouldRetryRestoreWhenWritable = true
             return
         }
 
@@ -200,16 +293,39 @@ final class ImportJobCoordinator {
                 activeJobIDs.remove(jobID)
                 stopObserving(jobID)
             }
+            let shouldRetry = shouldRetryRestoreWhenWritable
+                && allowsLibraryWrites
+                && !hasRestoredPendingJobs
+            if hasRestoredPendingJobs || shouldRetry {
+                shouldRetryRestoreWhenWritable = false
+            }
+            if shouldRetry {
+                Task { @MainActor [weak self] in
+                    await self?.restorePendingJobs()
+                }
+            }
         }
 
         do {
             let storedSnapshots = try await jobManager.storedJobSnapshots()
-            guard !Task.isCancelled else {
-                return
+            if isLibraryWriteAllowed(writeGeneration)
+                || !allowsLibraryWrites {
+                for snapshot in storedSnapshots {
+                    upsert(snapshot)
+                }
             }
-
-            for snapshot in storedSnapshots {
-                upsert(snapshot)
+            guard !Task.isCancelled,
+                  isLibraryWriteAllowed(writeGeneration) else {
+                if !isLibraryWriteAllowed(writeGeneration) {
+                    shouldRetryRestoreWhenWritable = true
+                }
+                if !Task.isCancelled {
+                    publishInvalidatedWriteNotice(
+                        writeGeneration: writeGeneration,
+                        fallback: .couldNotContinue
+                    )
+                }
+                return
             }
 
             automaticallyRestoredJobIDs = Set(
@@ -219,24 +335,70 @@ final class ImportJobCoordinator {
             )
             for jobID in automaticallyRestoredJobIDs {
                 activeJobIDs.insert(jobID)
-                startObserving(jobID)
+                startObserving(
+                    jobID,
+                    writeGeneration: writeGeneration
+                )
             }
 
             let snapshots = try await jobManager.restorePendingJobs()
-            guard !Task.isCancelled else {
+            if isLibraryWriteAllowed(writeGeneration)
+                || !allowsLibraryWrites {
+                for snapshot in snapshots {
+                    upsert(snapshot)
+                }
+            }
+            guard !Task.isCancelled,
+                  isLibraryWriteAllowed(writeGeneration) else {
+                if !isLibraryWriteAllowed(writeGeneration) {
+                    shouldRetryRestoreWhenWritable = true
+                }
+                if !Task.isCancelled {
+                    publishInvalidatedWriteNotice(
+                        writeGeneration: writeGeneration,
+                        fallback: .couldNotContinue
+                    )
+                }
                 return
             }
-
-            for snapshot in snapshots {
-                upsert(snapshot)
-            }
             for jobID in automaticallyRestoredJobIDs {
-                await refreshSnapshot(jobID)
+                guard isLibraryWriteAllowed(writeGeneration) else {
+                    shouldRetryRestoreWhenWritable = true
+                    publishInvalidatedWriteNotice(
+                        writeGeneration: writeGeneration,
+                        fallback: .couldNotContinue
+                    )
+                    return
+                }
+                let didRefresh = await refreshSnapshot(
+                    jobID,
+                    writeGeneration: writeGeneration
+                )
+                guard didRefresh else {
+                    if !isLibraryWriteAllowed(writeGeneration) {
+                        shouldRetryRestoreWhenWritable = true
+                    }
+                    if !Task.isCancelled {
+                        publishInvalidatedWriteNotice(
+                            writeGeneration: writeGeneration,
+                            fallback: .couldNotContinue
+                        )
+                    }
+                    return
+                }
             }
 
             hasRestoredPendingJobs = true
         } catch {
-            notice = .couldNotContinue
+            if isLibraryWriteAllowed(writeGeneration) {
+                notice = .couldNotContinue
+            } else {
+                shouldRetryRestoreWhenWritable = true
+                publishInvalidatedWriteNotice(
+                    writeGeneration: writeGeneration,
+                    fallback: .couldNotContinue
+                )
+            }
         }
     }
 
@@ -258,13 +420,51 @@ final class ImportJobCoordinator {
         notice = nil
     }
 
+    func setLibraryWritesAllowed(_ isAllowed: Bool) {
+        guard allowsLibraryWrites != isAllowed else {
+            if isAllowed, notice == .libraryReadOnly {
+                notice = nil
+            }
+            return
+        }
+
+        allowsLibraryWrites = isAllowed
+        libraryWriteGeneration &+= 1
+        if !isAllowed {
+            for jobID in Array(progressTasks.keys) {
+                stopObserving(jobID)
+            }
+        }
+        if isAllowed, notice == .libraryReadOnly {
+            notice = nil
+        }
+        if isAllowed,
+           shouldRetryRestoreWhenWritable,
+           !isRestoring,
+           !hasRestoredPendingJobs {
+            shouldRetryRestoreWhenWritable = false
+            Task { @MainActor [weak self] in
+                await self?.restorePendingJobs()
+            }
+        }
+    }
+
     private func runExistingJob(
         _ jobID: ImportJobID,
-        resuming: Bool
+        resuming: Bool,
+        writeGeneration: Int
     ) async {
         defer {
             activeJobIDs.remove(jobID)
             stopObserving(jobID)
+        }
+
+        guard isLibraryWriteAllowed(writeGeneration) else {
+            publishInvalidatedWriteNotice(
+                writeGeneration: writeGeneration,
+                fallback: .couldNotContinue
+            )
+            return
         }
 
         guard let jobManager else {
@@ -280,9 +480,29 @@ final class ImportJobCoordinator {
                 snapshot = try await jobManager.run(jobID)
             }
             upsert(snapshot)
+            guard isLibraryWriteAllowed(writeGeneration) else {
+                publishInvalidatedWriteNotice(
+                    writeGeneration: writeGeneration,
+                    fallback: .couldNotContinue
+                )
+                return
+            }
         } catch {
-            await refreshSnapshot(jobID)
-            notice = .couldNotContinue
+            guard isLibraryWriteAllowed(writeGeneration) else {
+                publishInvalidatedWriteNotice(
+                    writeGeneration: writeGeneration,
+                    fallback: .couldNotContinue
+                )
+                return
+            }
+
+            await refreshSnapshot(
+                jobID,
+                writeGeneration: writeGeneration
+            )
+            if isLibraryWriteAllowed(writeGeneration) {
+                notice = .couldNotContinue
+            }
         }
     }
 
@@ -300,7 +520,10 @@ final class ImportJobCoordinator {
         }
     }
 
-    private func startObserving(_ jobID: ImportJobID) {
+    private func startObserving(
+        _ jobID: ImportJobID,
+        writeGeneration: Int
+    ) {
         stopObserving(jobID)
         let token = UUID()
         observationTokens[jobID] = token
@@ -311,6 +534,7 @@ final class ImportJobCoordinator {
 
                 guard !Task.isCancelled,
                       let self,
+                      self.isLibraryWriteAllowed(writeGeneration),
                       self.isCurrentObservation(jobID, token: token),
                       self.activeJobIDs.contains(jobID),
                       let jobManager = self.jobManager else {
@@ -319,6 +543,7 @@ final class ImportJobCoordinator {
 
                 guard let snapshot = try? await jobManager.snapshot(for: jobID),
                       !Task.isCancelled,
+                      self.isLibraryWriteAllowed(writeGeneration),
                       self.isCurrentObservation(jobID, token: token),
                       self.activeJobIDs.contains(jobID) else {
                     return
@@ -341,13 +566,35 @@ final class ImportJobCoordinator {
         progressTasks.removeValue(forKey: jobID)?.cancel()
     }
 
-    private func refreshSnapshot(_ jobID: ImportJobID) async {
+    @discardableResult
+    private func refreshSnapshot(
+        _ jobID: ImportJobID,
+        writeGeneration: Int
+    ) async -> Bool {
         guard let jobManager,
-              let snapshot = try? await jobManager.snapshot(for: jobID) else {
-            return
+              isLibraryWriteAllowed(writeGeneration),
+              let snapshot = try? await jobManager.snapshot(for: jobID),
+              isLibraryWriteAllowed(writeGeneration) else {
+            return false
         }
 
         upsert(snapshot)
+        return true
+    }
+
+    private func isLibraryWriteAllowed(_ generation: Int) -> Bool {
+        allowsLibraryWrites && generation == libraryWriteGeneration
+    }
+
+    private func publishInvalidatedWriteNotice(
+        writeGeneration: Int,
+        fallback: ImportJobWorkflowNotice
+    ) {
+        if !allowsLibraryWrites {
+            notice = .libraryReadOnly
+        } else if writeGeneration == libraryWriteGeneration {
+            notice = fallback
+        }
     }
 
     private func upsert(_ snapshot: ImportJobSnapshot) {
