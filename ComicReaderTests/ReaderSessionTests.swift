@@ -514,6 +514,112 @@ final class ReaderSessionTests: XCTestCase {
         XCTAssertTrue(session.progress.isChapterCompleted)
     }
 
+    func testProgressDoesNotReachFinalChapterEndWhenOnlyFirstChapterCompletes() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let firstChapterPage = page("page-1")
+        let finalChapterPage = page("page-2")
+        var session = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstChapterPage]),
+                chapter(finalChapterID, pages: [finalChapterPage]),
+            ]
+        )
+
+        XCTAssertTrue(session.move(
+            to: .chapter(firstChapterID, firstChapterPage.id),
+            pageOffset: 1
+        ))
+
+        XCTAssertTrue(session.progress.isChapterCompleted)
+        XCTAssertFalse(session.progress.hasReachedFinalChapterEnd)
+    }
+
+    func testContinuousProgressReachesFinalChapterEndAtFinalPageEnd() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let firstChapterPage = page("page-1")
+        let finalChapterPage = page("page-2")
+        var session = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstChapterPage]),
+                chapter(finalChapterID, pages: [finalChapterPage]),
+            ]
+        )
+
+        XCTAssertTrue(session.move(
+            to: .chapter(finalChapterID, finalChapterPage.id),
+            pageOffset: 0.999
+        ))
+        XCTAssertFalse(session.progress.hasReachedFinalChapterEnd)
+
+        XCTAssertTrue(session.move(
+            to: .chapter(finalChapterID, finalChapterPage.id),
+            pageOffset: 1
+        ))
+        XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+    }
+
+    func testPagedProgressReachesFinalChapterEndWhenFinalPresentationFinishes() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let firstChapterPage = page("page-1")
+        let finalChapterFirstPage = page("page-2")
+        let finalChapterLastPage = page("page-3")
+
+        for readingMode in [ReadingMode.singlePage, .spread] {
+            var session = try makeSession(
+                chapters: [
+                    chapter(firstChapterID, pages: [firstChapterPage]),
+                    chapter(
+                        finalChapterID,
+                        pages: [finalChapterFirstPage, finalChapterLastPage]
+                    ),
+                ],
+                readingMode: readingMode
+            )
+
+            XCTAssertTrue(session.move(
+                to: .chapter(finalChapterID, finalChapterLastPage.id)
+            ))
+            XCTAssertTrue(session.markCurrentPresentationCompleted())
+            XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+        }
+    }
+
+    func testStandaloneCoverDoesNotReachFinalChapterEnd() throws {
+        let cover = page("root-cover", isCover: true)
+        let session = try makeSession(chapters: [], cover: cover)
+
+        XCTAssertEqual(session.position.location, .cover(cover.id))
+        XCTAssertFalse(session.progress.hasReachedFinalChapterEnd)
+    }
+
+    func testProgressRetainsFinalChapterEndAfterReturningToEarlierChapter() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let firstChapterPage = page("page-1")
+        let finalChapterPage = page("page-2")
+        var session = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstChapterPage]),
+                chapter(finalChapterID, pages: [finalChapterPage]),
+            ]
+        )
+
+        XCTAssertTrue(session.move(
+            to: .chapter(finalChapterID, finalChapterPage.id),
+            pageOffset: 1
+        ))
+        XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+
+        XCTAssertTrue(session.move(
+            to: .chapter(firstChapterID, firstChapterPage.id)
+        ))
+        XCTAssertFalse(session.progress.isChapterCompleted)
+        XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+    }
+
     func testCorruptedPageRemainsAStandaloneStablePlaceholder() throws {
         let chapterID = makeChapterID("chapter-1")
         let firstPage = page("page-1")

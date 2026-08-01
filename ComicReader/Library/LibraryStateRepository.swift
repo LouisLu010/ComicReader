@@ -160,7 +160,21 @@ private actor LibraryStateStore {
         if let record = storedProgress.first(where: {
             $0.comicID == comicID.rawValue
         }) {
-            guard progress.updatedAt >= record.updatedAt else {
+            if progress.updatedAt < record.updatedAt {
+                if progress.isCompleted {
+                    if !record.isCompleted {
+                        // 位置仍采用较新的记录，但完成状态必须可跨窗口合并。
+                        record.isCompleted = true
+                        try saveOrRollback()
+                    }
+                    return .applied(
+                        makeSnapshot(
+                            storedComics: storedComics,
+                            storedProgress: storedProgress
+                        )
+                    )
+                }
+
                 return .rejected(
                     makeSnapshot(
                         storedComics: storedComics,
@@ -173,7 +187,8 @@ private actor LibraryStateStore {
             record.pageID = progress.pageID
             record.pageOffset = progress.pageOffset
             record.zoomScale = progress.zoomScale
-            record.isCompleted = progress.isCompleted
+            // 尚无显式“标记未读”操作，已读状态必须在不同窗口间合并。
+            record.isCompleted = record.isCompleted || progress.isCompleted
             record.updatedAt = progress.updatedAt
         } else {
             let record = ComicReaderSchemaV1.StoredReadingProgress(

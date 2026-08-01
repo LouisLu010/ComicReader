@@ -447,7 +447,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
     }
 
     @MainActor
-    func testRecordProgressUsesLastWriteWhenTimestampsMatch() async throws {
+    func testRecordProgressUsesLastPositionWhenTimestampsMatchAndRetainsCompletion() async throws {
         let container = try makeContainer()
         let repository = await makeRepository(container: container)
         let comic = catalogItem(
@@ -472,6 +472,14 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: 1.5,
             updatedAt: timestamp
         )
+        let expectedProgress = LibraryReadingProgress(
+            chapterID: lastProgress.chapterID,
+            pageID: lastProgress.pageID,
+            pageOffset: lastProgress.pageOffset,
+            zoomScale: lastProgress.zoomScale,
+            isCompleted: true,
+            updatedAt: lastProgress.updatedAt
+        )
 
         let didRecordFirstProgress = await repository.recordProgress(
             firstProgress,
@@ -483,13 +491,124 @@ final class LibraryStateRepositoryTests: XCTestCase {
         )
         XCTAssertTrue(didRecordFirstProgress)
         XCTAssertTrue(didRecordLastProgress)
-        XCTAssertEqual(repository.state(for: comic.id).progress, lastProgress)
+        XCTAssertEqual(repository.state(for: comic.id).progress, expectedProgress)
 
         let restoredRepository = await makeRepository(container: container)
         XCTAssertEqual(
             restoredRepository.state(for: comic.id).progress,
-            lastProgress
+            expectedProgress
         )
+    }
+
+    @MainActor
+    func testRecordProgressRetainsCompletionWhenNewerSceneWritesIncompletePosition() async throws {
+        let container = try makeContainer()
+        let completedSceneRepository = await makeRepository(container: container)
+        let laterSceneRepository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000414"),
+            title: "Completion Merge Comic",
+            importedAt: .distantPast
+        )
+        await completedSceneRepository.reconcile(catalogItems: [comic])
+        await laterSceneRepository.reconcile(catalogItems: [comic])
+        let completedProgress = LibraryReadingProgress(
+            chapterID: "chapter-2",
+            pageID: "page-10",
+            pageOffset: 1,
+            zoomScale: 1,
+            isCompleted: true,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let newerIncompleteProgress = LibraryReadingProgress(
+            chapterID: "chapter-1",
+            pageID: "page-2",
+            pageOffset: 0.5,
+            zoomScale: 2,
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+        let expectedProgress = LibraryReadingProgress(
+            chapterID: newerIncompleteProgress.chapterID,
+            pageID: newerIncompleteProgress.pageID,
+            pageOffset: newerIncompleteProgress.pageOffset,
+            zoomScale: newerIncompleteProgress.zoomScale,
+            isCompleted: true,
+            updatedAt: newerIncompleteProgress.updatedAt
+        )
+
+        let didRecordCompletion = await completedSceneRepository.recordProgress(
+            completedProgress,
+            for: comic.id
+        )
+        let didRecordNewerPosition = await laterSceneRepository.recordProgress(
+            newerIncompleteProgress,
+            for: comic.id
+        )
+        await completedSceneRepository.reload()
+        await laterSceneRepository.reload()
+        let restoredRepository = await makeRepository(container: container)
+
+        XCTAssertTrue(didRecordCompletion)
+        XCTAssertTrue(didRecordNewerPosition)
+        XCTAssertEqual(
+            completedSceneRepository.state(for: comic.id).progress,
+            expectedProgress
+        )
+        XCTAssertEqual(
+            laterSceneRepository.state(for: comic.id).progress,
+            expectedProgress
+        )
+        XCTAssertEqual(
+            restoredRepository.state(for: comic.id).progress,
+            expectedProgress
+        )
+    }
+
+    @MainActor
+    func testRecordProgressMergesOlderCompletionWithoutOverwritingNewerPosition() async throws {
+        let repository = await makeRepository(container: try makeContainer())
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000415"),
+            title: "Delayed Completion Merge Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+        let newerIncompleteProgress = LibraryReadingProgress(
+            chapterID: "chapter-1",
+            pageID: "page-2",
+            pageOffset: 0.5,
+            zoomScale: 2,
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+        let olderCompletedProgress = LibraryReadingProgress(
+            chapterID: "chapter-2",
+            pageID: "page-10",
+            pageOffset: 1,
+            zoomScale: 1,
+            isCompleted: true,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let expectedProgress = LibraryReadingProgress(
+            chapterID: newerIncompleteProgress.chapterID,
+            pageID: newerIncompleteProgress.pageID,
+            pageOffset: newerIncompleteProgress.pageOffset,
+            zoomScale: newerIncompleteProgress.zoomScale,
+            isCompleted: true,
+            updatedAt: newerIncompleteProgress.updatedAt
+        )
+
+        let didRecordNewerPosition = await repository.recordProgress(
+            newerIncompleteProgress,
+            for: comic.id
+        )
+        let didMergeOlderCompletion = await repository.recordProgress(
+            olderCompletedProgress,
+            for: comic.id
+        )
+
+        XCTAssertTrue(didRecordNewerPosition)
+        XCTAssertTrue(didMergeOlderCompletion)
+        XCTAssertEqual(repository.state(for: comic.id).progress, expectedProgress)
     }
 
     @MainActor

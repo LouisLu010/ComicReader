@@ -276,6 +276,8 @@ struct ReaderProgress: Equatable, Sendable {
     let mode: ReadingMode
     let direction: ReadingDirection
     let isChapterCompleted: Bool
+    /// 仅在最终章节完成后为 true，独立封面不能标记整本漫画已读。
+    let hasReachedFinalChapterEnd: Bool
 }
 
 struct ReaderLayoutCapability: Equatable, Sendable {
@@ -450,7 +452,8 @@ struct ReaderSession: Sendable {
             position: position,
             mode: readingMode,
             direction: readingDirection,
-            isChapterCompleted: isCurrentChapterCompleted
+            isChapterCompleted: isCurrentChapterCompleted,
+            hasReachedFinalChapterEnd: hasReachedFinalChapterEnd
         )
     }
 
@@ -509,6 +512,14 @@ struct ReaderSession: Sendable {
         }
 
         return completedChapterIDs.contains(chapterID)
+    }
+
+    private var hasReachedFinalChapterEnd: Bool {
+        guard let finalChapterID = comic.chapters.last?.id else {
+            return false
+        }
+
+        return completedChapterIDs.contains(finalChapterID)
     }
 
     private var currentPresentationCompletionChapterID: ImportChapterCandidate.ID? {
