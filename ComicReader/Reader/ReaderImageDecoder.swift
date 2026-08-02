@@ -133,6 +133,13 @@ struct ImageIOReaderImageDecoder: ReaderImageDecoding {
             for: request.asset
         )
         let pageID = request.asset.identity.pageID
+        guard ImageFileStructureValidator.isStructurallyComplete(
+            fileURL: fileURL,
+            mediaType: request.asset.mediaType,
+            byteCount: request.asset.expectedByteCount
+        ) else {
+            throw ReaderImageDecodeError.imageCannotBeDecoded(pageID)
+        }
         let sourceOptions: [CFString: Any] = [
             kCGImageSourceShouldCache: false,
             kCGImageSourceShouldCacheImmediately: false,

@@ -197,7 +197,7 @@ final class ReaderImageDecoderTests: XCTestCase {
         )
 
         await assertDecodeError(
-            .sourceCannotBeOpened(unreadablePageID),
+            .sourceHasNoImages(unreadablePageID),
             asset: unreadableAsset
         )
         await assertDecodeError(
