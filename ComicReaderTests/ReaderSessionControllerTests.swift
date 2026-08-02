@@ -92,6 +92,31 @@ final class ReaderSessionControllerTests: XCTestCase {
         XCTAssertEqual(controller.progressPersistenceState, .saved)
     }
 
+    func testModeAndDirectionChangesPersistTogether() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let recorder = RecordingReaderProgressRecorder()
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [firstPage])]
+            ),
+            recorder: recorder,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        controller.setReadingMode(.spread)
+        controller.setReadingDirection(.rightToLeft)
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(recorder.records.count, 1)
+        XCTAssertEqual(recorder.records[0].progress.readingMode, .spread)
+        XCTAssertEqual(
+            recorder.records[0].progress.readingDirection,
+            .rightToLeft
+        )
+    }
+
     func testCrossChapterMovementPersistsImmediately() async throws {
         let firstChapterID = chapterID("chapter-1")
         let secondChapterID = chapterID("chapter-2")

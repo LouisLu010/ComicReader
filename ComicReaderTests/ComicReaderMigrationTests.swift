@@ -4,14 +4,64 @@ import XCTest
 @testable import ComicReader
 
 final class ComicReaderMigrationTests: XCTestCase {
-    func testCreatesTheVersionedV1ModelContainer() throws {
+    func testMigratesV1DiskStoreToV2WithReadingPreferenceDefaults() throws {
+        let sandboxURL = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: sandboxURL) }
+        let storeURL = sandboxURL.appendingPathComponent("Migration.store")
+        let identifier = UUID()
+        let importedAt = Date(timeIntervalSince1970: 1_000)
+        let updatedAt = Date(timeIntervalSince1970: 2_000)
+
+        try createV1Store(
+            at: storeURL,
+            comicID: identifier,
+            importedAt: importedAt,
+            updatedAt: updatedAt
+        )
+
+        let migratedContainer = try ComicReaderModelContainer.makeContainer(
+            isStoredInMemoryOnly: false,
+            storeURL: storeURL
+        )
+        let migratedContext = ModelContext(migratedContainer)
+        let migratedComics = try migratedContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+        )
+        let migratedProgress = try migratedContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+        )
+
+        let comic = try XCTUnwrap(migratedComics.first)
+        XCTAssertEqual(migratedComics.count, 1)
+        XCTAssertEqual(comic.comicID, identifier)
+        XCTAssertEqual(comic.displayName, "Migrated Comic")
+        XCTAssertEqual(comic.sourceRootName, "migrated-source")
+        XCTAssertEqual(comic.importedAt, importedAt)
+        XCTAssertEqual(comic.chapterCount, 2)
+        XCTAssertEqual(comic.pageCount, 24)
+        XCTAssertTrue(comic.isFavorite)
+
+        let progress = try XCTUnwrap(migratedProgress.first)
+        XCTAssertEqual(migratedProgress.count, 1)
+        XCTAssertEqual(progress.comicID, identifier)
+        XCTAssertEqual(progress.chapterID, "chapter-2")
+        XCTAssertEqual(progress.pageID, "page-12")
+        XCTAssertEqual(progress.pageOffset, 0.625)
+        XCTAssertEqual(progress.zoomScale, 2.5)
+        XCTAssertEqual(progress.readingModeRawValue, "continuous")
+        XCTAssertEqual(progress.readingDirectionRawValue, "leftToRight")
+        XCTAssertTrue(progress.isCompleted)
+        XCTAssertEqual(progress.updatedAt, updatedAt)
+    }
+
+    func testCreatesTheVersionedV2ModelContainer() throws {
         let container = try ComicReaderModelContainer.makeContainer(
             isStoredInMemoryOnly: true
         )
         let context = ModelContext(container)
         let identifier = UUID()
         context.insert(
-            ComicReaderSchemaV1.StoredComic(
+            ComicReaderSchemaV2.StoredComic(
                 comicID: identifier,
                 displayName: "Schema Comic",
                 sourceRootName: "schema-source",
@@ -23,13 +73,13 @@ final class ComicReaderMigrationTests: XCTestCase {
         try context.save()
 
         let storedComics = try context.fetch(
-            FetchDescriptor<ComicReaderSchemaV1.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
         )
 
         XCTAssertEqual(storedComics.map(\.comicID), [identifier])
     }
 
-    func testReopensTheVersionedV1DiskStore() throws {
+    func testReopensTheVersionedV2DiskStore() throws {
         let sandboxURL = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: sandboxURL) }
         let storeURL = sandboxURL.appendingPathComponent("Migration.store")
@@ -42,7 +92,7 @@ final class ComicReaderMigrationTests: XCTestCase {
             )
             let context = ModelContext(container)
             context.insert(
-                ComicReaderSchemaV1.StoredComic(
+                ComicReaderSchemaV2.StoredComic(
                     comicID: identifier,
                     displayName: "Reopened Comic",
                     sourceRootName: "reopened-source",
@@ -60,7 +110,7 @@ final class ComicReaderMigrationTests: XCTestCase {
         )
         let reopenedContext = ModelContext(reopenedContainer)
         let reopenedComics = try reopenedContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV1.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
         )
 
         XCTAssertEqual(reopenedComics.map(\.comicID), [identifier])
@@ -87,7 +137,7 @@ final class ComicReaderMigrationTests: XCTestCase {
             )
             let context = ModelContext(container)
             context.insert(
-                ComicReaderSchemaV1.StoredComic(
+                ComicReaderSchemaV2.StoredComic(
                     comicID: UUID(),
                     displayName: "Soon Corrupted Comic",
                     sourceRootName: "corrupt-source",
@@ -173,7 +223,7 @@ final class ComicReaderMigrationTests: XCTestCase {
         let context = ModelContext(recoveredContainer)
         let identifier = UUID()
         context.insert(
-            ComicReaderSchemaV1.StoredComic(
+            ComicReaderSchemaV2.StoredComic(
                 comicID: identifier,
                 displayName: "Recovered Comic",
                 sourceRootName: "recovered-source",
@@ -185,7 +235,7 @@ final class ComicReaderMigrationTests: XCTestCase {
         try context.save()
 
         let recoveredComics = try context.fetch(
-            FetchDescriptor<ComicReaderSchemaV1.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
         )
         XCTAssertEqual(recoveredComics.map(\.comicID), [identifier])
     }
@@ -230,6 +280,49 @@ final class ComicReaderMigrationTests: XCTestCase {
             withIntermediateDirectories: true
         )
         return url
+    }
+
+    private func createV1Store(
+        at storeURL: URL,
+        comicID: UUID,
+        importedAt: Date,
+        updatedAt: Date
+    ) throws {
+        let schema = Schema(versionedSchema: ComicReaderSchemaV1.self)
+        let configuration = ModelConfiguration(
+            schema: schema,
+            url: storeURL,
+            cloudKitDatabase: .none
+        )
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [configuration]
+        )
+        let context = ModelContext(container)
+        context.insert(
+            ComicReaderSchemaV1.StoredComic(
+                comicID: comicID,
+                displayName: "Migrated Comic",
+                sourceRootName: "migrated-source",
+                importedAt: importedAt,
+                chapterCount: 2,
+                pageCount: 24,
+                isFavorite: true
+            )
+        )
+        context.insert(
+            ComicReaderSchemaV1.StoredReadingProgress(
+                comicID: comicID,
+                chapterID: "chapter-2",
+                pageID: "page-12",
+                pageOffset: 0.625,
+                zoomScale: 2.5,
+                isCompleted: true,
+                updatedAt: updatedAt
+            )
+        )
+        try context.save()
     }
 
     private func recovery(

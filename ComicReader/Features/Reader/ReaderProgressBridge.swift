@@ -26,6 +26,8 @@ enum ReaderProgressBridge {
             pageID: readerProgress.position.pageID.rawValue,
             pageOffset: readerProgress.position.pageOffset,
             zoomScale: readerProgress.position.zoomScale,
+            readingMode: readerProgress.mode,
+            readingDirection: readerProgress.direction,
             isCompleted: preservedComicCompletion
                 || readerProgress.hasReachedFinalChapterEnd,
             updatedAt: updatedAt

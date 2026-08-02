@@ -73,8 +73,30 @@ final class ReaderProgressBridgeTests: XCTestCase {
         XCTAssertEqual(progress.pageID, pageID.rawValue)
         XCTAssertEqual(progress.pageOffset, 0)
         XCTAssertEqual(progress.zoomScale, 1)
+        XCTAssertEqual(progress.readingMode, .continuous)
+        XCTAssertEqual(progress.readingDirection, .leftToRight)
         XCTAssertFalse(progress.isCompleted)
         XCTAssertEqual(progress.updatedAt, updatedAt)
+    }
+
+    func testLibraryProgressPersistsReadingModeAndDirection() {
+        let progress = ReaderProgressBridge.libraryProgress(
+            from: readerProgress(
+                position: ReadingPosition(
+                    location: .chapter(
+                        ImportChapterCandidate.ID(rawValue: "chapter-1"),
+                        ImportPageCandidate.ID(rawValue: "page-1")
+                    )
+                ),
+                mode: .spread,
+                direction: .rightToLeft
+            ),
+            preservedComicCompletion: false,
+            updatedAt: .distantPast
+        )
+
+        XCTAssertEqual(progress.readingMode, .spread)
+        XCTAssertEqual(progress.readingDirection, .rightToLeft)
     }
 
     func testLibraryProgressKeepsComicCompletionSticky() {
@@ -110,13 +132,15 @@ final class ReaderProgressBridgeTests: XCTestCase {
 
     private func readerProgress(
         position: ReadingPosition,
+        mode: ReadingMode = .continuous,
+        direction: ReadingDirection = .leftToRight,
         hasReachedFinalChapterEnd: Bool = false
     ) -> ReaderProgress {
         ReaderProgress(
             comicID: ManagedComicID(),
             position: position,
-            mode: .continuous,
-            direction: .leftToRight,
+            mode: mode,
+            direction: direction,
             isChapterCompleted: false,
             hasReachedFinalChapterEnd: hasReachedFinalChapterEnd
         )

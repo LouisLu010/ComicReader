@@ -92,6 +92,7 @@ final class ReaderSessionController {
 
     func setReadingDirection(_ direction: ReadingDirection) {
         session.setReadingDirection(direction)
+        queueProgressPersistence()
     }
 
     func setLayoutCapability(_ capability: ReaderLayoutCapability) {
