@@ -50,12 +50,12 @@ final class ReaderImageDecoderTests: XCTestCase {
             (.zero, 1),
             (CGSize(width: -1, height: 10), 1),
             (CGSize(width: 10, height: -1), 1),
-            (CGSize(width: .nan, height: 10), 1),
-            (CGSize(width: 10, height: .infinity), 1),
+            (CGSize(width: CGFloat.nan, height: 10), 1),
+            (CGSize(width: 10, height: CGFloat.infinity), 1),
             (CGSize(width: 10, height: 10), 0),
             (CGSize(width: 10, height: 10), -1),
-            (CGSize(width: 10, height: 10), .nan),
-            (CGSize(width: 10, height: 10), .infinity),
+            (CGSize(width: 10, height: 10), CGFloat.nan),
+            (CGSize(width: 10, height: 10), CGFloat.infinity),
         ]
 
         for (displaySize, displayScale) in invalidMetrics {
