@@ -27,10 +27,10 @@ final class ReaderViewportPolicyTests: XCTestCase {
             CGSize(width: -1, height: 700),
             CGSize(width: 1_000, height: 0),
             CGSize(width: 1_000, height: -1),
-            CGSize(width: .nan, height: 700),
-            CGSize(width: .infinity, height: 700),
-            CGSize(width: 1_000, height: .nan),
-            CGSize(width: 1_000, height: .infinity),
+            CGSize(width: CGFloat.nan, height: 700),
+            CGSize(width: CGFloat.infinity, height: 700),
+            CGSize(width: 1_000, height: CGFloat.nan),
+            CGSize(width: 1_000, height: CGFloat.infinity),
         ]
 
         for size in invalidSizes {
@@ -43,7 +43,12 @@ final class ReaderViewportPolicyTests: XCTestCase {
     }
 
     func testInvalidThresholdFallsBackToDefault() {
-        for threshold in [CGFloat.zero, -1, .nan, .infinity] {
+        for threshold in [
+            CGFloat.zero,
+            CGFloat(-1),
+            CGFloat.nan,
+            CGFloat.infinity,
+        ] {
             let policy = ReaderViewportPolicy(
                 minimumSpreadWidth: threshold
             )
