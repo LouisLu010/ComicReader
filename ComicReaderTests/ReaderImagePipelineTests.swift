@@ -689,11 +689,11 @@ final class ReaderImagePipelineTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        for _ in 0..<1_000 {
+        for _ in 0..<500 {
             if await decoder.callCount >= expectedCount {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(nanoseconds: 10_000_000)
         }
 
         let actualCount = await decoder.callCount
@@ -710,11 +710,11 @@ final class ReaderImagePipelineTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        for _ in 0..<1_000 {
+        for _ in 0..<500 {
             if await decoder.cancelledCallIndices.contains(index) {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(nanoseconds: 10_000_000)
         }
 
         XCTFail(
