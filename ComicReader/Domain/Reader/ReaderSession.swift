@@ -634,6 +634,22 @@ struct ReaderSession: Sendable {
         )
     }
 
+    /// 仅提交当前页面的缩放状态，保留稳定位置与页面内偏移。
+    @discardableResult
+    mutating func setZoomScale(_ zoomScale: Double) -> Bool {
+        let updatedPosition = ReadingPosition(
+            location: position.location,
+            pageOffset: position.pageOffset,
+            zoomScale: zoomScale
+        )
+        guard updatedPosition.zoomScale != position.zoomScale else {
+            return false
+        }
+
+        position = updatedPosition
+        return true
+    }
+
     @discardableResult
     mutating func markCurrentPresentationCompleted() -> Bool {
         guard layout.effectiveMode != .continuous,

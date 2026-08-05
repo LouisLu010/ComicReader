@@ -103,6 +103,16 @@ final class ReaderSessionController {
         queueProgressPersistence()
     }
 
+    @discardableResult
+    func setZoomScale(_ zoomScale: Double) -> Bool {
+        guard session.setZoomScale(zoomScale) else {
+            return false
+        }
+
+        queueProgressPersistence()
+        return true
+    }
+
     func setLayoutCapability(_ capability: ReaderLayoutCapability) {
         session.setLayoutCapability(capability)
     }

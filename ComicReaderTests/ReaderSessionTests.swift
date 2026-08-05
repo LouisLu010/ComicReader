@@ -427,6 +427,30 @@ final class ReaderSessionTests: XCTestCase {
         XCTAssertNil(ReadingPosition(storageChapterID: "chapter", pageID: " "))
     }
 
+    func testSessionUpdatesOnlyZoomScaleAndClampsCommittedValue() throws {
+        let chapterID = makeChapterID("chapter-1")
+        let firstPage = page("page-1")
+        let originalPosition = ReadingPosition(
+            location: .chapter(chapterID, firstPage.id),
+            pageOffset: 0.375,
+            zoomScale: 2
+        )
+        var session = try makeSession(
+            chapters: [chapter(chapterID, pages: [firstPage])],
+            restoredPosition: originalPosition
+        )
+        let originalLayout = session.layout
+
+        XCTAssertTrue(session.setZoomScale(99))
+        XCTAssertEqual(session.position.location, originalPosition.location)
+        XCTAssertEqual(session.position.pageOffset, originalPosition.pageOffset)
+        XCTAssertEqual(session.position.zoomScale, 16)
+        XCTAssertEqual(session.layout, originalLayout)
+        XCTAssertTrue(session.setZoomScale(.infinity))
+        XCTAssertEqual(session.position.zoomScale, 1)
+        XCTAssertFalse(session.setZoomScale(.infinity))
+    }
+
     func testRestoreRejectsMismatchedChapterAndPageWithoutChangingPosition() throws {
         let firstChapterID = makeChapterID("chapter-1")
         let secondChapterID = makeChapterID("chapter-2")

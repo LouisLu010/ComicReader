@@ -117,6 +117,38 @@ final class ReaderSessionControllerTests: XCTestCase {
         )
     }
 
+    func testZoomChangePreservesPositionAndPersistsOnce() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let recorder = RecordingReaderProgressRecorder()
+        let restoredPosition = ReadingPosition(
+            location: .chapter(chapterID, firstPage.id),
+            pageOffset: 0.625,
+            zoomScale: 1
+        )
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [firstPage])],
+                restoredPosition: restoredPosition
+            ),
+            recorder: recorder,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        XCTAssertTrue(controller.setZoomScale(2.5))
+        XCTAssertFalse(controller.setZoomScale(2.5))
+        XCTAssertEqual(controller.session.position.location,
+                       restoredPosition.location)
+        XCTAssertEqual(controller.session.position.pageOffset, 0.625)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(recorder.records.count, 1)
+        XCTAssertEqual(recorder.records[0].progress.zoomScale, 2.5)
+        XCTAssertEqual(recorder.records[0].progress.pageOffset, 0.625)
+    }
+
     func testCrossChapterMovementPersistsImmediately() async throws {
         let firstChapterID = chapterID("chapter-1")
         let secondChapterID = chapterID("chapter-2")
