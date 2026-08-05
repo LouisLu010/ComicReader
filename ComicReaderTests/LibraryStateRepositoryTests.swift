@@ -14,6 +14,28 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         XCTAssertEqual(progress.readingMode, .continuous)
         XCTAssertEqual(progress.readingDirection, .leftToRight)
+        XCTAssertEqual(progress.completedChapterIDs, [])
+    }
+
+    func testReadingProgressNormalizesCompletedChapterIDs() {
+        let progress = LibraryReadingProgress(
+            chapterID: "chapter-2",
+            pageID: "page-1",
+            pageOffset: 0,
+            zoomScale: 1,
+            completedChapterIDs: [
+                " chapter-1 ",
+                "chapter-1",
+                "\nchapter-2\t",
+                "",
+                " \n ",
+            ]
+        )
+
+        XCTAssertEqual(
+            progress.completedChapterIDs,
+            ["chapter-1", "chapter-2"]
+        )
     }
 
     @MainActor
@@ -211,7 +233,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let context = ModelContext(container)
         let storedComics = try context.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         )
         let storedComic = try XCTUnwrap(storedComics.first)
         XCTAssertEqual(storedComic.displayName, "Updated Title")
@@ -220,7 +242,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(storedComic.isFavorite)
         XCTAssertEqual(
             try context.fetch(
-                FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
             ).count,
             1
         )
@@ -414,7 +436,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -424,6 +446,51 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertEqual(
             storedProgress.readingDirectionRawValue,
             ReadingDirection.rightToLeft.rawValue
+        )
+
+        let restoredRepository = await makeRepository(container: container)
+        XCTAssertEqual(
+            restoredRepository.state(for: comic.id).progress,
+            progress
+        )
+    }
+
+    @MainActor
+    func testRecordProgressPersistsCompletedChapterIDsInStableOrder() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000418"),
+            title: "Completed Chapters Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+        let progress = LibraryReadingProgress(
+            chapterID: "chapter-3",
+            pageID: "page-8",
+            pageOffset: 1,
+            zoomScale: 1,
+            completedChapterIDs: [
+                " chapter-3 ",
+                "chapter-3",
+                "chapter-1",
+                "\nchapter-2\t",
+                "",
+                " \n ",
+            ],
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        await assertRecords(progress, for: comic.id, using: repository)
+
+        let storedProgress = try XCTUnwrap(
+            try ModelContext(container).fetch(
+                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+            ).first
+        )
+        XCTAssertEqual(
+            storedProgress.completedChapterIDs,
+            ["chapter-1", "chapter-2", "chapter-3"]
         )
 
         let restoredRepository = await makeRepository(container: container)
@@ -447,7 +514,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let timestamp = Date(timeIntervalSince1970: 300)
         let context = ModelContext(container)
         context.insert(
-            ComicReaderSchemaV2.StoredReadingProgress(
+            ComicReaderSchemaV3.StoredReadingProgress(
                 comicID: comic.id.rawValue,
                 chapterID: "chapter-future",
                 pageID: "page-future",
@@ -564,6 +631,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: 3,
             readingMode: .spread,
             readingDirection: .rightToLeft,
+            completedChapterIDs: ["chapter-3"],
             isCompleted: true,
             updatedAt: timestamp
         )
@@ -582,6 +650,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: lastProgress.zoomScale,
             readingMode: lastProgress.readingMode,
             readingDirection: lastProgress.readingDirection,
+            completedChapterIDs: ["chapter-3"],
             isCompleted: true,
             updatedAt: lastProgress.updatedAt
         )
@@ -624,6 +693,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: 1,
             readingMode: .spread,
             readingDirection: .rightToLeft,
+            completedChapterIDs: ["chapter-2"],
             isCompleted: true,
             updatedAt: Date(timeIntervalSince1970: 100)
         )
@@ -642,6 +712,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: newerIncompleteProgress.zoomScale,
             readingMode: newerIncompleteProgress.readingMode,
             readingDirection: newerIncompleteProgress.readingDirection,
+            completedChapterIDs: ["chapter-2"],
             isCompleted: true,
             updatedAt: newerIncompleteProgress.updatedAt
         )
@@ -690,6 +761,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: 2,
             readingMode: .spread,
             readingDirection: .rightToLeft,
+            completedChapterIDs: ["chapter-1"],
             updatedAt: Date(timeIntervalSince1970: 200)
         )
         let olderCompletedProgress = LibraryReadingProgress(
@@ -698,6 +770,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageOffset: 1,
             zoomScale: 1,
             readingMode: .singlePage,
+            completedChapterIDs: ["chapter-2"],
             isCompleted: true,
             updatedAt: Date(timeIntervalSince1970: 100)
         )
@@ -708,6 +781,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             zoomScale: newerIncompleteProgress.zoomScale,
             readingMode: newerIncompleteProgress.readingMode,
             readingDirection: newerIncompleteProgress.readingDirection,
+            completedChapterIDs: ["chapter-1", "chapter-2"],
             isCompleted: true,
             updatedAt: newerIncompleteProgress.updatedAt
         )
@@ -724,6 +798,93 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(didRecordNewerPosition)
         XCTAssertTrue(didMergeOlderCompletion)
         XCTAssertEqual(repository.state(for: comic.id).progress, expectedProgress)
+    }
+
+    @MainActor
+    func testRecordProgressMergesOlderChapterCompletionWithoutCompletingComic() async throws {
+        let container = try makeContainer()
+        let seedRepository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000419"),
+            title: "Delayed Chapter Completion Comic",
+            importedAt: .distantPast
+        )
+        await seedRepository.reconcile(catalogItems: [comic])
+        let newerProgress = LibraryReadingProgress(
+            chapterID: "chapter-3",
+            pageID: "page-20",
+            pageOffset: 0.5,
+            zoomScale: 2,
+            completedChapterIDs: ["chapter-1"],
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+        let olderChapterCompletion = LibraryReadingProgress(
+            chapterID: "chapter-2",
+            pageID: "page-12",
+            pageOffset: 1,
+            zoomScale: 1,
+            completedChapterIDs: [
+                " chapter-2 ",
+                "chapter-2",
+                " \n ",
+            ],
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+
+        let didRecordNewerProgress = await seedRepository.recordProgress(
+            newerProgress,
+            for: comic.id
+        )
+        XCTAssertTrue(didRecordNewerProgress)
+
+        let seedContext = ModelContext(container)
+        let seededStoredProgress = try XCTUnwrap(
+            try seedContext.fetch(
+                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+            ).first
+        )
+        seededStoredProgress.completedChapterIDs = [
+            " chapter-1 ",
+            "chapter-1",
+            "",
+            " \n ",
+        ]
+        try seedContext.save()
+
+        let repository = await makeRepository(container: container)
+        XCTAssertEqual(
+            repository.state(for: comic.id).progress?.completedChapterIDs,
+            ["chapter-1"]
+        )
+
+        let didMergeOlderCompletion = await repository.recordProgress(
+            olderChapterCompletion,
+            for: comic.id
+        )
+
+        XCTAssertTrue(didMergeOlderCompletion)
+
+        let mergedProgress = try XCTUnwrap(
+            repository.state(for: comic.id).progress
+        )
+        XCTAssertEqual(mergedProgress.chapterID, newerProgress.chapterID)
+        XCTAssertEqual(mergedProgress.pageID, newerProgress.pageID)
+        XCTAssertEqual(mergedProgress.updatedAt, newerProgress.updatedAt)
+        XCTAssertEqual(
+            mergedProgress.completedChapterIDs,
+            ["chapter-1", "chapter-2"]
+        )
+        XCTAssertFalse(mergedProgress.isCompleted)
+
+        let mergedStoredProgress = try XCTUnwrap(
+            try ModelContext(container).fetch(
+                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+            ).first
+        )
+        XCTAssertEqual(
+            mergedStoredProgress.completedChapterIDs,
+            ["chapter-1", "chapter-2"]
+        )
     }
 
     @MainActor
@@ -825,7 +986,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedRepository = await makeRepository(container: container)
         await seedRepository.reconcile(catalogItems: [first, second])
         for storedComic in try seedContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         ) {
             seedContext.delete(storedComic)
         }
@@ -835,7 +996,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let rebuiltRepository = await makeRepository(container: container)
         await rebuiltRepository.reconcile(catalogItems: [first, second])
         let rebuiltComics = try rebuiltContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         )
 
         XCTAssertEqual(
@@ -909,7 +1070,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         await coordinator.reloadAndReconcile(with: rebuiltRepository)
 
         let rebuiltRecords = try ModelContext(rebuiltContainer).fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         )
         XCTAssertEqual(rebuiltRecords.map(\.comicID), [comic.id.rawValue])
         XCTAssertEqual(coordinator.comics.map(\.id), [comic.id])

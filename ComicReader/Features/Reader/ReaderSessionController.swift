@@ -52,6 +52,14 @@ final class ReaderSessionController {
         pendingProgress = nil
         preservesComicCompletion = persistedProgress?.isCompleted == true
         lastProgressTimestamp = persistedProgress?.updatedAt
+
+        if recorder != nil,
+           Self.requiresInitialProgressBackfill(
+               session: session,
+               persistedProgress: persistedProgress
+           ) {
+            queueProgressPersistence()
+        }
     }
 
     @discardableResult
@@ -109,6 +117,30 @@ final class ReaderSessionController {
         return true
     }
 
+    /// 使用章节结束页的稳定标识完成章节，避免快速翻页时依赖当前页位置。
+    @discardableResult
+    func finishChapterBoundary(_ boundary: ReaderChapterBoundary) -> Bool {
+        guard session.markChapterBoundaryCompleted(boundary) else {
+            return false
+        }
+
+        queueProgressPersistence()
+        return true
+    }
+
+    /// 连续滚动可能在一次几何更新中完整越过多个短末页。
+    @discardableResult
+    func finishContinuousChapterEnds(
+        _ chapterIDs: Set<ImportChapterCandidate.ID>
+    ) -> Bool {
+        guard session.markContinuousChaptersCompleted(chapterIDs) else {
+            return false
+        }
+
+        queueProgressPersistence()
+        return true
+    }
+
     @discardableResult
     func flushPendingProgress() async -> Bool {
         cancelScheduledProgressPersistence()
@@ -149,6 +181,31 @@ final class ReaderSessionController {
 
         lastProgressTimestamp = nextTimestamp
         return nextTimestamp
+    }
+
+    /// 新会话可能从旧版 `isCompleted` 或连续阅读的末页恢复出额外完成状态。
+    /// 仅比较有效章节，避免源元数据里的未知章节 ID 导致每次打开都重写。
+    private static func requiresInitialProgressBackfill(
+        session: ReaderSession,
+        persistedProgress: LibraryReadingProgress?
+    ) -> Bool {
+        guard let persistedProgress else {
+            // 首次打开也需要保存可恢复的位置与当前阅读偏好。
+            return true
+        }
+
+        let validChapterIDs = Set(session.comic.chapters.map(\.id))
+        let persistedCompletedChapterIDs = ReaderProgressBridge
+            .completedChapterIDs(from: persistedProgress)
+            .intersection(validChapterIDs)
+        let sessionProgress = session.progress
+
+        return sessionProgress.completedChapterIDs != persistedCompletedChapterIDs
+            || sessionProgress.position != ReaderProgressBridge.readingPosition(
+                from: persistedProgress
+            )
+            || sessionProgress.hasReachedFinalChapterEnd
+                != persistedProgress.isCompleted
     }
 
     private func scheduleProgressPersistence(immediately: Bool) {

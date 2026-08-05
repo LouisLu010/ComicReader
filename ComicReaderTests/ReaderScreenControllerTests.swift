@@ -15,6 +15,10 @@ final class ReaderScreenControllerTests: XCTestCase {
             zoomScale: 2.25,
             readingMode: .spread,
             readingDirection: .rightToLeft,
+            completedChapterIDs: [
+                chapterID.rawValue,
+                "missing-chapter",
+            ],
             updatedAt: Date(timeIntervalSince1970: 100)
         )
         let controller = ReaderScreenController(
@@ -42,7 +46,10 @@ final class ReaderScreenControllerTests: XCTestCase {
         )
         XCTAssertEqual(session.readingMode, .spread)
         XCTAssertEqual(session.readingDirection, .rightToLeft)
+        XCTAssertEqual(session.completedChapterIDs, [chapterID])
+        XCTAssertEqual(session.progress.completedChapterIDs, [chapterID])
         XCTAssertEqual(session.layout.effectiveMode, .spread)
+        XCTAssertEqual(controller.layout, session.layout)
     }
 
     func testInvalidRestoredPositionFallsBackWithoutDroppingPreferences() async throws {
@@ -79,6 +86,38 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(session.readingDirection, .rightToLeft)
     }
 
+    func testLegacyCompletedComicRestoresFinalChapterAsCompleted() async throws {
+        let fixture = try makeContent()
+        let finalChapterID = try XCTUnwrap(
+            fixture.content.comic.chapters.last?.id
+        )
+        let restoredPage = fixture.content.comic.chapters[0].pages[0]
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            ),
+            persistedProgress: LibraryReadingProgress(
+                chapterID: finalChapterID.rawValue,
+                pageID: restoredPage.id.rawValue,
+                pageOffset: 0,
+                zoomScale: 1,
+                completedChapterIDs: [],
+                isCompleted: true
+            ),
+            initialLayoutCapability: .spreadCapable
+        )
+
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+
+        let session = try XCTUnwrap(controller.sessionController?.session)
+        XCTAssertEqual(session.position.pageID, restoredPage.id)
+        XCTAssertEqual(session.position.pageOffset, 0)
+        XCTAssertEqual(session.completedChapterIDs, [finalChapterID])
+        XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+    }
+
     func testViewportCapabilityAppliesBeforeAndAfterLoadWithoutMovingPage() async throws {
         let fixture = try makeContent()
         let controller = ReaderScreenController(
@@ -101,6 +140,7 @@ final class ReaderScreenControllerTests: XCTestCase {
         let wideSession = try XCTUnwrap(controller.sessionController?.session)
         let restoredPosition = wideSession.position
         XCTAssertEqual(wideSession.layout.effectiveMode, .spread)
+        XCTAssertEqual(controller.layout?.effectiveMode, .spread)
 
         controller.setViewportSize(CGSize(width: 600, height: 700))
 
@@ -108,6 +148,103 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(narrowSession.readingMode, .spread)
         XCTAssertEqual(narrowSession.layout.effectiveMode, .singlePage)
         XCTAssertEqual(narrowSession.position, restoredPosition)
+        XCTAssertEqual(controller.layout?.effectiveMode, .singlePage)
+    }
+
+    func testReadingControlsRefreshLayoutPreservePositionAndDebouncePersistence() async throws {
+        let fixture = try makeContent()
+        let recorder = ScreenProgressRecorder()
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            ),
+            progressRecorder: recorder,
+            initialLayoutCapability: .spreadCapable
+        )
+
+        XCTAssertFalse(controller.setReadingMode(.spread))
+        XCTAssertFalse(controller.setReadingDirection(.rightToLeft))
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+
+        let chapter = fixture.content.comic.chapters[0]
+        let originalPosition = ReadingPosition(
+            location: .chapter(chapter.id, chapter.pages[1].id),
+            pageOffset: 0.5,
+            zoomScale: 1.5
+        )
+        XCTAssertTrue(
+            controller.sessionController?.move(
+                to: originalPosition.location,
+                pageOffset: originalPosition.pageOffset,
+                zoomScale: originalPosition.zoomScale
+            ) == true
+        )
+
+        XCTAssertTrue(controller.setReadingMode(.spread))
+        XCTAssertTrue(controller.setReadingDirection(.rightToLeft))
+        XCTAssertFalse(controller.setReadingMode(.spread))
+        XCTAssertFalse(controller.setReadingDirection(.rightToLeft))
+
+        let updatedSession = try XCTUnwrap(controller.sessionController?.session)
+        XCTAssertEqual(updatedSession.position, originalPosition)
+        XCTAssertEqual(updatedSession.readingMode, .spread)
+        XCTAssertEqual(updatedSession.readingDirection, .rightToLeft)
+        XCTAssertEqual(controller.layout?.requestedMode, .spread)
+        XCTAssertEqual(controller.layout?.effectiveMode, .spread)
+        XCTAssertEqual(controller.layout?.direction, .rightToLeft)
+        XCTAssertEqual(
+            controller.sessionController?.progressPersistenceState,
+            .scheduled
+        )
+
+        let didFlush = await controller.flushPendingProgress()
+        XCTAssertTrue(didFlush)
+        XCTAssertEqual(recorder.records.count, 1)
+        XCTAssertEqual(recorder.records[0].progress.readingMode, .spread)
+        XCTAssertEqual(
+            recorder.records[0].progress.readingDirection,
+            .rightToLeft
+        )
+        XCTAssertEqual(recorder.records[0].progress.pageID, chapter.pages[1].id.rawValue)
+    }
+
+    func testChapterBoundaryCompletionUsesExplicitBoundaryAndPersists() async throws {
+        let fixture = try makeContent()
+        let recorder = ScreenProgressRecorder()
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            ),
+            progressRecorder: recorder,
+            initialLayoutCapability: .spreadCapable
+        )
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+        XCTAssertTrue(controller.setReadingMode(.singlePage))
+
+        let boundary = try XCTUnwrap(
+            controller.layout?.presentations.compactMap { presentation in
+                guard case let .chapterBoundary(boundary) = presentation.content else {
+                    return nil
+                }
+
+                return boundary
+            }.last
+        )
+
+        XCTAssertTrue(
+            controller.sessionController?.finishChapterBoundary(boundary) == true
+        )
+        let didFlushProgress = await controller.flushPendingProgress()
+        XCTAssertTrue(didFlushProgress)
+        XCTAssertEqual(
+            recorder.records.last?.progress.completedChapterIDs,
+            [boundary.completedChapterID.rawValue]
+        )
+        XCTAssertTrue(recorder.records.last?.progress.isCompleted ?? false)
     }
 
     func testMapsUnavailableAndInvalidContentFailures() async throws {
@@ -130,12 +267,14 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(unavailable.state, .failed(.unavailable))
         XCTAssertNil(unavailable.content)
         XCTAssertNil(unavailable.sessionController)
+        XCTAssertNil(unavailable.layout)
 
         let didLoadInvalid = await invalid.load()
         XCTAssertFalse(didLoadInvalid)
         XCTAssertEqual(invalid.state, .failed(.invalidContent))
         XCTAssertNil(invalid.content)
         XCTAssertNil(invalid.sessionController)
+        XCTAssertNil(invalid.layout)
     }
 
     func testInvalidComicFromLoaderCannotInstallPartialState() async throws {
@@ -160,6 +299,7 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .failed(.invalidContent))
         XCTAssertNil(controller.content)
         XCTAssertNil(controller.sessionController)
+        XCTAssertNil(controller.layout)
     }
 
     func testLoaderCannotInstallContentForAnotherComic() async throws {
@@ -178,6 +318,7 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .failed(.invalidContent))
         XCTAssertNil(controller.content)
         XCTAssertNil(controller.sessionController)
+        XCTAssertNil(controller.layout)
     }
 
     func testCancellationReturnsToIdleInsteadOfShowingFailure() async throws {
@@ -198,6 +339,7 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .idle)
         XCTAssertNil(controller.content)
         XCTAssertNil(controller.sessionController)
+        XCTAssertNil(controller.layout)
     }
 
     func testLateFirstLoadCannotReplaceNewerSuccessfulLoad() async throws {
@@ -231,6 +373,10 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertFalse(didLoadFirst)
         XCTAssertEqual(controller.state, .ready)
         XCTAssertEqual(controller.content?.comic.displayName, "Second")
+        XCTAssertEqual(
+            controller.layout,
+            controller.sessionController?.session.layout
+        )
     }
 
     func testControllersKeepSessionsAndImagePipelinesIndependent() async throws {

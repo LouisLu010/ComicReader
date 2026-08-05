@@ -2,6 +2,19 @@ import Foundation
 import Observation
 import SwiftData
 
+private func normalizedCompletedChapterIDs<IDs: Sequence>(
+    _ chapterIDs: IDs
+) -> Set<String> where IDs.Element == String {
+    Set(
+        chapterIDs.compactMap { rawChapterID in
+            let chapterID = rawChapterID.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            return chapterID.isEmpty ? nil : chapterID
+        }
+    )
+}
+
 struct LibraryReadingProgress: Equatable, Sendable {
     let chapterID: String
     let pageID: String
@@ -9,6 +22,7 @@ struct LibraryReadingProgress: Equatable, Sendable {
     let zoomScale: Double
     let readingMode: ReadingMode
     let readingDirection: ReadingDirection
+    let completedChapterIDs: Set<String>
     let isCompleted: Bool
     let updatedAt: Date
 
@@ -19,6 +33,7 @@ struct LibraryReadingProgress: Equatable, Sendable {
         zoomScale: Double,
         readingMode: ReadingMode = .continuous,
         readingDirection: ReadingDirection = .leftToRight,
+        completedChapterIDs: Set<String> = [],
         isCompleted: Bool = false,
         updatedAt: Date = Date()
     ) {
@@ -32,6 +47,9 @@ struct LibraryReadingProgress: Equatable, Sendable {
             : 1
         self.readingMode = readingMode
         self.readingDirection = readingDirection
+        self.completedChapterIDs = normalizedCompletedChapterIDs(
+            completedChapterIDs
+        )
         self.isCompleted = isCompleted
         self.updatedAt = updatedAt
     }
@@ -73,10 +91,10 @@ private actor LibraryStateStore {
     func snapshot() throws -> LibraryStateStoreSnapshot {
         try makeSnapshot(
             storedComics: modelContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+                FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
             ),
             storedProgress: modelContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
             )
         )
     }
@@ -85,10 +103,10 @@ private actor LibraryStateStore {
         catalogItems: [LibraryCatalogItem]
     ) throws -> LibraryStateStoreSnapshot {
         var storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
         )
         var comicsByID = firstStoredComicsByComicID(storedComics)
 
@@ -103,7 +121,7 @@ private actor LibraryStateStore {
                 storedComic.chapterCount = record.chapterCount
                 storedComic.pageCount = record.pageCount
             } else {
-                let storedComic = ComicReaderSchemaV2.StoredComic(
+                let storedComic = ComicReaderSchemaV3.StoredComic(
                     comicID: comicID,
                     displayName: record.displayName,
                     sourceRootName: record.sourceRootName,
@@ -128,10 +146,10 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateStoreSnapshot? {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
         )
         guard let storedComic = storedComics.first(where: {
             $0.comicID == comicID.rawValue
@@ -152,7 +170,7 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateProgressWriteResult {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
         )
         guard storedComics.contains(where: {
             $0.comicID == comicID.rawValue
@@ -161,16 +179,27 @@ private actor LibraryStateStore {
         }
 
         var storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV2.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
         )
         if let record = storedProgress.first(where: {
             $0.comicID == comicID.rawValue
         }) {
+            let mergedCompletedChapterIDs = normalizedCompletedChapterIDs(
+                record.completedChapterIDs
+            )
+                .union(progress.completedChapterIDs)
+                .sorted()
+
             if progress.updatedAt < record.updatedAt {
-                if progress.isCompleted {
-                    if !record.isCompleted {
-                        // 位置仍采用较新的记录，但完成状态必须可跨窗口合并。
-                        record.isCompleted = true
+                if progress.isCompleted
+                    || !progress.completedChapterIDs.isEmpty {
+                    let mergedComicCompletion = record.isCompleted
+                        || progress.isCompleted
+                    if record.isCompleted != mergedComicCompletion
+                        || record.completedChapterIDs != mergedCompletedChapterIDs {
+                        // 位置仍采用较新的记录，但已读状态必须可跨窗口合并。
+                        record.isCompleted = mergedComicCompletion
+                        record.completedChapterIDs = mergedCompletedChapterIDs
                         try saveOrRollback()
                     }
                     return .applied(
@@ -196,10 +225,11 @@ private actor LibraryStateStore {
             record.readingModeRawValue = progress.readingMode.rawValue
             record.readingDirectionRawValue = progress.readingDirection.rawValue
             // 尚无显式“标记未读”操作，已读状态必须在不同窗口间合并。
+            record.completedChapterIDs = mergedCompletedChapterIDs
             record.isCompleted = record.isCompleted || progress.isCompleted
             record.updatedAt = progress.updatedAt
         } else {
-            let record = ComicReaderSchemaV2.StoredReadingProgress(
+            let record = ComicReaderSchemaV3.StoredReadingProgress(
                 comicID: comicID.rawValue,
                 chapterID: progress.chapterID,
                 pageID: progress.pageID,
@@ -207,6 +237,7 @@ private actor LibraryStateStore {
                 zoomScale: progress.zoomScale,
                 readingModeRawValue: progress.readingMode.rawValue,
                 readingDirectionRawValue: progress.readingDirection.rawValue,
+                completedChapterIDs: progress.completedChapterIDs.sorted(),
                 isCompleted: progress.isCompleted,
                 updatedAt: progress.updatedAt
             )
@@ -233,8 +264,8 @@ private actor LibraryStateStore {
     }
 
     private func makeSnapshot(
-        storedComics: [ComicReaderSchemaV2.StoredComic],
-        storedProgress: [ComicReaderSchemaV2.StoredReadingProgress]
+        storedComics: [ComicReaderSchemaV3.StoredComic],
+        storedProgress: [ComicReaderSchemaV3.StoredReadingProgress]
     ) -> LibraryStateStoreSnapshot {
         let comicsByID = firstStoredComicsByComicID(storedComics)
         let progressByComicID = firstStoredProgressByComicID(storedProgress)
@@ -253,6 +284,7 @@ private actor LibraryStateStore {
                     readingDirection: ReadingDirection(
                         rawValue: record.readingDirectionRawValue
                     ) ?? .leftToRight,
+                    completedChapterIDs: Set(record.completedChapterIDs),
                     isCompleted: record.isCompleted,
                     updatedAt: record.updatedAt
                 )
@@ -272,9 +304,9 @@ private actor LibraryStateStore {
     }
 
     private func firstStoredComicsByComicID(
-        _ records: [ComicReaderSchemaV2.StoredComic]
-    ) -> [UUID: ComicReaderSchemaV2.StoredComic] {
-        var recordsByComicID: [UUID: ComicReaderSchemaV2.StoredComic] = [:]
+        _ records: [ComicReaderSchemaV3.StoredComic]
+    ) -> [UUID: ComicReaderSchemaV3.StoredComic] {
+        var recordsByComicID: [UUID: ComicReaderSchemaV3.StoredComic] = [:]
         for record in records where recordsByComicID[record.comicID] == nil {
             recordsByComicID[record.comicID] = record
         }
@@ -282,10 +314,10 @@ private actor LibraryStateStore {
     }
 
     private func firstStoredProgressByComicID(
-        _ records: [ComicReaderSchemaV2.StoredReadingProgress]
-    ) -> [UUID: ComicReaderSchemaV2.StoredReadingProgress] {
+        _ records: [ComicReaderSchemaV3.StoredReadingProgress]
+    ) -> [UUID: ComicReaderSchemaV3.StoredReadingProgress] {
         var recordsByComicID: [
-            UUID: ComicReaderSchemaV2.StoredReadingProgress
+            UUID: ComicReaderSchemaV3.StoredReadingProgress
         ] = [:]
         for record in records where recordsByComicID[record.comicID] == nil {
             recordsByComicID[record.comicID] = record

@@ -210,6 +210,158 @@ final class ReaderSessionControllerTests: XCTestCase {
         )
     }
 
+    func testInitializationQueuesAndFlushesFirstPositionWithoutProgress() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let recorder = RecordingReaderProgressRecorder()
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [firstPage])]
+            ),
+            recorder: recorder,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        XCTAssertEqual(controller.progressPersistenceState, .scheduled)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(recorder.records.count, 1)
+        XCTAssertEqual(recorder.records[0].progress.chapterID, chapterID.rawValue)
+        XCTAssertEqual(recorder.records[0].progress.pageID, firstPage.id.rawValue)
+        XCTAssertEqual(recorder.records[0].progress.pageOffset, 0)
+        XCTAssertEqual(recorder.records[0].progress.zoomScale, 1)
+        XCTAssertEqual(controller.progressPersistenceState, .saved)
+    }
+
+    func testInitializationWithoutRecorderDoesNotQueueOrFlushProgress() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [firstPage])]
+            ),
+            recorder: nil,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertFalse(didPersist)
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+    }
+
+    func testInitializationWithMatchingProgressDoesNotQueueBackfill() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let recorder = RecordingReaderProgressRecorder()
+        let persistedProgress = LibraryReadingProgress(
+            chapterID: chapterID.rawValue,
+            pageID: firstPage.id.rawValue,
+            pageOffset: 0,
+            zoomScale: 1,
+            readingMode: .continuous,
+            readingDirection: .leftToRight,
+            completedChapterIDs: [],
+            isCompleted: false,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [firstPage])]
+            ),
+            recorder: recorder,
+            persistedProgress: persistedProgress,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertFalse(didPersist)
+        XCTAssertTrue(recorder.records.isEmpty)
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+    }
+
+    func testInitializationBackfillsRestoredLegacyCompletedChapter() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let recorder = RecordingReaderProgressRecorder()
+        let persistedProgress = LibraryReadingProgress(
+            chapterID: chapterID.rawValue,
+            pageID: firstPage.id.rawValue,
+            pageOffset: 0,
+            zoomScale: 1,
+            completedChapterIDs: [],
+            isCompleted: true,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [firstPage])],
+                restoredCompletedChapterIDs: [chapterID]
+            ),
+            recorder: recorder,
+            persistedProgress: persistedProgress,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        XCTAssertEqual(controller.progressPersistenceState, .scheduled)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(
+            recorder.records.last?.progress.completedChapterIDs,
+            [chapterID.rawValue]
+        )
+        XCTAssertTrue(recorder.records.last?.progress.isCompleted ?? false)
+    }
+
+    func testInitializationBackfillsContinuousFinalPageCompletion() async throws {
+        let chapterID = chapterID("chapter-1")
+        let finalPage = page("page-1")
+        let restoredPosition = ReadingPosition(
+            location: .chapter(chapterID, finalPage.id),
+            pageOffset: 1,
+            zoomScale: 1
+        )
+        let recorder = RecordingReaderProgressRecorder()
+        let persistedProgress = LibraryReadingProgress(
+            chapterID: chapterID.rawValue,
+            pageID: finalPage.id.rawValue,
+            pageOffset: 1,
+            zoomScale: 1,
+            completedChapterIDs: [],
+            isCompleted: false,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [chapter(chapterID, pages: [finalPage])],
+                restoredPosition: restoredPosition
+            ),
+            recorder: recorder,
+            persistedProgress: persistedProgress,
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        XCTAssertEqual(controller.progressPersistenceState, .scheduled)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(
+            recorder.records.last?.progress.completedChapterIDs,
+            [chapterID.rawValue]
+        )
+        XCTAssertTrue(recorder.records.last?.progress.isCompleted ?? false)
+    }
+
     func testControllerPreservesExistingComicCompletion() async throws {
         let chapterID = chapterID("chapter-1")
         let firstPage = page("page-1")
@@ -316,6 +468,10 @@ final class ReaderSessionControllerTests: XCTestCase {
         XCTAssertTrue(controller.finishCurrentPresentation())
         let didPersistFirstChapter = await controller.flushPendingProgress()
         XCTAssertTrue(didPersistFirstChapter)
+        XCTAssertEqual(
+            recorder.records.last?.progress.completedChapterIDs ?? [],
+            [firstChapterID.rawValue]
+        )
         XCTAssertFalse(recorder.records.last?.progress.isCompleted ?? true)
 
         XCTAssertTrue(
@@ -324,7 +480,48 @@ final class ReaderSessionControllerTests: XCTestCase {
         XCTAssertTrue(controller.finishCurrentPresentation())
         let didPersistFinalChapter = await controller.flushPendingProgress()
         XCTAssertTrue(didPersistFinalChapter)
+        XCTAssertEqual(
+            recorder.records.last?.progress.completedChapterIDs ?? [],
+            [firstChapterID.rawValue, finalChapterID.rawValue]
+        )
         XCTAssertTrue(recorder.records.last?.progress.isCompleted ?? false)
+    }
+
+    func testContinuousChapterEndEventPersistsWithoutMovingPosition() async throws {
+        let firstChapterID = chapterID("chapter-1")
+        let finalChapterID = chapterID("chapter-2")
+        let firstPage = page("page-1")
+        let finalPage = page("page-2")
+        let recorder = RecordingReaderProgressRecorder()
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [
+                    chapter(firstChapterID, pages: [firstPage]),
+                    chapter(finalChapterID, pages: [finalPage]),
+                ]
+            ),
+            recorder: recorder,
+            debounceNanoseconds: 60_000_000_000
+        )
+        let initialPosition = controller.session.position
+
+        XCTAssertTrue(
+            controller.finishContinuousChapterEnds([firstChapterID])
+        )
+        XCTAssertFalse(
+            controller.finishContinuousChapterEnds([firstChapterID])
+        )
+        XCTAssertEqual(controller.session.position, initialPosition)
+
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(recorder.records.count, 1)
+        XCTAssertEqual(
+            recorder.records[0].progress.completedChapterIDs,
+            [firstChapterID.rawValue]
+        )
+        XCTAssertFalse(recorder.records[0].progress.isCompleted)
     }
 
     func testControllerKeepsComicCompletionStickyAfterBacktracking() async throws {
@@ -433,7 +630,9 @@ final class ReaderSessionControllerTests: XCTestCase {
     private func session(
         comicID: ManagedComicID? = nil,
         chapters: [ReaderChapter],
-        readingMode: ReadingMode = .continuous
+        readingMode: ReadingMode = .continuous,
+        restoredPosition: ReadingPosition? = nil,
+        restoredCompletedChapterIDs: Set<ImportChapterCandidate.ID> = []
     ) throws -> ReaderSession {
         let resolvedComicID = comicID ?? self.comicID(
             "00000000-0000-0000-0000-000000000710"
@@ -444,7 +643,9 @@ final class ReaderSessionControllerTests: XCTestCase {
                 displayName: "Controller Test Comic",
                 chapters: chapters
             ),
-            readingMode: readingMode
+            readingMode: readingMode,
+            restoredPosition: restoredPosition,
+            restoredCompletedChapterIDs: restoredCompletedChapterIDs
         )
     }
 

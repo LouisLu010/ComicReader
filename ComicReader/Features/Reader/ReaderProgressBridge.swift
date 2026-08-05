@@ -16,6 +16,20 @@ enum ReaderProgressBridge {
         )
     }
 
+    static func completedChapterIDs(
+        from libraryProgress: LibraryReadingProgress?
+    ) -> Set<ImportChapterCandidate.ID> {
+        guard let libraryProgress else {
+            return []
+        }
+
+        return Set(
+            libraryProgress.completedChapterIDs.map {
+                ImportChapterCandidate.ID(rawValue: $0)
+            }
+        )
+    }
+
     static func libraryProgress(
         from readerProgress: ReaderProgress,
         preservedComicCompletion: Bool,
@@ -28,6 +42,9 @@ enum ReaderProgressBridge {
             zoomScale: readerProgress.position.zoomScale,
             readingMode: readerProgress.mode,
             readingDirection: readerProgress.direction,
+            completedChapterIDs: Set(
+                readerProgress.completedChapterIDs.map(\.rawValue)
+            ),
             isCompleted: preservedComicCompletion
                 || readerProgress.hasReachedFinalChapterEnd,
             updatedAt: updatedAt

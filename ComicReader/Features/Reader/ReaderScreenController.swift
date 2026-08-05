@@ -20,6 +20,7 @@ final class ReaderScreenController {
     private(set) var state: ReaderScreenLoadState
     private(set) var content: LoadedReaderContent?
     private(set) var sessionController: ReaderSessionController?
+    private(set) var layout: ReaderLayout?
 
     @ObservationIgnored let imagePipeline: ReaderImagePipeline
     @ObservationIgnored private let contentLoader: any ReaderContentLoading
@@ -46,11 +47,15 @@ final class ReaderScreenController {
         self.imagePipeline = imagePipeline
         layoutCapability = initialLayoutCapability
         state = .idle
+        layout = nil
     }
 
     @discardableResult
     func load() async -> Bool {
-        if state == .ready, content != nil, sessionController != nil {
+        if state == .ready,
+           content != nil,
+           sessionController != nil,
+           layout != nil {
             return true
         }
 
@@ -59,6 +64,7 @@ final class ReaderScreenController {
         state = .loading
         content = nil
         sessionController = nil
+        layout = nil
 
         do {
             try Task.checkCancellation()
@@ -88,12 +94,14 @@ final class ReaderScreenController {
 
             // 窗口可能在后台构建 Session 时改变尺寸，安装前再应用最新能力。
             session.setLayoutCapability(layoutCapability)
-            content = loadedContent
-            sessionController = ReaderSessionController(
+            let sessionController = ReaderSessionController(
                 session: session,
                 recorder: progressRecorder,
                 persistedProgress: persistedProgress
             )
+            content = loadedContent
+            self.sessionController = sessionController
+            layout = sessionController.session.layout
             state = .ready
             return true
         } catch is CancellationError {
@@ -103,6 +111,7 @@ final class ReaderScreenController {
 
             content = nil
             sessionController = nil
+            layout = nil
             state = .idle
             return false
         } catch {
@@ -112,14 +121,20 @@ final class ReaderScreenController {
 
             content = nil
             sessionController = nil
+            layout = nil
             state = .failed(Self.loadFailure(for: error))
             return false
         }
     }
 
     func setLayoutCapability(_ capability: ReaderLayoutCapability) {
+        guard capability != layoutCapability else {
+            return
+        }
+
         layoutCapability = capability
         sessionController?.setLayoutCapability(capability)
+        layout = sessionController?.session.layout
     }
 
     func setViewportSize(
@@ -127,6 +142,34 @@ final class ReaderScreenController {
         policy: ReaderViewportPolicy = ReaderViewportPolicy()
     ) {
         setLayoutCapability(policy.capability(for: size))
+    }
+
+    /// 保持当前页面位置，仅更新用户选择的阅读布局偏好。
+    /// `ReaderSessionController` 会合并并节流对应的进度持久化。
+    @discardableResult
+    func setReadingMode(_ mode: ReadingMode) -> Bool {
+        guard let sessionController,
+              sessionController.session.readingMode != mode else {
+            return false
+        }
+
+        sessionController.setReadingMode(mode)
+        layout = sessionController.session.layout
+        return true
+    }
+
+    /// 保持当前页面位置，仅更新用户选择的阅读方向。
+    /// `ReaderSessionController` 会合并并节流对应的进度持久化。
+    @discardableResult
+    func setReadingDirection(_ direction: ReadingDirection) -> Bool {
+        guard let sessionController,
+              sessionController.session.readingDirection != direction else {
+            return false
+        }
+
+        sessionController.setReadingDirection(direction)
+        layout = sessionController.session.layout
+        return true
     }
 
     @discardableResult
@@ -169,6 +212,15 @@ private actor ReaderSessionBuilder {
         layoutCapability: ReaderLayoutCapability
     ) throws -> ReaderSession {
         try Task.checkCancellation()
+        var restoredCompletedChapterIDs = ReaderProgressBridge
+            .completedChapterIDs(from: persistedProgress)
+
+        // V1/V2 只存储整本漫画完成状态；恢复时把它保守地映射到最终话。
+        if persistedProgress?.isCompleted == true,
+           let finalChapterID = comic.chapters.last?.id {
+            restoredCompletedChapterIDs.insert(finalChapterID)
+        }
+
         let session = try ReaderSession(
             comic: comic,
             readingMode: persistedProgress?.readingMode ?? .continuous,
@@ -177,7 +229,8 @@ private actor ReaderSessionBuilder {
             layoutCapability: layoutCapability,
             restoredPosition: ReaderProgressBridge.readingPosition(
                 from: persistedProgress
-            )
+            ),
+            restoredCompletedChapterIDs: restoredCompletedChapterIDs
         )
         try Task.checkCancellation()
         return session

@@ -8,6 +8,7 @@ private struct LibraryCatalogRefreshID: Equatable {
 
 struct SceneRoot: View {
     let modelContainer: ModelContainer?
+    let readerFeatureServices: ReaderFeatureServices?
 
     @State private var router = AppRouter()
     @State private var importCoordinator = FolderImportCoordinator()
@@ -17,8 +18,13 @@ struct SceneRoot: View {
     @Environment(LibraryStateRepository.self) private var libraryState
     @Environment(LibraryPersistenceController.self) private var persistence
 
-    init(modelContainer: ModelContainer? = nil) {
+    init(
+        modelContainer: ModelContainer? = nil,
+        readerFeatureServices: ReaderFeatureServices?
+            = ReaderFeatureServices.applicationSupport()
+    ) {
         self.modelContainer = modelContainer
+        self.readerFeatureServices = readerFeatureServices
     }
 
     var body: some View {
@@ -26,6 +32,7 @@ struct SceneRoot: View {
             .environment(importCoordinator)
             .environment(importJobs)
             .environment(libraryCatalog)
+            .environment(\.readerFeatureServices, readerFeatureServices)
             .task {
                 guard !Task.isCancelled else {
                     return

@@ -843,6 +843,24 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新加载书库" } }
       }
     },
+    "library.read.continue" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue Reading" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续阅读" } }
+      }
+    },
+    "library.read.start" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Reading" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始阅读" } }
+      }
+    },
+    "library.read.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The reader is unavailable." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读器当前不可用。" } }
+      }
+    },
     "library.section.all" : {
       "localizations" : {
         "en" : {
@@ -971,6 +989,132 @@
             "value" : "书库"
           }
         }
+      }
+    },
+    "reader.chapter.continue" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Swipe to continue to the next chapter." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续滑动以进入下一话。" } }
+      }
+    },
+    "reader.chapter.finished" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Chapter Complete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本话已读完" } }
+      }
+    },
+    "reader.comic.end" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "You’ve reached the end of this comic." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已到达这部漫画的结尾。" } }
+      }
+    },
+    "reader.comic.finished" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comic Complete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全书已读完" } }
+      }
+    },
+    "reader.controls.direction" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Direction" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读方向" } }
+      }
+    },
+    "reader.controls.direction.leftToRight" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Left to Right" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从左到右" } }
+      }
+    },
+    "reader.controls.direction.rightToLeft" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Right to Left" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从右到左" } }
+      }
+    },
+    "reader.controls.menu" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reader Controls" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读设置" } }
+      }
+    },
+    "reader.controls.mode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Mode" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读模式" } }
+      }
+    },
+    "reader.controls.mode.continuous" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continuous" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连续滚动" } }
+      }
+    },
+    "reader.controls.mode.singlePage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Single Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单页" } }
+      }
+    },
+    "reader.controls.mode.spread" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Two-Page Spread" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "双页" } }
+      }
+    },
+    "reader.error.invalid.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The managed comic metadata is invalid or incompatible." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "受管漫画的元数据无效或不兼容。" } }
+      }
+    },
+    "reader.error.invalid.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comic Content Is Invalid" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "漫画内容无效" } }
+      }
+    },
+    "reader.error.unavailable.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The managed comic files could not be opened. Your source folder was not accessed." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法打开受管漫画文件；阅读器没有访问来源文件夹。" } }
+      }
+    },
+    "reader.error.unavailable.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comic Files Are Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "漫画文件不可用" } }
+      }
+    },
+    "reader.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Opening comic…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在打开漫画…" } }
+      }
+    },
+    "reader.page.loading" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading page…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载页面…" } }
+      }
+    },
+    "reader.page.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片无法显示" } }
+      }
+    },
+    "reader.progress.page" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page %1$lld of %2$lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 %1$lld / %2$lld 页" } }
+      }
+    },
+    "reader.retry" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Try Again" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } }
       }
     },
     "settings.about.section" : {

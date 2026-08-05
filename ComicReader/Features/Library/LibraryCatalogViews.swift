@@ -47,11 +47,13 @@ struct ComicDetailView: View {
     let thumbnailURL: URL?
 
     @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(\.readerFeatureServices) private var readerFeatureServices
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
+                readingEntry
                 details
                 contentTree
             }
@@ -138,6 +140,35 @@ struct ComicDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var readingEntry: some View {
+        if let readerFeatureServices {
+            NavigationLink {
+                ReaderScreen(
+                    comicID: comic.id,
+                    title: comic.record.displayName,
+                    contentLoader: readerFeatureServices.contentLoader,
+                    progressRecorder: libraryState,
+                    persistedProgress: readingProgress
+                )
+            } label: {
+                Label(readingActionTitle, systemImage: "book.pages")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .accessibilityIdentifier("library.read")
+        } else {
+            Label(
+                "library.read.unavailable",
+                systemImage: "exclamationmark.triangle"
+            )
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("library.read.unavailable")
+        }
+    }
+
     private var contentTree: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("library.detail.contents", systemImage: "point.3.connected.trianglepath.dotted")
@@ -170,6 +201,16 @@ struct ComicDetailView: View {
         libraryState.state(for: comic.id).isFavorite
             ? "library.favorite.remove"
             : "library.favorite.add"
+    }
+
+    private var readingProgress: LibraryReadingProgress? {
+        libraryState.state(for: comic.id).progress
+    }
+
+    private var readingActionTitle: LocalizedStringKey {
+        readingProgress == nil
+            ? "library.read.start"
+            : "library.read.continue"
     }
 
     private var favoriteStatusKey: LocalizedStringKey {

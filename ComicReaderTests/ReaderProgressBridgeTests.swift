@@ -99,6 +99,43 @@ final class ReaderProgressBridgeTests: XCTestCase {
         XCTAssertEqual(progress.readingDirection, .rightToLeft)
     }
 
+    func testCompletedChapterIDsRoundTripAcrossBridge() {
+        let firstChapterID = ImportChapterCandidate.ID(
+            rawValue: "chapter-1"
+        )
+        let secondChapterID = ImportChapterCandidate.ID(
+            rawValue: "chapter-2"
+        )
+        let libraryProgress = ReaderProgressBridge.libraryProgress(
+            from: readerProgress(
+                position: ReadingPosition(
+                    location: .chapter(
+                        secondChapterID,
+                        ImportPageCandidate.ID(rawValue: "page-2")
+                    )
+                ),
+                completedChapterIDs: [firstChapterID, secondChapterID]
+            ),
+            preservedComicCompletion: false,
+            updatedAt: .distantPast
+        )
+
+        XCTAssertEqual(
+            libraryProgress.completedChapterIDs,
+            [firstChapterID.rawValue, secondChapterID.rawValue]
+        )
+        XCTAssertEqual(
+            ReaderProgressBridge.completedChapterIDs(
+                from: libraryProgress
+            ),
+            [firstChapterID, secondChapterID]
+        )
+        XCTAssertEqual(
+            ReaderProgressBridge.completedChapterIDs(from: nil),
+            []
+        )
+    }
+
     func testLibraryProgressKeepsComicCompletionSticky() {
         let position = ReadingPosition(
             location: .chapter(
@@ -134,7 +171,8 @@ final class ReaderProgressBridgeTests: XCTestCase {
         position: ReadingPosition,
         mode: ReadingMode = .continuous,
         direction: ReadingDirection = .leftToRight,
-        hasReachedFinalChapterEnd: Bool = false
+        hasReachedFinalChapterEnd: Bool = false,
+        completedChapterIDs: Set<ImportChapterCandidate.ID> = []
     ) -> ReaderProgress {
         ReaderProgress(
             comicID: ManagedComicID(),
@@ -142,7 +180,8 @@ final class ReaderProgressBridgeTests: XCTestCase {
             mode: mode,
             direction: direction,
             isChapterCompleted: false,
-            hasReachedFinalChapterEnd: hasReachedFinalChapterEnd
+            hasReachedFinalChapterEnd: hasReachedFinalChapterEnd,
+            completedChapterIDs: completedChapterIDs
         )
     }
 }

@@ -278,6 +278,7 @@ struct ReaderProgress: Equatable, Sendable {
     let isChapterCompleted: Bool
     /// 仅在最终章节完成后为 true，独立封面不能标记整本漫画已读。
     let hasReachedFinalChapterEnd: Bool
+    let completedChapterIDs: Set<ImportChapterCandidate.ID>
 }
 
 struct ReaderLayoutCapability: Equatable, Sendable {
@@ -325,7 +326,8 @@ struct ReaderSpread: Equatable, Sendable {
 
 struct ReaderChapterBoundary: Equatable, Sendable {
     let completedChapterID: ImportChapterCandidate.ID
-    let nextChapterID: ImportChapterCandidate.ID
+    /// `nil` 表示这是整本漫画的最后一话。
+    let nextChapterID: ImportChapterCandidate.ID?
 }
 
 enum ReaderPresentationID: Hashable, Sendable {
@@ -370,7 +372,25 @@ struct ReaderLayout: Equatable, Sendable {
     let requestedMode: ReadingMode
     let effectiveMode: ReadingMode
     let direction: ReadingDirection
+    /// 逻辑阅读顺序；RTL 不会改变此数组。
     let presentations: [ReaderPresentation]
+    /// 由同一份逻辑 presentation 快照构建，供视图层 O(1) 查询。
+    let presentationsByID: [ReaderPresentationID: ReaderPresentation]
+    let presentationIndicesByID: [ReaderPresentationID: Int]
+    let presentationIDsByLocation: [
+        ReaderPageLocation: ReaderPresentationID
+    ]
+    let presentationIndicesByLocation: [ReaderPageLocation: Int]
+    /// 每话末页所在的 presentation；连续模式据此独立判断章节完成。
+    let chapterCompletionIDsByPresentationID: [
+        ReaderPresentationID: ImportChapterCandidate.ID
+    ]
+    /// 按逻辑阅读顺序从 1 开始编号；章节结束页不占页码。
+    let pageNumberByLocation: [ReaderPageLocation: Int]
+    let pageCount: Int
+    /// 分页容器的物理展示顺序；仅 RTL 分页模式会反转逻辑顺序。
+    let pagedDisplayPresentations: [ReaderPresentation]
+    let pagedDisplayPresentationIndicesByID: [ReaderPresentationID: Int]
 
     init(
         comic: ReaderComic,
@@ -378,20 +398,118 @@ struct ReaderLayout: Equatable, Sendable {
         direction: ReadingDirection,
         capability: ReaderLayoutCapability
     ) {
-        self.requestedMode = requestedMode
-        effectiveMode = requestedMode == .spread && !capability.supportsSpread
+        let resolvedEffectiveMode = requestedMode == .spread
+            && !capability.supportsSpread
             ? .singlePage
             : requestedMode
-        self.direction = direction
-        presentations = ReaderLayoutPlanner.make(
+        let logicalPresentations = ReaderLayoutPlanner.make(
             for: comic,
-            mode: effectiveMode,
+            mode: resolvedEffectiveMode,
             direction: direction
+        )
+
+        var presentationsByID: [ReaderPresentationID: ReaderPresentation] = [:]
+        var presentationIndicesByID: [ReaderPresentationID: Int] = [:]
+        var presentationIDsByLocation: [
+            ReaderPageLocation: ReaderPresentationID
+        ] = [:]
+        var presentationIndicesByLocation: [ReaderPageLocation: Int] = [:]
+        var chapterCompletionIDsByLocation: [
+            ReaderPageLocation: ImportChapterCandidate.ID
+        ] = [:]
+        var chapterCompletionIDsByPresentationID: [
+            ReaderPresentationID: ImportChapterCandidate.ID
+        ] = [:]
+        var pageNumberByLocation: [ReaderPageLocation: Int] = [:]
+        var nextPageNumber = 1
+
+        for chapter in comic.chapters {
+            guard let finalPage = chapter.pages.last else {
+                continue
+            }
+
+            chapterCompletionIDsByLocation[
+                .chapter(chapter.id, finalPage.id)
+            ] = chapter.id
+        }
+
+        for (index, presentation) in logicalPresentations.enumerated() {
+            let presentationID = presentation.id
+            presentationsByID[presentationID] = presentation
+            presentationIndicesByID[presentationID] = index
+
+            for location in presentation.locations {
+                presentationIDsByLocation[location] = presentationID
+                presentationIndicesByLocation[location] = index
+                if let chapterID = chapterCompletionIDsByLocation[location] {
+                    chapterCompletionIDsByPresentationID[presentationID] = (
+                        chapterID
+                    )
+                }
+                pageNumberByLocation[location] = nextPageNumber
+                nextPageNumber += 1
+            }
+        }
+
+        let pagedDisplayPresentations = resolvedEffectiveMode == .continuous
+            || direction == .leftToRight
+            ? logicalPresentations
+            : Array(logicalPresentations.reversed())
+
+        var pagedDisplayPresentationIndicesByID: [ReaderPresentationID: Int] = [:]
+        for (index, presentation) in pagedDisplayPresentations.enumerated() {
+            pagedDisplayPresentationIndicesByID[presentation.id] = index
+        }
+
+        self.requestedMode = requestedMode
+        effectiveMode = resolvedEffectiveMode
+        self.direction = direction
+        presentations = logicalPresentations
+        self.presentationsByID = presentationsByID
+        self.presentationIndicesByID = presentationIndicesByID
+        self.presentationIDsByLocation = presentationIDsByLocation
+        self.presentationIndicesByLocation = presentationIndicesByLocation
+        self.chapterCompletionIDsByPresentationID = (
+            chapterCompletionIDsByPresentationID
+        )
+        self.pageNumberByLocation = pageNumberByLocation
+        pageCount = nextPageNumber - 1
+        self.pagedDisplayPresentations = pagedDisplayPresentations
+        self.pagedDisplayPresentationIndicesByID = (
+            pagedDisplayPresentationIndicesByID
         )
     }
 
+    func presentation(
+        for presentationID: ReaderPresentationID
+    ) -> ReaderPresentation? {
+        presentationsByID[presentationID]
+    }
+
+    func presentationID(
+        for location: ReaderPageLocation
+    ) -> ReaderPresentationID? {
+        presentationIDsByLocation[location]
+    }
+
+    func presentationIndex(
+        for presentationID: ReaderPresentationID
+    ) -> Int? {
+        presentationIndicesByID[presentationID]
+    }
+
     func presentationIndex(for location: ReaderPageLocation) -> Int? {
-        presentations.firstIndex { $0.locations.contains(location) }
+        presentationIndicesByLocation[location]
+    }
+
+    func pageNumber(for location: ReaderPageLocation) -> Int? {
+        pageNumberByLocation[location]
+    }
+
+    func pagedDisplayPresentationIndex(
+        for presentationID: ReaderPresentationID
+    ) -> Int? {
+        pagedDisplayPresentationIndicesByID[presentationID]
     }
 }
 
@@ -407,15 +525,18 @@ struct ReaderSession: Sendable {
     private(set) var readingMode: ReadingMode
     private(set) var readingDirection: ReadingDirection
     private(set) var layoutCapability: ReaderLayoutCapability
+    private(set) var layout: ReaderLayout
     private(set) var position: ReadingPosition
     private(set) var completedChapterIDs: Set<ImportChapterCandidate.ID>
+    private let chapterIDs: Set<ImportChapterCandidate.ID>
 
     init(
         comic: ReaderComic,
         readingMode: ReadingMode = .continuous,
         readingDirection: ReadingDirection = .leftToRight,
         layoutCapability: ReaderLayoutCapability = .spreadCapable,
-        restoredPosition: ReadingPosition? = nil
+        restoredPosition: ReadingPosition? = nil,
+        restoredCompletedChapterIDs: Set<ImportChapterCandidate.ID> = []
     ) throws {
         try Self.validate(comic)
 
@@ -423,7 +544,17 @@ struct ReaderSession: Sendable {
         self.readingMode = readingMode
         self.readingDirection = readingDirection
         self.layoutCapability = layoutCapability
-        self.completedChapterIDs = []
+        layout = ReaderLayout(
+            comic: comic,
+            requestedMode: readingMode,
+            direction: readingDirection,
+            capability: layoutCapability
+        )
+        let validChapterIDs = Set(comic.chapters.map(\.id))
+        chapterIDs = validChapterIDs
+        completedChapterIDs = restoredCompletedChapterIDs.intersection(
+            validChapterIDs
+        )
         guard let initialPosition = Self.firstPosition(in: comic) else {
             throw ReaderSessionError.emptyComic
         }
@@ -431,15 +562,6 @@ struct ReaderSession: Sendable {
             Self.contains(position.location, in: comic) ? position : nil
         } ?? initialPosition
         recordContinuousCompletionIfNeeded()
-    }
-
-    var layout: ReaderLayout {
-        ReaderLayout(
-            comic: comic,
-            requestedMode: readingMode,
-            direction: readingDirection,
-            capability: layoutCapability
-        )
     }
 
     var currentPresentationIndex: Int? {
@@ -453,21 +575,37 @@ struct ReaderSession: Sendable {
             mode: readingMode,
             direction: readingDirection,
             isChapterCompleted: isCurrentChapterCompleted,
-            hasReachedFinalChapterEnd: hasReachedFinalChapterEnd
+            hasReachedFinalChapterEnd: hasReachedFinalChapterEnd,
+            completedChapterIDs: completedChapterIDs
         )
     }
 
     mutating func setReadingMode(_ mode: ReadingMode) {
+        guard readingMode != mode else {
+            return
+        }
+
         readingMode = mode
+        rebuildLayout()
         recordContinuousCompletionIfNeeded()
     }
 
     mutating func setReadingDirection(_ direction: ReadingDirection) {
+        guard readingDirection != direction else {
+            return
+        }
+
         readingDirection = direction
+        rebuildLayout()
     }
 
     mutating func setLayoutCapability(_ capability: ReaderLayoutCapability) {
+        guard layoutCapability != capability else {
+            return
+        }
+
         layoutCapability = capability
+        rebuildLayout()
     }
 
     @discardableResult
@@ -504,6 +642,45 @@ struct ReaderSession: Sendable {
         }
 
         return completedChapterIDs.insert(chapterID).inserted
+    }
+
+    /// 完成当前已展示的章节结束页。该命令只信任传入 boundary 的稳定 ID，
+    /// 不读取当前页面位置，因此快速跳至结束页时也不会误判章节。
+    @discardableResult
+    mutating func markChapterBoundaryCompleted(
+        _ boundary: ReaderChapterBoundary
+    ) -> Bool {
+        let currentLayout = layout
+        guard currentLayout.effectiveMode != .continuous,
+              let presentation = currentLayout.presentation(
+                for: .chapterBoundary(boundary.completedChapterID)
+              ),
+              case let .chapterBoundary(expectedBoundary) = presentation.content,
+              expectedBoundary == boundary else {
+            return false
+        }
+
+        return completedChapterIDs.insert(boundary.completedChapterID).inserted
+    }
+
+    /// 连续模式的可见性采样可同时越过多个短末页；只合并当前漫画中的话。
+    @discardableResult
+    mutating func markContinuousChaptersCompleted(
+        _ reachedChapterIDs: Set<ImportChapterCandidate.ID>
+    ) -> Bool {
+        guard layout.effectiveMode == .continuous else {
+            return false
+        }
+
+        let newlyCompletedChapterIDs = reachedChapterIDs
+            .intersection(chapterIDs)
+            .subtracting(completedChapterIDs)
+        guard !newlyCompletedChapterIDs.isEmpty else {
+            return false
+        }
+
+        completedChapterIDs.formUnion(newlyCompletedChapterIDs)
+        return true
     }
 
     private var isCurrentChapterCompleted: Bool {
@@ -546,7 +723,16 @@ struct ReaderSession: Sendable {
             return
         }
 
-        completedChapterIDs.insert(chapterID)
+        _ = markContinuousChaptersCompleted([chapterID])
+    }
+
+    private mutating func rebuildLayout() {
+        layout = ReaderLayout(
+            comic: comic,
+            requestedMode: readingMode,
+            direction: readingDirection,
+            capability: layoutCapability
+        )
     }
 
     private static func validate(_ comic: ReaderComic) throws {
@@ -648,12 +834,12 @@ private enum ReaderLayoutPlanner {
                 ReaderPresentation(content: .page($0))
             }
 
-            if index < comic.chapters.count - 1 {
-                presentations.append(chapterBoundary(
-                    completed: chapter,
-                    next: comic.chapters[index + 1]
-                ))
-            }
+            presentations.append(chapterBoundary(
+                completed: chapter,
+                next: index + 1 < comic.chapters.count
+                    ? comic.chapters[index + 1]
+                    : nil
+            ))
         }
 
         return presentations
@@ -671,12 +857,12 @@ private enum ReaderLayoutPlanner {
                 direction: direction
             )
 
-            if index < comic.chapters.count - 1 {
-                presentations.append(chapterBoundary(
-                    completed: chapter,
-                    next: comic.chapters[index + 1]
-                ))
-            }
+            presentations.append(chapterBoundary(
+                completed: chapter,
+                next: index + 1 < comic.chapters.count
+                    ? comic.chapters[index + 1]
+                    : nil
+            ))
         }
 
         return presentations
@@ -773,13 +959,13 @@ private enum ReaderLayoutPlanner {
 
     private static func chapterBoundary(
         completed: ReaderChapter,
-        next: ReaderChapter
+        next: ReaderChapter?
     ) -> ReaderPresentation {
         ReaderPresentation(
             content: .chapterBoundary(
                 ReaderChapterBoundary(
                     completedChapterID: completed.id,
-                    nextChapterID: next.id
+                    nextChapterID: next?.id
                 )
             )
         )

@@ -27,9 +27,16 @@ final class ReaderSessionTests: XCTestCase {
             ]
         )
         XCTAssertFalse(session.layout.presentations.contains { isBoundary($0) })
+        XCTAssertEqual(
+            session.layout.chapterCompletionIDsByPresentationID,
+            [
+                session.layout.presentations[1].id: firstChapterID,
+                session.layout.presentations[2].id: secondChapterID,
+            ]
+        )
     }
 
-    func testSinglePageLayoutInsertsBoundariesBetweenChapters() throws {
+    func testSinglePageLayoutInsertsBoundaryAfterEveryChapterIncludingFinal() throws {
         let firstChapterID = makeChapterID("chapter-1")
         let secondChapterID = makeChapterID("chapter-2")
         let firstPage = page("page-1")
@@ -43,7 +50,7 @@ final class ReaderSessionTests: XCTestCase {
         )
         let presentations = session.layout.presentations
 
-        XCTAssertEqual(presentations.count, 3)
+        XCTAssertEqual(presentations.count, 4)
         XCTAssertEqual(singlePage(from: presentations[0])?.location,
                        .chapter(firstChapterID, firstPage.id))
         XCTAssertEqual(
@@ -55,6 +62,21 @@ final class ReaderSessionTests: XCTestCase {
         )
         XCTAssertEqual(singlePage(from: presentations[2])?.location,
                        .chapter(secondChapterID, secondPage.id))
+        XCTAssertEqual(
+            boundary(from: presentations[3]),
+            ReaderChapterBoundary(
+                completedChapterID: secondChapterID,
+                nextChapterID: nil
+            )
+        )
+        XCTAssertEqual(session.layout.pageCount, 2)
+        XCTAssertEqual(
+            session.layout.pageNumberByLocation,
+            [
+                .chapter(firstChapterID, firstPage.id): 1,
+                .chapter(secondChapterID, secondPage.id): 2,
+            ]
+        )
     }
 
     func testSpreadKeepsEmbeddedCoverAndLandscapePagesStandalone() throws {
@@ -81,7 +103,7 @@ final class ReaderSessionTests: XCTestCase {
         )
         let presentations = session.layout.presentations
 
-        XCTAssertEqual(presentations.count, 4)
+        XCTAssertEqual(presentations.count, 5)
         XCTAssertEqual(singlePage(from: presentations[0])?.location,
                        .chapter(chapterID, cover.id))
         XCTAssertEqual(
@@ -95,6 +117,13 @@ final class ReaderSessionTests: XCTestCase {
             finalPortrait.id
         )
         XCTAssertNil(spread(from: presentations[3])?.trailingPage)
+        XCTAssertEqual(
+            boundary(from: presentations[4]),
+            ReaderChapterBoundary(
+                completedChapterID: chapterID,
+                nextChapterID: nil
+            )
+        )
     }
 
     func testSpreadMirrorsPhysicalSlotsForRightToLeftWithoutReversingOrder() throws {
@@ -167,7 +196,7 @@ final class ReaderSessionTests: XCTestCase {
         )
         let presentations = session.layout.presentations
 
-        XCTAssertEqual(presentations.count, 3)
+        XCTAssertEqual(presentations.count, 4)
         XCTAssertEqual(
             spread(from: presentations[0])?.pagesInReadingOrder.map(\.page.id),
             [firstPage.id]
@@ -179,6 +208,13 @@ final class ReaderSessionTests: XCTestCase {
         XCTAssertEqual(
             spread(from: presentations[2])?.pagesInReadingOrder.map(\.page.id),
             [secondPage.id]
+        )
+        XCTAssertEqual(
+            boundary(from: presentations[3]),
+            ReaderChapterBoundary(
+                completedChapterID: secondChapterID,
+                nextChapterID: nil
+            )
         )
     }
 
@@ -288,7 +324,7 @@ final class ReaderSessionTests: XCTestCase {
             comic.chapters[0].pages[0].displayPixelSize,
             ImportPixelSize(width: 1200, height: 1800)
         )
-        XCTAssertEqual(session.layout.presentations.count, 2)
+        XCTAssertEqual(session.layout.presentations.count, 3)
         XCTAssertEqual(
             chapterSpread.pagesInReadingOrder.map(\.page.id),
             [firstPageID, secondPageID]
@@ -462,6 +498,39 @@ final class ReaderSessionTests: XCTestCase {
         XCTAssertEqual(session.progress.direction, .leftToRight)
     }
 
+    func testContinuousCompletionMergeFiltersUnknownIDsAndRejectsPagedMode() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let unknownChapterID = makeChapterID("missing-chapter")
+        let chapters = [
+            chapter(firstChapterID, pages: [page("page-1")]),
+            chapter(finalChapterID, pages: [page("page-2")]),
+        ]
+        var continuousSession = try makeSession(chapters: chapters)
+
+        XCTAssertTrue(continuousSession.markContinuousChaptersCompleted([
+            firstChapterID,
+            unknownChapterID,
+        ]))
+        XCTAssertEqual(
+            continuousSession.completedChapterIDs,
+            [firstChapterID]
+        )
+        XCTAssertFalse(continuousSession.progress.hasReachedFinalChapterEnd)
+        XCTAssertFalse(continuousSession.markContinuousChaptersCompleted([
+            unknownChapterID,
+        ]))
+
+        var pagedSession = try makeSession(
+            chapters: chapters,
+            readingMode: .singlePage
+        )
+        XCTAssertFalse(pagedSession.markContinuousChaptersCompleted([
+            firstChapterID,
+        ]))
+        XCTAssertTrue(pagedSession.completedChapterIDs.isEmpty)
+    }
+
     func testPagedSessionRecordsCompletionWhenFinalPresentationFinishes() throws {
         let chapterID = makeChapterID("chapter-1")
         let firstPage = page("page-1")
@@ -495,6 +564,151 @@ final class ReaderSessionTests: XCTestCase {
         ))
         XCTAssertTrue(singlePageSession.markCurrentPresentationCompleted())
         XCTAssertTrue(singlePageSession.progress.isChapterCompleted)
+    }
+
+    func testChapterBoundaryCompletionUsesExplicitBoundaryInsteadOfCurrentPage() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let firstPage = page("page-1")
+        let finalPage = page("page-2")
+        var session = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstPage]),
+                chapter(finalChapterID, pages: [finalPage]),
+            ],
+            readingMode: .singlePage
+        )
+        let finalBoundary = try XCTUnwrap(
+            session.layout.presentations.compactMap { boundary(from: $0) }.last
+        )
+
+        XCTAssertEqual(session.position.location, .chapter(firstChapterID, firstPage.id))
+        XCTAssertEqual(finalBoundary.completedChapterID, finalChapterID)
+        XCTAssertNil(finalBoundary.nextChapterID)
+
+        // 模拟快速跳到结束页：Session 仍停留在前一话的页面。
+        XCTAssertTrue(session.markChapterBoundaryCompleted(finalBoundary))
+        XCTAssertEqual(session.completedChapterIDs, [finalChapterID])
+        XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+        XCTAssertFalse(session.markChapterBoundaryCompleted(finalBoundary))
+    }
+
+    func testChapterBoundaryCompletionRejectsStaleAndContinuousBoundaries() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let secondChapterID = makeChapterID("chapter-2")
+        let firstPage = page("page-1")
+        let secondPage = page("page-2")
+        var pagedSession = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstPage]),
+                chapter(secondChapterID, pages: [secondPage]),
+            ],
+            readingMode: .singlePage
+        )
+        let firstBoundary = try XCTUnwrap(
+            pagedSession.layout.presentations.compactMap {
+                boundary(from: $0)
+            }.first
+        )
+        let staleBoundary = ReaderChapterBoundary(
+            completedChapterID: firstChapterID,
+            nextChapterID: nil
+        )
+
+        XCTAssertFalse(pagedSession.markChapterBoundaryCompleted(staleBoundary))
+        XCTAssertTrue(pagedSession.markChapterBoundaryCompleted(firstBoundary))
+
+        var continuousSession = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstPage]),
+                chapter(secondChapterID, pages: [secondPage]),
+            ],
+            readingMode: .continuous
+        )
+        XCTAssertFalse(continuousSession.markChapterBoundaryCompleted(firstBoundary))
+        XCTAssertFalse(
+            continuousSession.layout.presentations.contains { isBoundary($0) }
+        )
+    }
+
+    func testLayoutCachesLookupSnapshotAndPagedRightToLeftDisplayOrder() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let secondChapterID = makeChapterID("chapter-2")
+        let firstPage = page("page-1")
+        let secondPage = page("page-2")
+        let thirdPage = page("page-3")
+        let chapters = [
+            chapter(firstChapterID, pages: [firstPage, secondPage]),
+            chapter(secondChapterID, pages: [thirdPage]),
+        ]
+        let leftToRight = try makeSession(
+            chapters: chapters,
+            readingMode: .spread,
+            readingDirection: .leftToRight
+        )
+        let rightToLeft = try makeSession(
+            chapters: chapters,
+            readingMode: .spread,
+            readingDirection: .rightToLeft
+        )
+        let layout = rightToLeft.layout
+        let firstLocation = ReaderPageLocation.chapter(firstChapterID, firstPage.id)
+        let secondLocation = ReaderPageLocation.chapter(
+            firstChapterID,
+            secondPage.id
+        )
+        let thirdLocation = ReaderPageLocation.chapter(
+            secondChapterID,
+            thirdPage.id
+        )
+        let firstPresentationID = try XCTUnwrap(
+            layout.presentationID(for: firstLocation)
+        )
+
+        XCTAssertEqual(
+            layout.presentations.map(\.id),
+            leftToRight.layout.presentations.map(\.id)
+        )
+        XCTAssertEqual(layout.presentationsByID[firstPresentationID]?.id,
+                       firstPresentationID)
+        XCTAssertEqual(layout.presentationIndicesByID[firstPresentationID], 0)
+        XCTAssertEqual(layout.presentationIDsByLocation[firstLocation],
+                       firstPresentationID)
+        XCTAssertEqual(layout.presentationIndicesByLocation[firstLocation], 0)
+        XCTAssertEqual(layout.presentation(for: firstPresentationID)?.id,
+                       firstPresentationID)
+        XCTAssertEqual(layout.presentationIndex(for: firstPresentationID), 0)
+        XCTAssertEqual(layout.presentationIndex(for: firstLocation), 0)
+        XCTAssertEqual(layout.pageCount, 3)
+        XCTAssertEqual(
+            layout.pageNumberByLocation,
+            [
+                firstLocation: 1,
+                secondLocation: 2,
+                thirdLocation: 3,
+            ]
+        )
+        XCTAssertEqual(layout.pageNumber(for: firstLocation), 1)
+        XCTAssertEqual(layout.pageNumber(for: secondLocation), 2)
+        XCTAssertEqual(layout.pageNumber(for: thirdLocation), 3)
+        XCTAssertEqual(
+            layout.pagedDisplayPresentations.map(\.id),
+            Array(layout.presentations.map(\.id).reversed())
+        )
+        XCTAssertEqual(
+            layout.pagedDisplayPresentationIndex(for: firstPresentationID),
+            layout.presentations.count - 1
+        )
+
+        let continuousLayout = try makeSession(
+            chapters: chapters,
+            readingMode: .continuous,
+            readingDirection: .rightToLeft
+        ).layout
+        XCTAssertEqual(
+            continuousLayout.pagedDisplayPresentations.map(\.id),
+            continuousLayout.presentations.map(\.id)
+        )
     }
 
     func testSpreadCompletionUsesEffectiveSinglePageLayoutWhenWindowNarrows() throws {
@@ -587,6 +801,36 @@ final class ReaderSessionTests: XCTestCase {
         }
     }
 
+    func testRestoredCompletedChapterIDsKeepOnlyChaptersInComic() throws {
+        let firstChapterID = makeChapterID("chapter-1")
+        let finalChapterID = makeChapterID("chapter-2")
+        let unknownChapterID = makeChapterID("missing-chapter")
+        let firstPage = page("page-1")
+        let finalPage = page("page-2")
+        let session = try makeSession(
+            chapters: [
+                chapter(firstChapterID, pages: [firstPage]),
+                chapter(finalChapterID, pages: [finalPage]),
+            ],
+            restoredCompletedChapterIDs: [
+                firstChapterID,
+                finalChapterID,
+                unknownChapterID,
+            ]
+        )
+
+        XCTAssertEqual(
+            session.completedChapterIDs,
+            [firstChapterID, finalChapterID]
+        )
+        XCTAssertEqual(
+            session.progress.completedChapterIDs,
+            [firstChapterID, finalChapterID]
+        )
+        XCTAssertTrue(session.progress.isChapterCompleted)
+        XCTAssertTrue(session.progress.hasReachedFinalChapterEnd)
+    }
+
     func testStandaloneCoverDoesNotReachFinalChapterEnd() throws {
         let cover = page("root-cover", isCover: true)
         let session = try makeSession(chapters: [], cover: cover)
@@ -639,7 +883,7 @@ final class ReaderSessionTests: XCTestCase {
         )
         let presentations = session.layout.presentations
 
-        XCTAssertEqual(presentations.count, 3)
+        XCTAssertEqual(presentations.count, 4)
         XCTAssertEqual(
             spread(from: presentations[0])?.pagesInReadingOrder.map(\.page.id),
             [firstPage.id]
@@ -649,6 +893,10 @@ final class ReaderSessionTests: XCTestCase {
         XCTAssertEqual(
             spread(from: presentations[2])?.pagesInReadingOrder.map(\.page.id),
             [finalPage.id]
+        )
+        XCTAssertEqual(
+            boundary(from: presentations[3])?.completedChapterID,
+            chapterID
         )
     }
 
@@ -664,7 +912,7 @@ final class ReaderSessionTests: XCTestCase {
             readingMode: .spread
         )
 
-        XCTAssertEqual(session.layout.presentations.count, 2)
+        XCTAssertEqual(session.layout.presentations.count, 3)
         XCTAssertEqual(singlePage(from: session.layout.presentations[0])?.page.id,
                        unknownSizePage.id)
         XCTAssertEqual(
@@ -815,7 +1063,8 @@ final class ReaderSessionTests: XCTestCase {
         readingMode: ReadingMode = .continuous,
         readingDirection: ReadingDirection = .leftToRight,
         layoutCapability: ReaderLayoutCapability = .spreadCapable,
-        restoredPosition: ReadingPosition? = nil
+        restoredPosition: ReadingPosition? = nil,
+        restoredCompletedChapterIDs: Set<ImportChapterCandidate.ID> = []
     ) throws -> ReaderSession {
         try ReaderSession(
             comic: ReaderComic(
@@ -827,7 +1076,8 @@ final class ReaderSessionTests: XCTestCase {
             readingMode: readingMode,
             readingDirection: readingDirection,
             layoutCapability: layoutCapability,
-            restoredPosition: restoredPosition
+            restoredPosition: restoredPosition,
+            restoredCompletedChapterIDs: restoredCompletedChapterIDs
         )
     }
 
