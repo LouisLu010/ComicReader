@@ -226,7 +226,8 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertTrue(controller.setReadingMode(.singlePage))
 
         let boundary = try XCTUnwrap(
-            controller.layout?.presentations.compactMap { presentation in
+            controller.layout?.presentations.compactMap {
+                presentation -> ReaderChapterBoundary? in
                 guard case let .chapterBoundary(boundary) = presentation.content else {
                     return nil
                 }
