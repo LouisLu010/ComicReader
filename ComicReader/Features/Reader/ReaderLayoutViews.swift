@@ -7,6 +7,7 @@ struct ReaderContentView: View {
     let imagePipeline: ReaderImagePipeline
     let sessionController: ReaderSessionController
     let viewportSize: CGSize
+    @Binding var visibleAssetSnapshot: ReaderVisibleAssetSnapshot
 
     @Environment(\.displayScale) private var displayScale
     @State private var visiblePresentationID: ReaderPresentationID?
@@ -18,13 +19,15 @@ struct ReaderContentView: View {
         assetResolver: ManagedReaderPageAssetResolver,
         imagePipeline: ReaderImagePipeline,
         sessionController: ReaderSessionController,
-        viewportSize: CGSize
+        viewportSize: CGSize,
+        visibleAssetSnapshot: Binding<ReaderVisibleAssetSnapshot>
     ) {
         self.layout = layout
         self.assetResolver = assetResolver
         self.imagePipeline = imagePipeline
         self.sessionController = sessionController
         self.viewportSize = viewportSize
+        _visibleAssetSnapshot = visibleAssetSnapshot
 
         let restoredPosition = sessionController.session.position
         let initialPresentationID = layout.presentationID(
@@ -57,6 +60,7 @@ struct ReaderContentView: View {
                     displayScale: displayScale,
                     restoreRequest: continuousRestoreRequest,
                     onViewportPositionChanged: handleContinuousViewportPosition,
+                    onGeometriesChanged: handleContinuousGeometries,
                     onRestoreCompleted: handleContinuousRestoreCompleted
                 )
             case .singlePage, .spread:
@@ -73,7 +77,11 @@ struct ReaderContentView: View {
             scheduleContinuousRestore()
         }
         .onChange(of: visiblePresentationID) { _, presentationID in
+            synchronizePagedVisibleAssets(presentationID)
             handleVisiblePresentation(presentationID)
+        }
+        .onDisappear {
+            visibleAssetSnapshot = .empty
         }
         .task(id: prefetchRequestID) {
             await prefetchAdjacentPages()
@@ -126,6 +134,37 @@ struct ReaderContentView: View {
         visiblePresentationID = layout.presentationID(
             for: sessionController.session.position.location
         ) ?? layout.presentations.first?.id
+        synchronizePagedVisibleAssets(visiblePresentationID)
+    }
+
+    private func synchronizePagedVisibleAssets(
+        _ presentationID: ReaderPresentationID?
+    ) {
+        guard layout.effectiveMode != .continuous else {
+            visibleAssetSnapshot = .empty
+            return
+        }
+
+        visibleAssetSnapshot = ReaderVisibleAssetResolver.resolve(
+            presentationIDs: presentationID.map { [$0] } ?? [],
+            layout: layout,
+            assetResolver: assetResolver
+        )
+    }
+
+    private func handleContinuousGeometries(
+        _ geometries: [ReaderContinuousPageGeometry]
+    ) {
+        guard layout.effectiveMode == .continuous else {
+            return
+        }
+
+        visibleAssetSnapshot = ReaderVisibleAssetResolver.resolveContinuous(
+            geometries: geometries,
+            viewportHeight: Double(viewportSize.height),
+            layout: layout,
+            assetResolver: assetResolver
+        )
     }
 
     private func scheduleContinuousRestore() {
@@ -270,6 +309,7 @@ private struct ReaderContinuousView: View {
     let displayScale: CGFloat
     let restoreRequest: ReaderContinuousRestoreRequest?
     let onViewportPositionChanged: (ReaderContinuousViewportPosition) -> Void
+    let onGeometriesChanged: ([ReaderContinuousPageGeometry]) -> Void
     let onRestoreCompleted: (
         ReaderContinuousViewportPosition,
         ReaderContinuousRestoreRequest
@@ -357,6 +397,7 @@ private struct ReaderContinuousView: View {
             ReaderPresentationID: ReaderContinuousPageGeometry
         ]
     ) {
+        onGeometriesChanged(Array(geometriesByID.values))
         guard let viewportPosition = ReaderContinuousPositionResolver.resolve(
             geometries: Array(geometriesByID.values),
             viewportHeight: Double(viewportHeight),

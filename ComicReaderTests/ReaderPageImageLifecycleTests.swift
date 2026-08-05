@@ -41,23 +41,6 @@ final class ReaderPageImageLifecycleTests: XCTestCase {
         )
     }
 
-    func testMemoryWarningInvalidatesVisibleRequestAndAllowsReload() {
-        var lifecycle = ReaderPageImageLifecycle()
-        lifecycle.didAppear()
-        let requestBeforeWarning = lifecycle.generation
-
-        lifecycle.didReceiveMemoryWarning()
-        let requestAfterWarning = lifecycle.generation
-
-        XCTAssertTrue(lifecycle.isVisible)
-        XCTAssertFalse(
-            lifecycle.accepts(generation: requestBeforeWarning)
-        )
-        XCTAssertTrue(
-            lifecycle.accepts(generation: requestAfterWarning)
-        )
-    }
-
     func testRepeatedVisibilityCallbacksDoNotCreateDuplicateRequests() {
         var lifecycle = ReaderPageImageLifecycle()
         lifecycle.didAppear()

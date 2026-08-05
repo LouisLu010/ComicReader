@@ -8,8 +8,8 @@ struct ReaderPageImageView: View {
     let imagePipeline: ReaderImagePipeline
 
     @Environment(\.displayScale) private var displayScale
-    @Environment(\.readerImageMemoryWarningGeneration)
-    private var memoryWarningGeneration
+    @Environment(\.readerViewportVisiblePageIDs)
+    private var viewportVisiblePageIDs
 
     @State private var lifecycle = ReaderPageImageLifecycle()
     @State private var activeRequestID: RequestID?
@@ -46,18 +46,19 @@ struct ReaderPageImageView: View {
                 .task(id: requestID) {
                     await loadImage(for: requestID)
                 }
-                .onAppear {
-                    lifecycle.didAppear()
+                .onChange(of: isViewportVisible, initial: true) {
+                    _, isVisible in
+                    synchronizeVisibility(isVisible)
                 }
                 .onDisappear {
                     lifecycle.didDisappear()
                     releaseRenderedState()
                 }
-                .onChange(of: memoryWarningGeneration) { _, _ in
-                    lifecycle.didReceiveMemoryWarning()
-                    releaseRenderedState()
-                }
         }
+    }
+
+    private var isViewportVisible: Bool {
+        viewportVisiblePageIDs.contains(presentedPage.page.id)
     }
 
     @ViewBuilder
@@ -210,6 +211,15 @@ struct ReaderPageImageView: View {
         renderedImage = nil
         renderedLocation = nil
         failedRequestID = nil
+    }
+
+    private func synchronizeVisibility(_ isVisible: Bool) {
+        if isVisible {
+            lifecycle.didAppear()
+        } else {
+            lifecycle.didDisappear()
+            releaseRenderedState()
+        }
     }
 
     private static func previewTarget(

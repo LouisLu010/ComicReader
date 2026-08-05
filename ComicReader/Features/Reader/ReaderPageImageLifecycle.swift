@@ -22,10 +22,6 @@ struct ReaderPageImageLifecycle: Equatable, Sendable {
         advanceGeneration()
     }
 
-    mutating func didReceiveMemoryWarning() {
-        advanceGeneration()
-    }
-
     func accepts(generation: UInt64) -> Bool {
         isVisible && self.generation == generation
     }
@@ -35,13 +31,13 @@ struct ReaderPageImageLifecycle: Equatable, Sendable {
     }
 }
 
-private struct ReaderImageMemoryWarningGenerationKey: EnvironmentKey {
-    static let defaultValue: UInt64 = 0
+private struct ReaderViewportVisiblePageIDsKey: EnvironmentKey {
+    static let defaultValue: Set<ImportPageCandidate.ID> = []
 }
 
 extension EnvironmentValues {
-    var readerImageMemoryWarningGeneration: UInt64 {
-        get { self[ReaderImageMemoryWarningGenerationKey.self] }
-        set { self[ReaderImageMemoryWarningGenerationKey.self] = newValue }
+    var readerViewportVisiblePageIDs: Set<ImportPageCandidate.ID> {
+        get { self[ReaderViewportVisiblePageIDsKey.self] }
+        set { self[ReaderViewportVisiblePageIDsKey.self] = newValue }
     }
 }

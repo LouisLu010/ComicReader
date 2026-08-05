@@ -7,7 +7,7 @@ struct ReaderScreen: View {
     let title: String
 
     @State private var controller: ReaderScreenController
-    @State private var memoryWarningGeneration: UInt64 = 0
+    @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
     @Environment(\.scenePhase) private var scenePhase
 
     init(
@@ -58,7 +58,15 @@ struct ReaderScreen: View {
 
             flushProgress()
         }
+        .onChange(of: controller.state) { _, state in
+            guard state != .ready else {
+                return
+            }
+
+            visibleAssetSnapshot = .empty
+        }
         .onDisappear {
+            visibleAssetSnapshot = .empty
             flushProgress()
         }
         .toolbar {
@@ -95,11 +103,12 @@ struct ReaderScreen: View {
                     assetResolver: content.assetResolver,
                     imagePipeline: controller.imagePipeline,
                     sessionController: sessionController,
-                    viewportSize: viewportSize
+                    viewportSize: viewportSize,
+                    visibleAssetSnapshot: $visibleAssetSnapshot
                 )
                 .environment(
-                    \.readerImageMemoryWarningGeneration,
-                    memoryWarningGeneration
+                    \.readerViewportVisiblePageIDs,
+                    visibleAssetSnapshot.pageIDs
                 )
             } else {
                 ReaderLoadFailureView(failure: .invalidContent) {
@@ -118,11 +127,11 @@ struct ReaderScreen: View {
     }
 
     private func handleMemoryWarning() {
+        let visibleAssetIdentities = visibleAssetSnapshot.assetIdentities
         Task { @MainActor in
             await controller.imagePipeline.handleMemoryWarning(
-                keepingVisibleAssets: []
+                keepingVisibleAssets: visibleAssetIdentities
             )
-            memoryWarningGeneration &+= 1
         }
     }
 
