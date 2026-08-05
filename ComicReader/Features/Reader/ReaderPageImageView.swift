@@ -6,6 +6,7 @@ struct ReaderPageImageView: View {
     let presentedPage: ReaderPresentedPage
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
+    let imageRequestScale: Double
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.readerViewportVisiblePageIDs)
@@ -20,11 +21,13 @@ struct ReaderPageImageView: View {
     init(
         page: ReaderPresentedPage,
         assetResolver: ManagedReaderPageAssetResolver,
-        imagePipeline: ReaderImagePipeline
+        imagePipeline: ReaderImagePipeline,
+        imageRequestScale: Double = 1
     ) {
         presentedPage = page
         self.assetResolver = assetResolver
         self.imagePipeline = imagePipeline
+        self.imageRequestScale = imageRequestScale
     }
 
     var body: some View {
@@ -33,7 +36,8 @@ struct ReaderPageImageView: View {
                 location: presentedPage.location,
                 target: ReaderImageTargetPolicy.target(
                     displaySize: geometry.size,
-                    displayScale: displayScale
+                    displayScale: displayScale,
+                    imageScale: CGFloat(imageRequestScale)
                 ),
                 lifecycleGeneration: lifecycle.generation
             )

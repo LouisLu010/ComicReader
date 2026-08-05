@@ -77,6 +77,50 @@ final class ReaderImageTargetPolicyTests: XCTestCase {
         )
     }
 
+    func testCommittedZoomRaisesTargetWithoutReducingZoomedOutQuality() {
+        XCTAssertEqual(
+            ReaderImageTargetPolicy.target(
+                displaySize: CGSize(width: 200, height: 100),
+                displayScale: 2,
+                imageScale: 2
+            )?.maximumPixelSize,
+            1_024
+        )
+        XCTAssertEqual(
+            ReaderImageTargetPolicy.target(
+                displaySize: CGSize(width: 200, height: 100),
+                displayScale: 2,
+                imageScale: 0.5
+            )?.maximumPixelSize,
+            512
+        )
+        XCTAssertEqual(
+            ReaderImageTargetPolicy.target(
+                displaySize: CGSize(width: 3_000, height: 2_000),
+                displayScale: 2,
+                imageScale: 16
+            )?.maximumPixelSize,
+            ReaderImageTarget.maximumDecodedPixelSize
+        )
+    }
+
+    func testRejectsInvalidImageScale() {
+        for imageScale in [
+            CGFloat.zero,
+            -1,
+            CGFloat.nan,
+            CGFloat.infinity,
+        ] {
+            XCTAssertNil(
+                ReaderImageTargetPolicy.target(
+                    displaySize: CGSize(width: 200, height: 100),
+                    displayScale: 2,
+                    imageScale: imageScale
+                )
+            )
+        }
+    }
+
     func testCapsExtremeFiniteMetricsWithoutOverflowing() {
         XCTAssertEqual(
             ReaderImageTargetPolicy.target(

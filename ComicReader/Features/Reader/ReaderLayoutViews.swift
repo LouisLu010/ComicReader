@@ -13,6 +13,9 @@ struct ReaderContentView: View {
     @State private var visiblePresentationID: ReaderPresentationID?
     @State private var continuousRestoreRequest: ReaderContinuousRestoreRequest?
     @State private var continuousRestoreGeneration = 0
+    @State private var zoomState: ReaderZoomInteractionState
+    @GestureState private var gestureMagnification = 1.0
+    @GestureState private var gestureTranslation: CGSize = .zero
 
     init(
         layout: ReaderLayout,
@@ -30,6 +33,13 @@ struct ReaderContentView: View {
         _visibleAssetSnapshot = visibleAssetSnapshot
 
         let restoredPosition = sessionController.session.position
+        _zoomState = State(
+            initialValue: ReaderZoomInteractionState(
+                committedScale: restoredPosition.zoomScale,
+                viewportSize: viewportSize,
+                contentSize: viewportSize
+            )
+        )
         let initialPresentationID = layout.presentationID(
             for: restoredPosition.location
         ) ?? layout.presentations.first?.id
@@ -59,6 +69,9 @@ struct ReaderContentView: View {
                     viewportHeight: viewportSize.height,
                     displayScale: displayScale,
                     restoreRequest: continuousRestoreRequest,
+                    zoomTransform: zoomTransform,
+                    imageRequestScale: committedImageRequestScale,
+                    isScrollDisabled: isZoomed,
                     onViewportPositionChanged: handleContinuousViewportPosition,
                     onGeometriesChanged: handleContinuousGeometries,
                     onRestoreCompleted: handleContinuousRestoreCompleted
@@ -68,9 +81,29 @@ struct ReaderContentView: View {
                     presentations: layout.pagedDisplayPresentations,
                     assetResolver: assetResolver,
                     imagePipeline: imagePipeline,
-                    visiblePresentationID: $visiblePresentationID
+                    visiblePresentationID: $visiblePresentationID,
+                    zoomTransform: zoomTransform,
+                    imageRequestScale: committedImageRequestScale,
+                    isScrollDisabled: isZoomed
                 )
             }
+        }
+        .contentShape(Rectangle())
+        .simultaneousGesture(magnificationGesture)
+        .simultaneousGesture(panGesture)
+        .simultaneousGesture(doubleTapGesture)
+        .onChange(of: viewportSize, initial: true) { _, size in
+            zoomState.updateGeometry(
+                viewportSize: size,
+                contentSize: size
+            )
+        }
+        .onChange(of: sessionController.session.position) {
+            oldPosition, newPosition in
+            synchronizeZoomState(
+                from: newPosition,
+                resetsOffset: oldPosition.location != newPosition.location
+            )
         }
         .onChange(of: displayIdentity, initial: true) { _, _ in
             synchronizeVisiblePresentation()
@@ -86,6 +119,7 @@ struct ReaderContentView: View {
         .task(id: prefetchRequestID) {
             await prefetchAdjacentPages()
         }
+        .accessibilityValue(Text(verbatim: zoomAccessibilityValue))
     }
 
     private var layoutIdentity: ReaderLayoutDisplayIdentity {
@@ -108,7 +142,8 @@ struct ReaderContentView: View {
     private var fullPagePrefetchTarget: ReaderImageTarget? {
         ReaderImageTargetPolicy.target(
             displaySize: viewportSize,
-            displayScale: displayScale
+            displayScale: displayScale,
+            imageScale: CGFloat(committedImageRequestScale)
         )
     }
 
@@ -118,8 +153,51 @@ struct ReaderContentView: View {
                 width: viewportSize.width / 2,
                 height: viewportSize.height
             ),
-            displayScale: displayScale
+            displayScale: displayScale,
+            imageScale: CGFloat(committedImageRequestScale)
         )
+    }
+
+    private var renderedZoomState: ReaderZoomInteractionState {
+        var state = zoomState
+        state.updateMagnification(gestureMagnification)
+        state.translate(by: gestureTranslation)
+        return state
+    }
+
+    private var zoomTransform: ReaderZoomTransform {
+        ReaderZoomTransform(
+            presentationID: activeZoomPresentationID,
+            scale: renderedZoomState.scale,
+            offset: renderedZoomState.offset
+        )
+    }
+
+    private var activeZoomPresentationID: ReaderPresentationID? {
+        let presentationID = visiblePresentationID
+            ?? layout.presentationID(
+                for: sessionController.session.position.location
+            )
+        guard let presentationID,
+              let presentation = layout.presentation(for: presentationID),
+              !presentation.locations.isEmpty else {
+            return nil
+        }
+
+        return presentationID
+    }
+
+    private var committedImageRequestScale: Double {
+        zoomState.committedScale
+    }
+
+    private var isZoomed: Bool {
+        activeZoomPresentationID != nil
+            && renderedZoomState.scale > 1.000_5
+    }
+
+    private var zoomAccessibilityValue: String {
+        "\(Int((renderedZoomState.scale * 100).rounded()))%"
     }
 
     private var prefetchRequestID: ReaderPrefetchRequestID {
@@ -145,6 +223,8 @@ struct ReaderContentView: View {
             return
         }
 
+        synchronizeZoomGeometry(contentSize: viewportSize)
+
         visibleAssetSnapshot = ReaderVisibleAssetResolver.resolve(
             presentationIDs: presentationID.map { [$0] } ?? [],
             layout: layout,
@@ -164,6 +244,34 @@ struct ReaderContentView: View {
             viewportHeight: Double(viewportSize.height),
             layout: layout,
             assetResolver: assetResolver
+        )
+
+        guard let activeZoomPresentationID,
+              let geometry = geometries.first(where: {
+                  $0.presentationID == activeZoomPresentationID
+              }),
+              geometry.height.isFinite,
+              geometry.height > 0 else {
+            return
+        }
+
+        synchronizeZoomGeometry(
+            contentSize: CGSize(
+                width: min(viewportSize.width, 1_400),
+                height: CGFloat(geometry.height)
+            )
+        )
+    }
+
+    private func synchronizeZoomGeometry(contentSize: CGSize) {
+        guard zoomState.viewportSize != viewportSize
+                || zoomState.contentSize != contentSize else {
+            return
+        }
+
+        zoomState.updateGeometry(
+            viewportSize: viewportSize,
+            contentSize: contentSize
         )
     }
 
@@ -227,10 +335,13 @@ struct ReaderContentView: View {
             return
         }
 
+        let zoomScale = viewportPosition.location == currentPosition.location
+            ? currentPosition.zoomScale
+            : 1
         _ = sessionController.move(
             to: viewportPosition.location,
             pageOffset: viewportPosition.pageOffset,
-            zoomScale: currentPosition.zoomScale
+            zoomScale: zoomScale
         )
     }
 
@@ -244,6 +355,79 @@ struct ReaderContentView: View {
 
         continuousRestoreRequest = nil
         handleContinuousViewportPosition(viewportPosition)
+    }
+
+    private var magnificationGesture: some Gesture {
+        MagnifyGesture()
+            .updating($gestureMagnification) { value, state, _ in
+                guard activeZoomPresentationID != nil else {
+                    return
+                }
+
+                state = Double(value.magnification)
+            }
+            .onEnded { value in
+                guard activeZoomPresentationID != nil else {
+                    return
+                }
+
+                zoomState.updateMagnification(
+                    Double(value.magnification)
+                )
+                zoomState.commitMagnification()
+                commitZoomScale()
+            }
+    }
+
+    private var panGesture: some Gesture {
+        DragGesture()
+            .updating($gestureTranslation) { value, state, _ in
+                guard activeZoomPresentationID != nil,
+                      zoomState.scale > 1 else {
+                    return
+                }
+
+                state = value.translation
+            }
+            .onEnded { value in
+                guard activeZoomPresentationID != nil,
+                      zoomState.scale > 1 else {
+                    return
+                }
+
+                zoomState.translate(by: value.translation)
+            }
+    }
+
+    private var doubleTapGesture: some Gesture {
+        TapGesture(count: 2)
+            .onEnded {
+                guard activeZoomPresentationID != nil else {
+                    return
+                }
+
+                zoomState.toggleDoubleTapZoom()
+                commitZoomScale()
+            }
+    }
+
+    private func synchronizeZoomState(
+        from position: ReadingPosition,
+        resetsOffset: Bool
+    ) {
+        if resetsOffset {
+            zoomState = ReaderZoomInteractionState(
+                committedScale: position.zoomScale,
+                viewportSize: viewportSize,
+                contentSize: viewportSize
+            )
+        } else if zoomState.committedScale != position.zoomScale {
+            zoomState.setCommittedScale(position.zoomScale)
+        }
+    }
+
+    private func commitZoomScale() {
+        _ = sessionController.setZoomScale(zoomState.committedScale)
     }
 
     private func prefetchAdjacentPages() async {
@@ -308,6 +492,9 @@ private struct ReaderContinuousView: View {
     let viewportHeight: CGFloat
     let displayScale: CGFloat
     let restoreRequest: ReaderContinuousRestoreRequest?
+    let zoomTransform: ReaderZoomTransform
+    let imageRequestScale: Double
+    let isScrollDisabled: Bool
     let onViewportPositionChanged: (ReaderContinuousViewportPosition) -> Void
     let onGeometriesChanged: ([ReaderContinuousPageGeometry]) -> Void
     let onRestoreCompleted: (
@@ -321,12 +508,22 @@ private struct ReaderContinuousView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(presentations.indices, id: \.self) { index in
                         let presentation = presentations[index]
-                        ReaderPresentationView(
-                            presentation: presentation,
-                            style: .continuous,
-                            assetResolver: assetResolver,
-                            imagePipeline: imagePipeline
-                        )
+                        let isActive = zoomTransform.presentationID
+                            == presentation.id
+                        ReaderZoomPresentationView(
+                            scale: isActive ? zoomTransform.scale : 1,
+                            offset: isActive ? zoomTransform.offset : .zero
+                        ) {
+                            ReaderPresentationView(
+                                presentation: presentation,
+                                style: .continuous,
+                                assetResolver: assetResolver,
+                                imagePipeline: imagePipeline,
+                                imageRequestScale: isActive
+                                    ? imageRequestScale
+                                    : 1
+                            )
+                        }
                         .background {
                             ReaderContinuousGeometryReporter(
                                 index: index,
@@ -339,12 +536,14 @@ private struct ReaderContinuousView: View {
                             )
                         }
                         .id(presentation.id)
+                        .zIndex(isActive && zoomTransform.scale > 1 ? 1 : 0)
                     }
                 }
                 .frame(maxWidth: 1_400)
                 .frame(maxWidth: .infinity)
             }
             .coordinateSpace(name: ReaderContinuousCoordinateSpace.name)
+            .scrollDisabled(isScrollDisabled)
             .scrollIndicators(.hidden)
             .task(id: restoreRequest) {
                 await restorePosition(using: scrollProxy)
@@ -449,32 +648,75 @@ private struct ReaderPagedView: View {
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
     @Binding var visiblePresentationID: ReaderPresentationID?
+    let zoomTransform: ReaderZoomTransform
+    let imageRequestScale: Double
+    let isScrollDisabled: Bool
 
     var body: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
                 ForEach(presentations) { presentation in
-                    ReaderPresentationView(
-                        presentation: presentation,
-                        style: .paged,
-                        assetResolver: assetResolver,
-                        imagePipeline: imagePipeline
-                    )
+                    let isActive = zoomTransform.presentationID
+                        == presentation.id
+                    ReaderZoomPresentationView(
+                        scale: isActive ? zoomTransform.scale : 1,
+                        offset: isActive ? zoomTransform.offset : .zero
+                    ) {
+                        ReaderPresentationView(
+                            presentation: presentation,
+                            style: .paged,
+                            assetResolver: assetResolver,
+                            imagePipeline: imagePipeline,
+                            imageRequestScale: isActive
+                                ? imageRequestScale
+                                : 1
+                        )
+                    }
                     .frame(maxHeight: .infinity)
                     .containerRelativeFrame(.horizontal)
                     .id(presentation.id)
+                    .zIndex(isActive && zoomTransform.scale > 1 ? 1 : 0)
                 }
             }
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $visiblePresentationID, anchor: .center)
+        .scrollDisabled(isScrollDisabled)
         .scrollIndicators(.hidden)
         // 领域层已决定双页的物理左右槽位，避免 Locale 再次反转。
         .environment(\.layoutDirection, .leftToRight)
         .accessibilityIdentifier("reader.paged")
     }
 
+}
+
+private struct ReaderZoomTransform: Equatable {
+    let presentationID: ReaderPresentationID?
+    let scale: Double
+    let offset: CGPoint
+}
+
+private struct ReaderZoomPresentationView<Content: View>: View {
+    let scale: Double
+    let offset: CGPoint
+    let content: Content
+
+    init(
+        scale: Double,
+        offset: CGPoint,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.scale = scale
+        self.offset = offset
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .scaleEffect(CGFloat(scale))
+            .offset(x: offset.x, y: offset.y)
+    }
 }
 
 private struct ReaderPresentationView: View {
@@ -487,6 +729,7 @@ private struct ReaderPresentationView: View {
     let style: Style
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
+    let imageRequestScale: Double
 
     @ViewBuilder
     var body: some View {
@@ -502,7 +745,8 @@ private struct ReaderPresentationView: View {
                         in: spread
                     ),
                     assetResolver: assetResolver,
-                    imagePipeline: imagePipeline
+                    imagePipeline: imagePipeline,
+                    imageRequestScale: imageRequestScale
                 )
                 ReaderPageSlot(
                     page: spread.trailingPage,
@@ -511,7 +755,8 @@ private struct ReaderPresentationView: View {
                         in: spread
                     ),
                     assetResolver: assetResolver,
-                    imagePipeline: imagePipeline
+                    imagePipeline: imagePipeline,
+                    imageRequestScale: imageRequestScale
                 )
             }
         case let .chapterBoundary(boundary):
@@ -526,7 +771,8 @@ private struct ReaderPresentationView: View {
             ReaderPageImageView(
                 page: page,
                 assetResolver: assetResolver,
-                imagePipeline: imagePipeline
+                imagePipeline: imagePipeline,
+                imageRequestScale: imageRequestScale
             )
             .aspectRatio(pageAspectRatio(page.page), contentMode: .fit)
             .frame(maxWidth: .infinity)
@@ -534,7 +780,8 @@ private struct ReaderPresentationView: View {
             ReaderPageImageView(
                 page: page,
                 assetResolver: assetResolver,
-                imagePipeline: imagePipeline
+                imagePipeline: imagePipeline,
+                imageRequestScale: imageRequestScale
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -570,6 +817,7 @@ private struct ReaderPageSlot: View {
     let accessibilitySortPriority: Double
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
+    let imageRequestScale: Double
 
     @ViewBuilder
     var body: some View {
@@ -577,7 +825,8 @@ private struct ReaderPageSlot: View {
             ReaderPageImageView(
                 page: page,
                 assetResolver: assetResolver,
-                imagePipeline: imagePipeline
+                imagePipeline: imagePipeline,
+                imageRequestScale: imageRequestScale
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilitySortPriority(accessibilitySortPriority)

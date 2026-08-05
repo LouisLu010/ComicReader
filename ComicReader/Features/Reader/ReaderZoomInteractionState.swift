@@ -1,8 +1,8 @@
 import CoreGraphics
 
 struct ReaderZoomInteractionState: Equatable, Sendable {
-    static let minimumScale = 0.1
-    static let maximumScale = 16.0
+    static let minimumScale = ReadingPosition.minimumZoomScale
+    static let maximumScale = ReadingPosition.maximumZoomScale
     static let doubleTapScale = 2.0
 
     private(set) var committedScale: Double
