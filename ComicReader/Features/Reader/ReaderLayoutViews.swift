@@ -593,11 +593,11 @@ private struct ReaderContinuousRestoreRequest: Equatable, Hashable {
     let location: ReaderPageLocation
     let pageOffset: Double
 
-    init(
+    init?(
         generation: Int,
         presentationID: ReaderPresentationID?,
         position: ReadingPosition
-    )? {
+    ) {
         guard let presentationID else {
             return nil
         }
