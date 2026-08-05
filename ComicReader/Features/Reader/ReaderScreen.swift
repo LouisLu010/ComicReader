@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 
@@ -43,8 +44,12 @@ struct ReaderScreen: View {
         .task {
             _ = await controller.load()
         }
-        .task {
-            await observeMemoryWarnings()
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIApplication.didReceiveMemoryWarningNotification
+            )
+        ) { _ in
+            handleMemoryWarning()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active else {
@@ -112,23 +117,11 @@ struct ReaderScreen: View {
         }
     }
 
-    private func observeMemoryWarnings() async {
-        let notifications = NotificationCenter.default.notifications(
-            named: UIApplication.didReceiveMemoryWarningNotification
-        )
-
-        for await _ in notifications {
-            guard !Task.isCancelled else {
-                return
-            }
-
+    private func handleMemoryWarning() {
+        Task { @MainActor in
             await controller.imagePipeline.handleMemoryWarning(
                 keepingVisibleAssets: []
             )
-            guard !Task.isCancelled else {
-                return
-            }
-
             memoryWarningGeneration &+= 1
         }
     }

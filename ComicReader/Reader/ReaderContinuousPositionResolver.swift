@@ -97,7 +97,7 @@ enum ReaderContinuousPositionResolver {
         let geometry = preferredGeometry
             ?? completedFinalGeometry
             ?? candidates[0]
-        let completedChapterIDs = Set(
+        let completedChapterIDs: Set<ImportChapterCandidate.ID> = Set(
             validGeometries.compactMap { geometry in
                 guard geometry.maxY <= viewportHeight + pointTolerance else {
                     return nil
