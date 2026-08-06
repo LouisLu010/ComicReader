@@ -7,6 +7,8 @@ struct ReaderPageImageView: View {
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
     let imageRequestScale: Double
+    let imagePriority: TaskPriority
+    let reloadGeneration: UInt64
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.readerViewportVisiblePageIDs)
@@ -22,12 +24,16 @@ struct ReaderPageImageView: View {
         page: ReaderPresentedPage,
         assetResolver: ManagedReaderPageAssetResolver,
         imagePipeline: ReaderImagePipeline,
-        imageRequestScale: Double = 1
+        imageRequestScale: Double = 1,
+        imagePriority: TaskPriority = .userInitiated,
+        reloadGeneration: UInt64 = 0
     ) {
         presentedPage = page
         self.assetResolver = assetResolver
         self.imagePipeline = imagePipeline
         self.imageRequestScale = imageRequestScale
+        self.imagePriority = imagePriority
+        self.reloadGeneration = reloadGeneration
     }
 
     var body: some View {
@@ -39,7 +45,8 @@ struct ReaderPageImageView: View {
                     displayScale: displayScale,
                     imageScale: CGFloat(imageRequestScale)
                 ),
-                lifecycleGeneration: lifecycle.generation
+                lifecycleGeneration: lifecycle.generation,
+                reloadGeneration: reloadGeneration
             )
 
             content
@@ -151,7 +158,8 @@ struct ReaderPageImageView: View {
             let previewTarget = Self.previewTarget(for: target)
             let preview = try await imagePipeline.image(
                 for: asset,
-                target: previewTarget
+                target: previewTarget,
+                priority: imagePriority
             )
             try Task.checkCancellation()
             guard acceptsResult(for: requestID) else {
@@ -170,7 +178,8 @@ struct ReaderPageImageView: View {
 
             let fullImage = try await imagePipeline.image(
                 for: asset,
-                target: target
+                target: target,
+                priority: imagePriority
             )
             try Task.checkCancellation()
             guard acceptsResult(for: requestID) else {
@@ -238,5 +247,6 @@ struct ReaderPageImageView: View {
         let location: ReaderPageLocation
         let target: ReaderImageTarget?
         let lifecycleGeneration: UInt64
+        let reloadGeneration: UInt64
     }
 }

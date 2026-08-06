@@ -8,6 +8,7 @@ struct ReaderScreen: View {
 
     @State private var controller: ReaderScreenController
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
+    @State private var thumbnailReloadGeneration: UInt64 = 0
     @State private var presentedSheet: ReaderPresentedSheet?
     @Environment(\.scenePhase) private var scenePhase
 
@@ -92,6 +93,7 @@ struct ReaderScreen: View {
                             ),
                             selectedLocation: sessionController.session.position
                                 .location,
+                            reloadGeneration: thumbnailReloadGeneration,
                             onSelect: { location in
                                 _ = controller.jump(to: location)
                             }
@@ -195,6 +197,7 @@ struct ReaderScreen: View {
             await controller.imagePipeline.handleMemoryWarning(
                 keepingVisibleAssets: visibleAssetIdentities
             )
+            thumbnailReloadGeneration &+= 1
         }
     }
 

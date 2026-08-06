@@ -247,6 +247,56 @@ final class ReaderImagePipelineTests: XCTestCase {
         XCTAssertEqual(finalPeakActiveCount, 2)
     }
 
+    func testQueuedUserInitiatedDecodeRunsBeforeUtilityDecode() async throws {
+        let decoder = GatedReaderImageDecoder()
+        let pipeline = ReaderImagePipeline(
+            decoder: decoder,
+            maximumConcurrentDecodes: 1
+        )
+        let target = try makeTarget(1_024)
+        let blockingAsset = makeAsset(pageID: "priority-blocking")
+        let utilityAsset = makeAsset(pageID: "priority-utility")
+        let userInitiatedAsset = makeAsset(pageID: "priority-user")
+
+        let blockingTask = Task {
+            try await pipeline.image(for: blockingAsset, target: target)
+        }
+        await waitForCallCount(1, decoder: decoder)
+
+        let utilityTask = Task {
+            try await pipeline.image(
+                for: utilityAsset,
+                target: target,
+                priority: .utility
+            )
+        }
+        await drainScheduler()
+
+        let userInitiatedTask = Task {
+            try await pipeline.image(
+                for: userInitiatedAsset,
+                target: target,
+                priority: .userInitiated
+            )
+        }
+        await drainScheduler()
+
+        await resumeSuccessfully(call: 0, cost: 10, decoder: decoder)
+        await waitForCallCount(2, decoder: decoder)
+
+        let recordedCalls = await decoder.recordedCalls
+        let secondCall = try XCTUnwrap(recordedCalls.dropFirst().first)
+        XCTAssertEqual(secondCall.identity, userInitiatedAsset.identity)
+
+        await resumeSuccessfully(call: 1, cost: 20, decoder: decoder)
+        await waitForCallCount(3, decoder: decoder)
+        await resumeSuccessfully(call: 2, cost: 30, decoder: decoder)
+
+        _ = try await blockingTask.value
+        _ = try await utilityTask.value
+        _ = try await userInitiatedTask.value
+    }
+
     func testCacheEvictsLeastRecentlyUsedImage() async throws {
         let decoder = GatedReaderImageDecoder()
         let pipeline = ReaderImagePipeline(
@@ -454,6 +504,42 @@ final class ReaderImagePipelineTests: XCTestCase {
         )
         let finalCallCount = await decoder.callCount
         XCTAssertEqual(finalCallCount, 5)
+    }
+
+    func testCancelledNonvisibleRequestCanRetryAfterMemoryWarning() async throws {
+        let decoder = GatedReaderImageDecoder()
+        let pipeline = ReaderImagePipeline(
+            decoder: decoder,
+            maximumConcurrentDecodes: 1
+        )
+        let target = try makeTarget(1_024)
+        let asset = makeAsset(pageID: "memory-warning-retry")
+
+        let cancelledTask = Task {
+            try await pipeline.image(
+                for: asset,
+                target: target,
+                priority: .utility
+            )
+        }
+        await waitForCallCount(1, decoder: decoder)
+
+        await pipeline.handleMemoryWarning(keepingVisibleAssets: [])
+        await assertCancellation(of: cancelledTask)
+        await waitForCancelledCall(0, decoder: decoder)
+
+        let retriedTask = Task {
+            try await pipeline.image(
+                for: asset,
+                target: target,
+                priority: .utility
+            )
+        }
+        await waitForCallCount(2, decoder: decoder)
+        await resumeSuccessfully(call: 1, cost: 40, decoder: decoder)
+
+        let image = try await retriedTask.value
+        XCTAssertEqual(image.estimatedByteCount, 40)
     }
 
     func testPrefetchIsolatesFailuresAndCachesSuccessfulImages() async throws {

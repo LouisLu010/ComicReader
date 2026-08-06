@@ -7,6 +7,7 @@ struct ReaderThumbnailStrip: View {
     let imagePipeline: ReaderImagePipeline
     let selectedPresentationID: ReaderPresentationID?
     let selectedLocation: ReaderPageLocation
+    let reloadGeneration: UInt64
     let onSelect: (ReaderPageLocation) -> Void
 
     var body: some View {
@@ -18,18 +19,27 @@ struct ReaderThumbnailStrip: View {
 
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 8) {
-                        ForEach(thumbnailPresentations) { presentation in
+                        ForEach(
+                            ReaderThumbnailPresentationResolver.presentations(
+                                for: layout
+                            )
+                        ) { presentation in
                             thumbnails(for: presentation)
                         }
                     }
                     .padding(.horizontal, 10)
                 }
                 .scrollIndicators(.hidden)
+                // 领域层已排好 RTL 分页的物理顺序，避免 Locale 再次镜像。
+                .environment(\.layoutDirection, .leftToRight)
                 .frame(height: 102)
-                .onChange(of: selectedLocation, initial: true) {
-                    _, location in
+                .onChange(of: scrollRequest, initial: true) {
+                    _, request in
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(location, anchor: .center)
+                        proxy.scrollTo(
+                            request.selectedLocation,
+                            anchor: .center
+                        )
                     }
                 }
             }
@@ -47,8 +57,9 @@ struct ReaderThumbnailStrip: View {
 
     @ViewBuilder
     private func thumbnails(for presentation: ReaderPresentation) -> some View {
-        switch presentation.content {
-        case let .page(page):
+        ForEach(
+            ReaderThumbnailPresentationResolver.pages(for: presentation)
+        ) { page in
             ReaderThumbnailButton(
                 page: page,
                 pageNumber: layout.pageNumber(for: page.location),
@@ -56,22 +67,9 @@ struct ReaderThumbnailStrip: View {
                 isSelected: isSelected(page),
                 assetResolver: assetResolver,
                 imagePipeline: imagePipeline,
+                reloadGeneration: reloadGeneration,
                 onSelect: onSelect
             )
-        case let .spread(spread):
-            ForEach(spread.pagesInReadingOrder) { page in
-                ReaderThumbnailButton(
-                    page: page,
-                    pageNumber: layout.pageNumber(for: page.location),
-                    totalPageCount: layout.pageCount,
-                    isSelected: isSelected(page),
-                    assetResolver: assetResolver,
-                    imagePipeline: imagePipeline,
-                    onSelect: onSelect
-                )
-            }
-        case .chapterBoundary:
-            EmptyView()
         }
     }
 
@@ -80,11 +78,12 @@ struct ReaderThumbnailStrip: View {
             || page.location == selectedLocation
     }
 
-    private var thumbnailPresentations: [ReaderPresentation] {
-        layout.effectiveMode == .continuous
-            || layout.direction == .leftToRight
-            ? layout.presentations
-            : layout.pagedDisplayPresentations
+    private var scrollRequest: ReaderThumbnailScrollRequest {
+        ReaderThumbnailScrollRequest(
+            displayIdentity: ReaderThumbnailPresentationResolver
+                .displayIdentity(for: layout),
+            selectedLocation: selectedLocation
+        )
     }
 }
 
@@ -96,6 +95,7 @@ private struct ReaderThumbnailButton: View {
     let isSelected: Bool
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
+    let reloadGeneration: UInt64
     let onSelect: (ReaderPageLocation) -> Void
 
     var body: some View {
@@ -105,7 +105,9 @@ private struct ReaderThumbnailButton: View {
             ReaderPageImageView(
                 page: page,
                 assetResolver: assetResolver,
-                imagePipeline: imagePipeline
+                imagePipeline: imagePipeline,
+                imagePriority: .utility,
+                reloadGeneration: reloadGeneration
             )
             .environment(
                 \.readerViewportVisiblePageIDs,
@@ -144,4 +146,45 @@ private struct ReaderThumbnailButton: View {
             totalPageCount
         )
     }
+}
+
+struct ReaderThumbnailDisplayIdentity: Equatable {
+    let effectiveMode: ReadingMode
+    let direction: ReadingDirection
+    let presentationIDs: [ReaderPresentationID]
+}
+
+enum ReaderThumbnailPresentationResolver {
+    static func presentations(for layout: ReaderLayout) -> [ReaderPresentation] {
+        layout.effectiveMode == .continuous
+            || layout.direction == .leftToRight
+            ? layout.presentations
+            : layout.pagedDisplayPresentations
+    }
+
+    static func pages(for presentation: ReaderPresentation) -> [ReaderPresentedPage] {
+        switch presentation.content {
+        case let .page(page):
+            [page]
+        case let .spread(spread):
+            [spread.leadingPage, spread.trailingPage].compactMap { $0 }
+        case .chapterBoundary:
+            []
+        }
+    }
+
+    static func displayIdentity(
+        for layout: ReaderLayout
+    ) -> ReaderThumbnailDisplayIdentity {
+        ReaderThumbnailDisplayIdentity(
+            effectiveMode: layout.effectiveMode,
+            direction: layout.direction,
+            presentationIDs: presentations(for: layout).map(\.id)
+        )
+    }
+}
+
+private struct ReaderThumbnailScrollRequest: Equatable {
+    let displayIdentity: ReaderThumbnailDisplayIdentity
+    let selectedLocation: ReaderPageLocation
 }
