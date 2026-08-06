@@ -261,6 +261,12 @@ final class ReaderScreenController {
         return navigate(to: location)
     }
 
+    /// 将阅读器跳转到具体逻辑页，并发布可被分页与连续布局共同消费的请求。
+    @discardableResult
+    func jump(to location: ReaderPageLocation) -> Bool {
+        navigate(to: location)
+    }
+
     @discardableResult
     func jumpToChapter(_ chapterID: ImportChapterCandidate.ID) -> Bool {
         guard let location = navigationIndex?.chapterDestination(

@@ -77,23 +77,44 @@ struct ReaderScreen: View {
             readerControlsToolbar
         }
         .safeAreaInset(edge: .bottom, spacing: 12) {
-            if let progress = readerPageProgress {
-                ReaderPageNavigationView(
-                    progress: progress,
-                    canMoveToPreviousChapter: (
-                        controller.canMoveToPreviousChapter
-                    ),
-                    canMoveToNextChapter: controller.canMoveToNextChapter,
-                    onSelectPage: { pageNumber in
-                        _ = controller.jumpToPage(pageNumber)
-                    },
-                    onMoveToPreviousChapter: {
-                        _ = controller.moveToPreviousChapter()
-                    },
-                    onMoveToNextChapter: {
-                        _ = controller.moveToNextChapter()
+            if let progress = readerPageProgress,
+               let readerContent = controller.content,
+               let layout = controller.layout,
+               let sessionController = controller.sessionController {
+                VStack(spacing: 8) {
+                    if layout.pageCount > 1 {
+                        ReaderThumbnailStrip(
+                            layout: layout,
+                            assetResolver: readerContent.assetResolver,
+                            imagePipeline: controller.imagePipeline,
+                            selectedPresentationID: (
+                                controller.visiblePresentationID
+                            ),
+                            selectedLocation: sessionController.session.position
+                                .location,
+                            onSelect: { location in
+                                _ = controller.jump(to: location)
+                            }
+                        )
                     }
-                )
+
+                    ReaderPageNavigationView(
+                        progress: progress,
+                        canMoveToPreviousChapter: (
+                            controller.canMoveToPreviousChapter
+                        ),
+                        canMoveToNextChapter: controller.canMoveToNextChapter,
+                        onSelectPage: { pageNumber in
+                            _ = controller.jumpToPage(pageNumber)
+                        },
+                        onMoveToPreviousChapter: {
+                            _ = controller.moveToPreviousChapter()
+                        },
+                        onMoveToNextChapter: {
+                            _ = controller.moveToNextChapter()
+                        }
+                    )
+                }
             }
         }
         .sheet(item: $presentedSheet) { sheet in

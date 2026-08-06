@@ -1135,6 +1135,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一话" } }
       }
     },
+    "reader.navigation.thumbnails" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Thumbnails" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缩略图" } }
+      }
+    },
     "reader.page.loading" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading page…" } },

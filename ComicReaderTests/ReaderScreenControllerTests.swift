@@ -273,7 +273,12 @@ final class ReaderScreenControllerTests: XCTestCase {
             ) == true
         )
 
-        XCTAssertTrue(controller.jumpToPage(2))
+        let missingLocation = ReaderPageLocation.chapter(
+            chapter.id,
+            ImportPageCandidate.ID(rawValue: "missing")
+        )
+        XCTAssertFalse(controller.jump(to: missingLocation))
+        XCTAssertTrue(controller.jump(to: secondLocation))
         let firstRequest = try XCTUnwrap(controller.navigationRequest)
         XCTAssertEqual(
             controller.sessionController?.session.position,
