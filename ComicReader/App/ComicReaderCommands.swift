@@ -49,15 +49,21 @@ struct ComicReaderCommands: Commands {
     }
 
     private var previousPageKey: KeyEquivalent {
-        readerCommandSet?.readingDirection == .rightToLeft
-            ? .rightArrow
-            : .leftArrow
+        keyEquivalent(for: .backward)
     }
 
     private var nextPageKey: KeyEquivalent {
-        readerCommandSet?.readingDirection == .rightToLeft
-            ? .leftArrow
-            : .rightArrow
+        keyEquivalent(for: .forward)
+    }
+
+    private func keyEquivalent(
+        for step: ReaderLogicalPageStep
+    ) -> KeyEquivalent {
+        let direction = readerCommandSet?.readingDirection ?? .leftToRight
+        return ReaderKeyboardNavigationPolicy.logicalStep(
+            for: .left,
+            readingDirection: direction
+        ) == step ? .leftArrow : .rightArrow
     }
 }
 
