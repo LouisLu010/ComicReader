@@ -119,7 +119,9 @@ private struct ReaderThumbnailButton: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(
-                        isSelected ? Color.tint : .white.opacity(0.25),
+                        isSelected
+                            ? Color.accentColor
+                            : Color.white.opacity(0.25),
                         lineWidth: isSelected ? 3 : 1
                     )
             }
