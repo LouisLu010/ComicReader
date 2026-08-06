@@ -1015,6 +1015,24 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全书已读完" } }
       }
     },
+    "reader.commands.menu" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读" } }
+      }
+    },
+    "reader.commands.nextPage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一页" } }
+      }
+    },
+    "reader.commands.previousPage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一页" } }
+      }
+    },
     "reader.controls.direction" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Direction" } },
@@ -1091,6 +1109,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Opening comic…" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在打开漫画…" } }
+      }
+    },
+    "reader.navigation.chapters" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Chapters" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "章节" } }
+      }
+    },
+    "reader.navigation.nextChapter" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Chapter" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一话" } }
+      }
+    },
+    "reader.navigation.pageSlider" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump to Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "页码跳转" } }
+      }
+    },
+    "reader.navigation.previousChapter" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Chapter" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一话" } }
       }
     },
     "reader.page.loading" : {

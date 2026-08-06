@@ -13,6 +13,15 @@ enum ReaderScreenLoadFailure: Equatable, Sendable {
     case invalidContent
 }
 
+struct ReaderNavigationRequest: Equatable, Sendable {
+    let generation: UInt64
+    let presentationID: ReaderPresentationID
+}
+
+private enum ReaderScreenControllerError: Error {
+    case invalidNavigationIndex
+}
+
 @MainActor
 @Observable
 final class ReaderScreenController {
@@ -21,6 +30,9 @@ final class ReaderScreenController {
     private(set) var content: LoadedReaderContent?
     private(set) var sessionController: ReaderSessionController?
     private(set) var layout: ReaderLayout?
+    private(set) var navigationIndex: ReaderNavigationIndex?
+    private(set) var visiblePresentationID: ReaderPresentationID?
+    private(set) var navigationRequest: ReaderNavigationRequest?
 
     @ObservationIgnored let imagePipeline: ReaderImagePipeline
     @ObservationIgnored private let contentLoader: any ReaderContentLoading
@@ -31,6 +43,7 @@ final class ReaderScreenController {
     @ObservationIgnored private let sessionBuilder = ReaderSessionBuilder()
     @ObservationIgnored private var layoutCapability: ReaderLayoutCapability
     @ObservationIgnored private var loadGeneration = 0
+    @ObservationIgnored private var navigationGeneration: UInt64 = 0
 
     init(
         comicID: ManagedComicID,
@@ -48,6 +61,9 @@ final class ReaderScreenController {
         layoutCapability = initialLayoutCapability
         state = .idle
         layout = nil
+        navigationIndex = nil
+        visiblePresentationID = nil
+        navigationRequest = nil
     }
 
     @discardableResult
@@ -55,7 +71,8 @@ final class ReaderScreenController {
         if state == .ready,
            content != nil,
            sessionController != nil,
-           layout != nil {
+           layout != nil,
+           navigationIndex != nil {
             return true
         }
 
@@ -65,6 +82,9 @@ final class ReaderScreenController {
         content = nil
         sessionController = nil
         layout = nil
+        navigationIndex = nil
+        visiblePresentationID = nil
+        navigationRequest = nil
 
         do {
             try Task.checkCancellation()
@@ -99,9 +119,20 @@ final class ReaderScreenController {
                 recorder: progressRecorder,
                 persistedProgress: persistedProgress
             )
+            let layout = sessionController.session.layout
+            guard let navigationIndex = ReaderNavigationIndex(
+                comic: loadedContent.comic,
+                layout: layout
+            ) else {
+                throw ReaderScreenControllerError.invalidNavigationIndex
+            }
             content = loadedContent
             self.sessionController = sessionController
-            layout = sessionController.session.layout
+            self.layout = layout
+            self.navigationIndex = navigationIndex
+            visiblePresentationID = layout.presentationID(
+                for: sessionController.session.position.location
+            )
             state = .ready
             return true
         } catch is CancellationError {
@@ -112,6 +143,9 @@ final class ReaderScreenController {
             content = nil
             sessionController = nil
             layout = nil
+            navigationIndex = nil
+            visiblePresentationID = nil
+            navigationRequest = nil
             state = .idle
             return false
         } catch {
@@ -122,6 +156,9 @@ final class ReaderScreenController {
             content = nil
             sessionController = nil
             layout = nil
+            navigationIndex = nil
+            visiblePresentationID = nil
+            navigationRequest = nil
             state = .failed(Self.loadFailure(for: error))
             return false
         }
@@ -134,7 +171,7 @@ final class ReaderScreenController {
 
         layoutCapability = capability
         sessionController?.setLayoutCapability(capability)
-        layout = sessionController?.session.layout
+        refreshNavigationState()
     }
 
     func setViewportSize(
@@ -154,7 +191,7 @@ final class ReaderScreenController {
         }
 
         sessionController.setReadingMode(mode)
-        layout = sessionController.session.layout
+        refreshNavigationState()
         return true
     }
 
@@ -168,8 +205,89 @@ final class ReaderScreenController {
         }
 
         sessionController.setReadingDirection(direction)
-        layout = sessionController.session.layout
+        refreshNavigationState()
         return true
+    }
+
+    func setVisiblePresentationID(_ presentationID: ReaderPresentationID?) {
+        guard let presentationID else {
+            if visiblePresentationID != nil {
+                visiblePresentationID = nil
+            }
+            return
+        }
+
+        guard visiblePresentationID != presentationID,
+              layout?.presentation(for: presentationID) != nil else {
+            return
+        }
+
+        visiblePresentationID = presentationID
+    }
+
+    var canMoveToPreviousPage: Bool {
+        adjacentPresentationID(moving: .backward) != nil
+    }
+
+    var canMoveToNextPage: Bool {
+        adjacentPresentationID(moving: .forward) != nil
+    }
+
+    var canMoveToPreviousChapter: Bool {
+        previousChapterLocation() != nil
+    }
+
+    var canMoveToNextChapter: Bool {
+        nextChapterLocation() != nil
+    }
+
+    @discardableResult
+    func movePage(_ step: ReaderLogicalPageStep) -> Bool {
+        guard let presentationID = adjacentPresentationID(moving: step) else {
+            return false
+        }
+
+        return navigate(to: presentationID)
+    }
+
+    @discardableResult
+    func jumpToPage(_ pageNumber: Int) -> Bool {
+        guard let location = navigationIndex?.location(
+            forPageNumber: pageNumber
+        ) else {
+            return false
+        }
+
+        return navigate(to: location)
+    }
+
+    @discardableResult
+    func jumpToChapter(_ chapterID: ImportChapterCandidate.ID) -> Bool {
+        guard let location = navigationIndex?.chapterDestination(
+            for: chapterID
+        )?.firstLocation else {
+            return false
+        }
+
+        return navigate(to: location)
+    }
+
+    @discardableResult
+    func moveToPreviousChapter() -> Bool {
+        guard let location = previousChapterLocation() else {
+            return false
+        }
+
+        return navigate(to: location)
+    }
+
+    @discardableResult
+    func moveToNextChapter() -> Bool {
+        guard let location = nextChapterLocation() else {
+            return false
+        }
+
+        return navigate(to: location)
     }
 
     @discardableResult
@@ -184,6 +302,10 @@ final class ReaderScreenController {
     private static func loadFailure(
         for error: Error
     ) -> ReaderScreenLoadFailure {
+        if error is ReaderScreenControllerError {
+            return .invalidContent
+        }
+
         guard let loaderError = error as? ReaderContentLoaderError else {
             return error is ReaderSessionError
                 ? .invalidContent
@@ -202,6 +324,152 @@ final class ReaderScreenController {
              .invalidAssets:
             return .invalidContent
         }
+    }
+
+    private func refreshNavigationState() {
+        guard let content, let sessionController else {
+            layout = nil
+            navigationIndex = nil
+            visiblePresentationID = nil
+            return
+        }
+
+        let previousVisiblePresentationID = visiblePresentationID
+        let updatedLayout = sessionController.session.layout
+        layout = updatedLayout
+        navigationIndex = ReaderNavigationIndex(
+            comic: content.comic,
+            layout: updatedLayout
+        )
+        visiblePresentationID = previousVisiblePresentationID.flatMap {
+            updatedLayout.presentation(for: $0) == nil ? nil : $0
+        } ?? updatedLayout.presentationID(
+            for: sessionController.session.position.location
+        )
+    }
+
+    private func adjacentPresentationID(
+        moving step: ReaderLogicalPageStep
+    ) -> ReaderPresentationID? {
+        guard let layout,
+              let currentPresentationID = resolvedVisiblePresentationID,
+              let currentIndex = layout.presentationIndex(
+                  for: currentPresentationID
+              ) else {
+            return nil
+        }
+
+        let targetIndex: Int
+        switch step {
+        case .backward:
+            targetIndex = currentIndex - 1
+        case .forward:
+            targetIndex = currentIndex + 1
+        }
+
+        guard layout.presentations.indices.contains(targetIndex) else {
+            return nil
+        }
+
+        return layout.presentations[targetIndex].id
+    }
+
+    private var resolvedVisiblePresentationID: ReaderPresentationID? {
+        if let visiblePresentationID,
+           layout?.presentation(for: visiblePresentationID) != nil {
+            return visiblePresentationID
+        }
+
+        guard let layout, let sessionController else {
+            return nil
+        }
+
+        return layout.presentationID(
+            for: sessionController.session.position.location
+        )
+    }
+
+    private func previousChapterLocation() -> ReaderPageLocation? {
+        guard let navigationIndex,
+              let location = navigationAnchorLocation else {
+            return nil
+        }
+
+        return navigationIndex.previousChapterLocation(from: location)
+    }
+
+    private func nextChapterLocation() -> ReaderPageLocation? {
+        guard let navigationIndex,
+              let location = navigationAnchorLocation else {
+            return nil
+        }
+
+        return navigationIndex.nextChapterLocation(from: location)
+    }
+
+    private var navigationAnchorLocation: ReaderPageLocation? {
+        guard let layout,
+              let sessionController,
+              let presentationID = resolvedVisiblePresentationID,
+              let presentation = layout.presentation(
+                  for: presentationID
+              ) else {
+            return nil
+        }
+
+        let sessionLocation = sessionController.session.position.location
+        switch presentation.content {
+        case .chapterBoundary:
+            return sessionLocation
+        case .page, .spread:
+            return presentation.locations.contains(sessionLocation)
+                ? sessionLocation
+                : presentation.locations.first
+        }
+    }
+
+    private func navigate(to presentationID: ReaderPresentationID) -> Bool {
+        guard let layout,
+              let presentation = layout.presentation(
+                  for: presentationID
+              ) else {
+            return false
+        }
+
+        switch presentation.content {
+        case .chapterBoundary:
+            publishNavigationRequest(to: presentationID)
+            return true
+        case .page, .spread:
+            guard let location = presentation.locations.first else {
+                return false
+            }
+
+            return navigate(to: location)
+        }
+    }
+
+    private func navigate(to location: ReaderPageLocation) -> Bool {
+        guard let layout,
+              let sessionController,
+              let presentationID = layout.presentationID(for: location),
+              sessionController.move(to: location) else {
+            return false
+        }
+
+        publishNavigationRequest(to: presentationID)
+        return true
+    }
+
+    private func publishNavigationRequest(
+        to presentationID: ReaderPresentationID
+    ) {
+        navigationGeneration &+= 1
+        visiblePresentationID = presentationID
+        navigationRequest = ReaderNavigationRequest(
+            generation: navigationGeneration,
+            presentationID: presentationID
+        )
     }
 }
 

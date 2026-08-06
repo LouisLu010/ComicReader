@@ -248,6 +248,170 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertTrue(recorder.records.last?.progress.isCompleted ?? false)
     }
 
+    func testPageJumpPublishesRepeatableRequestAndResetsPageDetailState() async throws {
+        let fixture = try makeContent()
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            )
+        )
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+        let chapter = fixture.content.comic.chapters[0]
+        let secondLocation = ReaderPageLocation.chapter(
+            chapter.id,
+            chapter.pages[1].id
+        )
+
+        XCTAssertEqual(controller.navigationIndex?.pageCount, 2)
+        XCTAssertTrue(
+            controller.sessionController?.move(
+                to: secondLocation,
+                pageOffset: 0.75,
+                zoomScale: 3
+            ) == true
+        )
+
+        XCTAssertTrue(controller.jumpToPage(2))
+        let firstRequest = try XCTUnwrap(controller.navigationRequest)
+        XCTAssertEqual(
+            controller.sessionController?.session.position,
+            ReadingPosition(location: secondLocation)
+        )
+        XCTAssertEqual(
+            firstRequest.presentationID,
+            controller.layout?.presentationID(for: secondLocation)
+        )
+
+        XCTAssertTrue(controller.jumpToPage(2))
+        let repeatedRequest = try XCTUnwrap(controller.navigationRequest)
+        XCTAssertGreaterThan(
+            repeatedRequest.generation,
+            firstRequest.generation
+        )
+        XCTAssertEqual(
+            repeatedRequest.presentationID,
+            firstRequest.presentationID
+        )
+
+        XCTAssertFalse(controller.jumpToPage(0))
+        XCTAssertFalse(controller.jumpToPage(3))
+        XCTAssertEqual(controller.navigationRequest, repeatedRequest)
+    }
+
+    func testPagedCommandsTraverseChapterBoundaryWithoutInventingPageNumber() async throws {
+        let fixture = try makeContent()
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            )
+        )
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+        XCTAssertTrue(controller.setReadingMode(.singlePage))
+        let chapter = fixture.content.comic.chapters[0]
+        let firstLocation = ReaderPageLocation.chapter(
+            chapter.id,
+            chapter.pages[0].id
+        )
+        let secondLocation = ReaderPageLocation.chapter(
+            chapter.id,
+            chapter.pages[1].id
+        )
+
+        XCTAssertEqual(
+            controller.visiblePresentationID,
+            controller.layout?.presentationID(for: firstLocation)
+        )
+        XCTAssertFalse(controller.canMoveToPreviousPage)
+        XCTAssertTrue(controller.canMoveToNextPage)
+
+        XCTAssertTrue(controller.movePage(.forward))
+        XCTAssertEqual(
+            controller.sessionController?.session.position.location,
+            secondLocation
+        )
+        XCTAssertEqual(
+            controller.visiblePresentationID,
+            controller.layout?.presentationID(for: secondLocation)
+        )
+
+        XCTAssertTrue(controller.movePage(.forward))
+        let boundaryID = ReaderPresentationID.chapterBoundary(chapter.id)
+        XCTAssertEqual(controller.visiblePresentationID, boundaryID)
+        XCTAssertEqual(controller.navigationRequest?.presentationID, boundaryID)
+        XCTAssertEqual(
+            controller.sessionController?.session.position.location,
+            secondLocation,
+            "章节结束页不应伪造 ReadingPosition"
+        )
+        XCTAssertEqual(controller.navigationIndex?.pageCount, 2)
+        XCTAssertFalse(controller.canMoveToNextPage)
+
+        XCTAssertTrue(controller.movePage(.backward))
+        XCTAssertEqual(
+            controller.visiblePresentationID,
+            controller.layout?.presentationID(for: secondLocation)
+        )
+        XCTAssertEqual(
+            controller.sessionController?.session.position.location,
+            secondLocation
+        )
+    }
+
+    func testChapterCommandsUseFirstPageAndRespectEnds() async throws {
+        let fixture = try makeContent(chapterPageCounts: [1, 2, 1])
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            )
+        )
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+        let chapters = fixture.content.comic.chapters
+
+        XCTAssertFalse(controller.canMoveToPreviousChapter)
+        XCTAssertTrue(controller.canMoveToNextChapter)
+        XCTAssertTrue(controller.moveToNextChapter())
+        XCTAssertEqual(
+            controller.sessionController?.session.position.location,
+            ReaderPageLocation.chapter(
+                chapters[1].id,
+                chapters[1].pages[0].id
+            )
+        )
+        XCTAssertTrue(controller.canMoveToPreviousChapter)
+        XCTAssertTrue(controller.canMoveToNextChapter)
+
+        XCTAssertTrue(controller.jumpToChapter(chapters[2].id))
+        XCTAssertEqual(
+            controller.sessionController?.session.position.location,
+            ReaderPageLocation.chapter(
+                chapters[2].id,
+                chapters[2].pages[0].id
+            )
+        )
+        XCTAssertFalse(controller.canMoveToNextChapter)
+        XCTAssertFalse(controller.moveToNextChapter())
+
+        XCTAssertTrue(controller.moveToPreviousChapter())
+        XCTAssertEqual(
+            controller.sessionController?.session.position.location,
+            ReaderPageLocation.chapter(
+                chapters[1].id,
+                chapters[1].pages[0].id
+            )
+        )
+        XCTAssertFalse(
+            controller.jumpToChapter(
+                ImportChapterCandidate.ID(rawValue: "missing")
+            )
+        )
+    }
+
     func testMapsUnavailableAndInvalidContentFailures() async throws {
         let comicID = managedComicID()
         let unavailable = ReaderScreenController(
@@ -494,44 +658,82 @@ final class ReaderScreenControllerTests: XCTestCase {
 
     private func makeContent(
         comicID suppliedComicID: ManagedComicID? = nil,
-        displayName: String = "Reader Controller Test"
+        displayName: String = "Reader Controller Test",
+        chapterPageCounts: [Int] = [2]
     ) throws -> (comicID: ManagedComicID, content: LoadedReaderContent) {
+        precondition(
+            !chapterPageCounts.isEmpty
+                && chapterPageCounts.allSatisfy { $0 > 0 }
+        )
         let comicID = suppliedComicID ?? managedComicID()
-        let chapterID = ImportChapterCandidate.ID(rawValue: "chapter-1")
-        let pageIDs = [
-            ImportPageCandidate.ID(rawValue: "page-1"),
-            ImportPageCandidate.ID(rawValue: "page-2"),
-        ]
-        let workItems = pageIDs.map { pageID in
-            FrozenImportWorkItem(
-                id: pageID,
-                sourceRelativePath: SourceRelativePath(
-                    components: ["outside-source", "\(pageID.rawValue).png"]
-                ),
-                managedRelativePath: ManagedRelativePath(
-                    components: ["original", "Chapter 1", "\(pageID.rawValue).png"]
-                ),
-                originalFileName: "\(pageID.rawValue).png",
-                detectedFormat: .png,
-                expectedByteCount: 128,
-                expectedLightweightFingerprint: nil,
-                pixelSize: ImportPixelSize(width: 800, height: 1_200),
-                orientation: .up,
-                pageState: .readable,
-                isCover: pageID == pageIDs[0]
+        var workItems: [FrozenImportWorkItem] = []
+        var chapters: [FrozenImportChapter] = []
+        var nextPageNumber = 1
+
+        for (chapterOffset, pageCount) in chapterPageCounts.enumerated() {
+            let chapterNumber = chapterOffset + 1
+            let chapterID = ImportChapterCandidate.ID(
+                rawValue: "chapter-\(chapterNumber)"
+            )
+            var pageIDs: [ImportPageCandidate.ID] = []
+
+            for _ in 0..<pageCount {
+                let pageID = ImportPageCandidate.ID(
+                    rawValue: "page-\(nextPageNumber)"
+                )
+                nextPageNumber += 1
+                pageIDs.append(pageID)
+                workItems.append(
+                    FrozenImportWorkItem(
+                        id: pageID,
+                        sourceRelativePath: SourceRelativePath(
+                            components: [
+                                "outside-source",
+                                "Chapter \(chapterNumber)",
+                                "\(pageID.rawValue).png",
+                            ]
+                        ),
+                        managedRelativePath: ManagedRelativePath(
+                            components: [
+                                "original",
+                                "Chapter \(chapterNumber)",
+                                "\(pageID.rawValue).png",
+                            ]
+                        ),
+                        originalFileName: "\(pageID.rawValue).png",
+                        detectedFormat: .png,
+                        expectedByteCount: 128,
+                        expectedLightweightFingerprint: nil,
+                        pixelSize: ImportPixelSize(
+                            width: 800,
+                            height: 1_200
+                        ),
+                        orientation: .up,
+                        pageState: .readable,
+                        isCover: workItems.isEmpty
+                    )
+                )
+            }
+
+            chapters.append(
+                FrozenImportChapter(
+                    id: chapterID,
+                    parentCollectionID: nil,
+                    sourceDirectoryPath: SourceRelativePath(
+                        components: [
+                            "outside-source",
+                            "Chapter \(chapterNumber)",
+                        ]
+                    ),
+                    originalName: "Chapter \(chapterNumber)",
+                    displayName: "Chapter \(chapterNumber)",
+                    role: .directory,
+                    pageIDs: pageIDs
+                )
             )
         }
-        let chapter = FrozenImportChapter(
-            id: chapterID,
-            parentCollectionID: nil,
-            sourceDirectoryPath: SourceRelativePath(
-                components: ["outside-source"]
-            ),
-            originalName: "Chapter 1",
-            displayName: "Chapter 1",
-            role: .directory,
-            pageIDs: pageIDs
-        )
+
+        let coverPageID = try XCTUnwrap(workItems.first?.id)
         let plan = FrozenImportPlan(
             id: ImportJobID(rawValue: UUID()),
             revision: ImportPreviewRevision(
@@ -542,12 +744,12 @@ final class ReaderScreenControllerTests: XCTestCase {
             sourceBookmark: Data("outside-bookmark".utf8),
             sortLocaleIdentifier: "en_US_POSIX",
             collections: [],
-            chapters: [chapter],
+            chapters: chapters,
             workItems: workItems,
-            coverPageID: pageIDs[0],
+            coverPageID: coverPageID,
             scanIssues: [],
             spaceEstimate: .make(
-                contentBytes: 256,
+                contentBytes: Int64(workItems.count * 128),
                 fileCount: workItems.count
             )
         )

@@ -7,6 +7,8 @@ struct ReaderContentView: View {
     let imagePipeline: ReaderImagePipeline
     let sessionController: ReaderSessionController
     let viewportSize: CGSize
+    let navigationRequest: ReaderNavigationRequest?
+    let onVisiblePresentationChanged: (ReaderPresentationID?) -> Void
     @Binding var visibleAssetSnapshot: ReaderVisibleAssetSnapshot
 
     @Environment(\.displayScale) private var displayScale
@@ -23,6 +25,10 @@ struct ReaderContentView: View {
         imagePipeline: ReaderImagePipeline,
         sessionController: ReaderSessionController,
         viewportSize: CGSize,
+        navigationRequest: ReaderNavigationRequest?,
+        onVisiblePresentationChanged: @escaping (
+            ReaderPresentationID?
+        ) -> Void,
         visibleAssetSnapshot: Binding<ReaderVisibleAssetSnapshot>
     ) {
         self.layout = layout
@@ -30,6 +36,8 @@ struct ReaderContentView: View {
         self.imagePipeline = imagePipeline
         self.sessionController = sessionController
         self.viewportSize = viewportSize
+        self.navigationRequest = navigationRequest
+        self.onVisiblePresentationChanged = onVisiblePresentationChanged
         _visibleAssetSnapshot = visibleAssetSnapshot
 
         let restoredPosition = sessionController.session.position
@@ -109,7 +117,14 @@ struct ReaderContentView: View {
             synchronizeVisiblePresentation()
             scheduleContinuousRestore()
         }
-        .onChange(of: visiblePresentationID) { _, presentationID in
+        .onChange(of: navigationRequest) { _, request in
+            handleNavigationRequest(request)
+        }
+        .onChange(
+            of: visiblePresentationID,
+            initial: true
+        ) { _, presentationID in
+            onVisiblePresentationChanged(presentationID)
             synchronizePagedVisibleAssets(presentationID)
             handleVisiblePresentation(presentationID)
         }
@@ -209,6 +224,12 @@ struct ReaderContentView: View {
     }
 
     private func synchronizeVisiblePresentation() {
+        if let visiblePresentationID,
+           layout.presentation(for: visiblePresentationID) != nil {
+            synchronizePagedVisibleAssets(visiblePresentationID)
+            return
+        }
+
         visiblePresentationID = layout.presentationID(
             for: sessionController.session.position.location
         ) ?? layout.presentations.first?.id
@@ -292,6 +313,24 @@ struct ReaderContentView: View {
         )
     }
 
+    private func handleNavigationRequest(
+        _ request: ReaderNavigationRequest?
+    ) {
+        guard let request,
+              layout.presentation(for: request.presentationID) != nil else {
+            return
+        }
+
+        visiblePresentationID = request.presentationID
+        onVisiblePresentationChanged(request.presentationID)
+
+        if layout.effectiveMode == .continuous {
+            scheduleContinuousRestore()
+        } else {
+            synchronizePagedVisibleAssets(request.presentationID)
+        }
+    }
+
     private func handleVisiblePresentation(
         _ presentationID: ReaderPresentationID?
     ) {
@@ -307,6 +346,7 @@ struct ReaderContentView: View {
         }
 
         if case let .chapterBoundary(boundary) = presentation.content {
+            synchronizePosition(for: boundary, at: presentationID)
             _ = sessionController.finishChapterBoundary(boundary)
             return
         }
@@ -318,6 +358,24 @@ struct ReaderContentView: View {
         }
 
         _ = sessionController.move(to: location)
+    }
+
+    private func synchronizePosition(
+        for boundary: ReaderChapterBoundary,
+        at presentationID: ReaderPresentationID
+    ) {
+        guard let boundaryIndex = layout.presentationIndex(
+            for: presentationID
+        ),
+              boundaryIndex > layout.presentations.startIndex,
+              let finalLocation = layout.presentations[boundaryIndex - 1]
+                  .locations.last,
+              finalLocation.chapterID == boundary.completedChapterID,
+              sessionController.session.position.location != finalLocation else {
+            return
+        }
+
+        _ = sessionController.move(to: finalLocation)
     }
 
     private func handleContinuousViewportPosition(

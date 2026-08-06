@@ -8,6 +8,7 @@ struct ReaderScreen: View {
 
     @State private var controller: ReaderScreenController
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
+    @State private var presentedSheet: ReaderPresentedSheet?
     @Environment(\.scenePhase) private var scenePhase
 
     init(
@@ -26,6 +27,7 @@ struct ReaderScreen: View {
                 persistedProgress: persistedProgress
             )
         )
+        _presentedSheet = State(initialValue: nil)
     }
 
     var body: some View {
@@ -64,9 +66,11 @@ struct ReaderScreen: View {
             }
 
             visibleAssetSnapshot = .empty
+            presentedSheet = nil
         }
         .onDisappear {
             visibleAssetSnapshot = .empty
+            presentedSheet = nil
             flushProgress()
         }
         .toolbar {
@@ -74,7 +78,37 @@ struct ReaderScreen: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 12) {
             if let progress = readerPageProgress {
-                ReaderPageProgressView(progress: progress)
+                ReaderPageNavigationView(
+                    progress: progress,
+                    canMoveToPreviousChapter: (
+                        controller.canMoveToPreviousChapter
+                    ),
+                    canMoveToNextChapter: controller.canMoveToNextChapter,
+                    onSelectPage: { pageNumber in
+                        _ = controller.jumpToPage(pageNumber)
+                    },
+                    onMoveToPreviousChapter: {
+                        _ = controller.moveToPreviousChapter()
+                    },
+                    onMoveToNextChapter: {
+                        _ = controller.moveToNextChapter()
+                    }
+                )
+            }
+        }
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .chapters:
+                ReaderChapterListView(
+                    destinations: controller.navigationIndex?
+                        .chapterDestinations ?? [],
+                    selectedChapterID: controller.sessionController?
+                        .session.position.chapterID,
+                    onSelect: { chapterID in
+                        controller.jumpToChapter(chapterID)
+                    }
+                )
+                .presentationDetents([.medium, .large])
             }
         }
         .accessibilityIdentifier("reader.screen")
@@ -104,11 +138,19 @@ struct ReaderScreen: View {
                     imagePipeline: controller.imagePipeline,
                     sessionController: sessionController,
                     viewportSize: viewportSize,
+                    navigationRequest: controller.navigationRequest,
+                    onVisiblePresentationChanged: {
+                        controller.setVisiblePresentationID($0)
+                    },
                     visibleAssetSnapshot: $visibleAssetSnapshot
                 )
                 .environment(
                     \.readerViewportVisiblePageIDs,
                     visibleAssetSnapshot.pageIDs
+                )
+                .focusedSceneValue(
+                    \.readerCommandSet,
+                    readerCommandSet(for: sessionController)
                 )
             } else {
                 ReaderLoadFailureView(failure: .invalidContent) {
@@ -139,6 +181,22 @@ struct ReaderScreen: View {
     private var readerControlsToolbar: some ToolbarContent {
         if let sessionController = controller.sessionController {
             ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    presentChapterList()
+                } label: {
+                    Label(
+                        "reader.navigation.chapters",
+                        systemImage: "list.bullet"
+                    )
+                }
+                .disabled(
+                    controller.navigationIndex?.chapterDestinations.isEmpty
+                        != false || presentedSheet != nil
+                )
+                .accessibilityIdentifier("reader.navigation.chapters")
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
                 ReaderControlsMenu(
                     selectedMode: sessionController.session.readingMode,
                     selectedDirection: sessionController.session.readingDirection,
@@ -158,6 +216,79 @@ struct ReaderScreen: View {
             layout: layout,
             location: sessionController.session.position.location
         )
+    }
+
+    private func readerCommandSet(
+        for sessionController: ReaderSessionController
+    ) -> ReaderCommandSet {
+        let navigationEnabled = presentedSheet == nil
+        let hasChapters = controller.navigationIndex?
+            .chapterDestinations.isEmpty == false
+
+        return ReaderCommandSet(
+            readingDirection: sessionController.session.readingDirection,
+            previousPage: ReaderCommandAction(
+                isEnabled: navigationEnabled
+                    && controller.canMoveToPreviousPage,
+                perform: {
+                    guard presentedSheet == nil else {
+                        return
+                    }
+                    _ = controller.movePage(.backward)
+                }
+            ),
+            nextPage: ReaderCommandAction(
+                isEnabled: navigationEnabled && controller.canMoveToNextPage,
+                perform: {
+                    guard presentedSheet == nil else {
+                        return
+                    }
+                    _ = controller.movePage(.forward)
+                }
+            ),
+            previousChapter: ReaderCommandAction(
+                isEnabled: navigationEnabled
+                    && controller.canMoveToPreviousChapter,
+                perform: {
+                    guard presentedSheet == nil else {
+                        return
+                    }
+                    _ = controller.moveToPreviousChapter()
+                }
+            ),
+            nextChapter: ReaderCommandAction(
+                isEnabled: navigationEnabled
+                    && controller.canMoveToNextChapter,
+                perform: {
+                    guard presentedSheet == nil else {
+                        return
+                    }
+                    _ = controller.moveToNextChapter()
+                }
+            ),
+            showChapterList: ReaderCommandAction(
+                isEnabled: navigationEnabled && hasChapters,
+                perform: presentChapterList
+            )
+        )
+    }
+
+    private func presentChapterList() {
+        guard presentedSheet == nil,
+              controller.navigationIndex?.chapterDestinations.isEmpty
+                == false else {
+            return
+        }
+
+        presentedSheet = .chapters
+    }
+}
+
+private enum ReaderPresentedSheet: String, Identifiable {
+    case chapters
+
+    var id: String {
+        rawValue
     }
 }
 
@@ -230,34 +361,157 @@ private struct ReaderPageProgress: Equatable {
     }
 }
 
-private struct ReaderPageProgressView: View {
+private struct ReaderPageNavigationView: View {
     let progress: ReaderPageProgress
+    let canMoveToPreviousChapter: Bool
+    let canMoveToNextChapter: Bool
+    let onSelectPage: (Int) -> Void
+    let onMoveToPreviousChapter: () -> Void
+    let onMoveToNextChapter: () -> Void
+
+    @State private var selectedPage: Double
+    @State private var isEditing = false
+
+    init(
+        progress: ReaderPageProgress,
+        canMoveToPreviousChapter: Bool,
+        canMoveToNextChapter: Bool,
+        onSelectPage: @escaping (Int) -> Void,
+        onMoveToPreviousChapter: @escaping () -> Void,
+        onMoveToNextChapter: @escaping () -> Void
+    ) {
+        self.progress = progress
+        self.canMoveToPreviousChapter = canMoveToPreviousChapter
+        self.canMoveToNextChapter = canMoveToNextChapter
+        self.onSelectPage = onSelectPage
+        self.onMoveToPreviousChapter = onMoveToPreviousChapter
+        self.onMoveToNextChapter = onMoveToNextChapter
+        _selectedPage = State(initialValue: Double(progress.currentPage))
+    }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text(
-                String.localizedStringWithFormat(
-                    String(localized: "reader.progress.page"),
-                    progress.currentPage,
-                    progress.totalPages
+        HStack(spacing: 12) {
+            Button(action: onMoveToPreviousChapter) {
+                Label(
+                    "reader.navigation.previousChapter",
+                    systemImage: "backward.end"
                 )
-            )
-            .font(.caption.monospacedDigit())
+                .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!canMoveToPreviousChapter)
+            .accessibilityIdentifier("reader.navigation.previousChapter")
 
-            ProgressView(
-                value: Double(progress.currentPage),
-                total: Double(progress.totalPages)
-            )
-            .progressViewStyle(.linear)
-            .frame(width: 96)
-            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("reader.navigation.pageSlider")
+                    Spacer()
+                    Text(pageDescription)
+                        .monospacedDigit()
+                }
+                .font(.caption)
+
+                Slider(
+                    value: $selectedPage,
+                    in: 1...Double(max(progress.totalPages, 2)),
+                    step: 1
+                ) { editing in
+                    isEditing = editing
+                    guard !editing else {
+                        return
+                    }
+
+                    onSelectPage(Int(selectedPage.rounded()))
+                }
+                .disabled(progress.totalPages <= 1)
+                .accessibilityLabel("reader.navigation.pageSlider")
+                .accessibilityValue(Text(verbatim: pageDescription))
+                .accessibilityIdentifier("reader.navigation.pageSlider")
+            }
+            .frame(maxWidth: 420)
+
+            Button(action: onMoveToNextChapter) {
+                Label(
+                    "reader.navigation.nextChapter",
+                    systemImage: "forward.end"
+                )
+                .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+            .disabled(!canMoveToNextChapter)
+            .accessibilityIdentifier("reader.navigation.nextChapter")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .foregroundStyle(.white)
-        .background(.ultraThinMaterial, in: Capsule())
-        .accessibilityElement(children: .combine)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal)
+        .onChange(of: progress.currentPage) { _, currentPage in
+            guard !isEditing else {
+                return
+            }
+
+            selectedPage = Double(currentPage)
+        }
         .accessibilityIdentifier("reader.progress")
+    }
+
+    private var pageDescription: String {
+        String.localizedStringWithFormat(
+            String(localized: "reader.progress.page"),
+            displayedPage,
+            progress.totalPages
+        )
+    }
+
+    private var displayedPage: Int {
+        isEditing ? Int(selectedPage.rounded()) : progress.currentPage
+    }
+}
+
+private struct ReaderChapterListView: View {
+    let destinations: [ReaderChapterDestination]
+    let selectedChapterID: ImportChapterCandidate.ID?
+    let onSelect: (ImportChapterCandidate.ID) -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(destinations) { destination in
+                Button {
+                    guard onSelect(destination.chapterID) else {
+                        return
+                    }
+
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(destination.displayName)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if destination.chapterID == selectedChapterID {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier(
+                    "reader.navigation.chapter.\(destination.chapterID.rawValue)"
+                )
+            }
+            .navigationTitle("reader.navigation.chapters")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("reader.navigation.chapterList")
     }
 }
 
