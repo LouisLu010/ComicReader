@@ -10,15 +10,19 @@ final class ReaderFlowUITests: XCTestCase {
     func testReaderNavigationFromFixtureUsesThumbnailSliderAndChapterList() {
         let app = launchReaderFixture()
         let slider = app.sliders["reader.navigation.pageSlider"]
+        let pageDescription = element(
+            "reader.navigation.pageDescription",
+            in: app
+        )
 
-        XCTAssertTrue(waitForValue("Page 1 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 1 of 5", on: pageDescription))
 
         let thumbnail = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
         ]
         XCTAssertTrue(waitUntilHittable(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(waitForValue("Page 3 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-one-page-two",
@@ -27,7 +31,7 @@ final class ReaderFlowUITests: XCTestCase {
         )
 
         slider.adjust(toNormalizedSliderPosition: 1)
-        XCTAssertTrue(waitForValue("Page 5 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 5 of 5", on: pageDescription))
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-two-page-two",
@@ -48,7 +52,7 @@ final class ReaderFlowUITests: XCTestCase {
         ]
         XCTAssertTrue(waitUntilHittable(chapterTwoButton))
         chapterTwoButton.tap()
-        XCTAssertTrue(waitForValue("Page 4 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 4 of 5", on: pageDescription))
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-two-page-one",
@@ -59,39 +63,42 @@ final class ReaderFlowUITests: XCTestCase {
 
     func testReaderFixtureChangesReadingModes() {
         let app = launchReaderFixture()
-        let slider = app.sliders["reader.navigation.pageSlider"]
+        let pageDescription = element(
+            "reader.navigation.pageDescription",
+            in: app
+        )
         let chapterOnePageTwo = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
         ]
         XCTAssertTrue(waitUntilHittable(chapterOnePageTwo))
         chapterOnePageTwo.tap()
-        XCTAssertTrue(waitForValue("Page 3 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
 
         selectMode(.singlePage, in: app)
         XCTAssertTrue(
             element("reader.singlePage", in: app)
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(waitForValue("Page 3 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
 
         selectMode(.continuous, in: app)
         XCTAssertTrue(
             element("reader.continuous", in: app).waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(waitForValue("Page 3 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
 
         selectMode(.spread, in: app)
         XCTAssertTrue(
             element("reader.spread", in: app).waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(waitForValue("Page 3 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
 
         let landscapePage = app.buttons[
             "reader.thumbnail.ui-chapter-two-page-one"
         ]
         XCTAssertTrue(waitUntilHittable(landscapePage))
         landscapePage.tap()
-        XCTAssertTrue(waitForValue("Page 4 of 5", on: slider))
+        XCTAssertTrue(waitForLabel("Page 4 of 5", on: pageDescription))
         XCTAssertTrue(
             element("reader.page.image.ui-chapter-two-page-one", in: app)
                 .waitForExistence(timeout: 8)
@@ -124,9 +131,9 @@ final class ReaderFlowUITests: XCTestCase {
                 .waitForExistence(timeout: 10)
         )
         XCTAssertTrue(
-            waitForValue(
+            waitForLabel(
                 "Page 1 of 5",
-                on: app.sliders["reader.navigation.pageSlider"]
+                on: element("reader.navigation.pageDescription", in: app)
             )
         )
 
@@ -145,13 +152,13 @@ final class ReaderFlowUITests: XCTestCase {
         option.tap()
     }
 
-    private func waitForValue(
-        _ value: String,
+    private func waitForLabel(
+        _ label: String,
         on element: XCUIElement,
         timeout: TimeInterval = 8
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", value),
+            predicate: NSPredicate(format: "label == %@", label),
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)
