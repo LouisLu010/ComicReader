@@ -24,6 +24,53 @@ enum ReaderKeyboardNavigationPolicy {
     }
 }
 
+enum ReaderTapAction: Equatable, Sendable {
+    case movePage(ReaderLogicalPageStep)
+    case toggleControls
+    case ignore
+}
+
+enum ReaderTapActionPolicy {
+    static func action(
+        horizontalFraction: Double,
+        readingMode: ReadingMode,
+        readingDirection: ReadingDirection,
+        isZoomed: Bool,
+        isInteractionBlocked: Bool
+    ) -> ReaderTapAction {
+        guard horizontalFraction.isFinite,
+              (0 ... 1).contains(horizontalFraction),
+              !isZoomed,
+              !isInteractionBlocked else {
+            return .ignore
+        }
+
+        let leadingBoundary = 1.0 / 3.0
+        let trailingBoundary = 2.0 / 3.0
+        let arrow: ReaderKeyboardArrow
+
+        switch horizontalFraction {
+        case ..<leadingBoundary:
+            arrow = .left
+        case ..<trailingBoundary:
+            return .toggleControls
+        default:
+            arrow = .right
+        }
+
+        guard readingMode != .continuous else {
+            return .ignore
+        }
+
+        return .movePage(
+            ReaderKeyboardNavigationPolicy.logicalStep(
+                for: arrow,
+                readingDirection: readingDirection
+            )
+        )
+    }
+}
+
 struct ReaderChapterDestination: Equatable, Identifiable, Sendable {
     let chapterID: ImportChapterCandidate.ID
     let displayName: String

@@ -9,6 +9,8 @@ struct ReaderContentView: View {
     let viewportSize: CGSize
     let navigationRequest: ReaderNavigationRequest?
     let onVisiblePresentationChanged: (ReaderPresentationID?) -> Void
+    let isTapInteractionBlocked: Bool
+    let onTapAction: (ReaderTapAction) -> Void
     @Binding var visibleAssetSnapshot: ReaderVisibleAssetSnapshot
 
     @Environment(\.displayScale) private var displayScale
@@ -18,6 +20,7 @@ struct ReaderContentView: View {
     @State private var zoomState: ReaderZoomInteractionState
     @GestureState private var gestureMagnification = 1.0
     @GestureState private var gestureTranslation: CGSize = .zero
+    @GestureState private var isMagnifying = false
 
     init(
         layout: ReaderLayout,
@@ -29,6 +32,8 @@ struct ReaderContentView: View {
         onVisiblePresentationChanged: @escaping (
             ReaderPresentationID?
         ) -> Void,
+        isTapInteractionBlocked: Bool,
+        onTapAction: @escaping (ReaderTapAction) -> Void,
         visibleAssetSnapshot: Binding<ReaderVisibleAssetSnapshot>
     ) {
         self.layout = layout
@@ -38,6 +43,8 @@ struct ReaderContentView: View {
         self.viewportSize = viewportSize
         self.navigationRequest = navigationRequest
         self.onVisiblePresentationChanged = onVisiblePresentationChanged
+        self.isTapInteractionBlocked = isTapInteractionBlocked
+        self.onTapAction = onTapAction
         _visibleAssetSnapshot = visibleAssetSnapshot
 
         let restoredPosition = sessionController.session.position
@@ -100,7 +107,7 @@ struct ReaderContentView: View {
         .contentShape(Rectangle())
         .simultaneousGesture(magnificationGesture)
         .simultaneousGesture(panGesture)
-        .simultaneousGesture(doubleTapGesture)
+        .simultaneousGesture(tapGesture)
         .onChange(of: viewportSize, initial: true) { _, size in
             zoomState.updateGeometry(
                 viewportSize: size,
@@ -136,6 +143,8 @@ struct ReaderContentView: View {
             await prefetchAdjacentPages()
         }
         .accessibilityValue(Text(verbatim: zoomAccessibilityValue))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("reader.tapSurface")
     }
 
     private var layoutIdentity: ReaderLayoutDisplayIdentity {
@@ -425,6 +434,9 @@ struct ReaderContentView: View {
 
                 state = Double(value.magnification)
             }
+            .updating($isMagnifying) { _, state, _ in
+                state = true
+            }
             .onEnded { value in
                 guard activeZoomPresentationID != nil else {
                     return
@@ -458,9 +470,9 @@ struct ReaderContentView: View {
             }
     }
 
-    private var doubleTapGesture: some Gesture {
-        TapGesture(count: 2)
-            .onEnded {
+    private var tapGesture: some Gesture {
+        SpatialTapGesture(count: 2, coordinateSpace: .local)
+            .onEnded { _ in
                 guard activeZoomPresentationID != nil else {
                     return
                 }
@@ -468,6 +480,43 @@ struct ReaderContentView: View {
                 zoomState.toggleDoubleTapZoom()
                 commitZoomScale()
             }
+            .exclusively(
+                before: SpatialTapGesture(count: 1, coordinateSpace: .local)
+            )
+            .onEnded { result in
+                guard case let .second(tap) = result else {
+                    return
+                }
+
+                handleSingleTap(at: tap.location)
+            }
+    }
+
+    private func handleSingleTap(at location: CGPoint) {
+        guard location.x.isFinite,
+              location.y.isFinite,
+              viewportSize.width.isFinite,
+              viewportSize.height.isFinite,
+              viewportSize.width > 0,
+              viewportSize.height > 0,
+              (0 ... viewportSize.width).contains(location.x),
+              (0 ... viewportSize.height).contains(location.y) else {
+            return
+        }
+
+        let action = ReaderTapActionPolicy.action(
+            horizontalFraction: Double(location.x / viewportSize.width),
+            readingMode: layout.effectiveMode,
+            readingDirection: layout.direction,
+            isZoomed: isZoomed || isMagnifying,
+            isInteractionBlocked: isTapInteractionBlocked
+        )
+
+        guard action != .ignore else {
+            return
+        }
+
+        onTapAction(action)
     }
 
     private func synchronizeZoomState(

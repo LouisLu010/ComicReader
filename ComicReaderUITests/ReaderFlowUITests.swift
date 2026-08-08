@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 
 final class ReaderFlowUITests: XCTestCase {
@@ -9,7 +10,7 @@ final class ReaderFlowUITests: XCTestCase {
 
     func testReaderNavigationFromFixtureUsesThumbnailSliderAndChapterList() {
         let app = launchReaderFixture()
-        let slider = app.sliders["reader.navigation.pageSlider"]
+        let slider = element("reader.navigation.pageSlider", in: app)
         XCTAssertTrue(slider.waitForExistence(timeout: 5))
 
         let thumbnail = app.buttons[
@@ -102,6 +103,54 @@ final class ReaderFlowUITests: XCTestCase {
         )
     }
 
+    func testReaderTapSurfaceNavigatesAndMirrorsRightToLeft() {
+        let app = launchReaderFixture()
+        selectMode(.singlePage, in: app)
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
+        let surface = tapSurface(in: app)
+        XCTAssertTrue(surface.waitForExistence(timeout: 5))
+        tap(horizontalOffset: 0.9, on: surface)
+        XCTAssertTrue(waitForCurrentPage("2/5", in: app))
+
+        selectDirection(.rightToLeft, in: app)
+        tap(horizontalOffset: 0.1, on: surface)
+        XCTAssertTrue(waitForCurrentPage("3/5", in: app))
+    }
+
+    func testReaderTapSurfaceTogglesControls() {
+        let app = launchReaderFixture()
+        let surface = tapSurface(in: app)
+        let menu = app.buttons["reader.controls.menu"]
+
+        XCTAssertTrue(surface.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntilHittable(menu))
+
+        tap(horizontalOffset: 0.5, on: surface)
+        XCTAssertFalse(menu.waitForExistence(timeout: 2))
+        XCTAssertFalse(element("reader.progress", in: app).exists)
+
+        tap(horizontalOffset: 0.5, on: surface)
+        XCTAssertTrue(waitUntilHittable(menu))
+        XCTAssertTrue(element("reader.progress", in: app).waitForExistence(timeout: 5))
+    }
+
+    func testReaderDoubleTapZoomDoesNotNavigate() {
+        let app = launchReaderFixture()
+        selectMode(.singlePage, in: app)
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
+        let surface = tapSurface(in: app)
+        XCTAssertTrue(surface.waitForExistence(timeout: 5))
+        doubleTap(horizontalOffset: 0.9, on: surface)
+
+        XCTAssertTrue(waitForValue("200%", of: surface))
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
+        tap(horizontalOffset: 0.9, on: surface)
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+    }
+
     private func launchReaderFixture() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
@@ -140,6 +189,61 @@ final class ReaderFlowUITests: XCTestCase {
         option.tap()
     }
 
+    private func selectDirection(
+        _ direction: ReadingDirectionOption,
+        in app: XCUIApplication
+    ) {
+        let menu = app.buttons["reader.controls.menu"]
+        XCTAssertTrue(waitUntilHittable(menu))
+        menu.tap()
+
+        let option = element(direction.accessibilityIdentifier, in: app)
+        XCTAssertTrue(waitUntilHittable(option))
+        option.tap()
+    }
+
+    private func tapSurface(in app: XCUIApplication) -> XCUIElement {
+        element("reader.tapSurface", in: app)
+    }
+
+    private func tap(horizontalOffset: CGFloat, on element: XCUIElement) {
+        element.coordinate(
+            withNormalizedOffset: CGVector(dx: horizontalOffset, dy: 0.5)
+        ).tap()
+    }
+
+    private func doubleTap(
+        horizontalOffset: CGFloat,
+        on element: XCUIElement
+    ) {
+        element.coordinate(
+            withNormalizedOffset: CGVector(dx: horizontalOffset, dy: 0.5)
+        ).doubleTap()
+    }
+
+    private func waitForCurrentPage(
+        _ page: String,
+        in app: XCUIApplication
+    ) -> Bool {
+        waitForValue(
+            page,
+            of: element("reader.navigation.currentPage", in: app)
+        )
+    }
+
+    private func waitForValue(
+        _ value: String,
+        of element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND value == %@", value),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
     private func waitUntilHittable(
         _ element: XCUIElement,
         timeout: TimeInterval = 5
@@ -175,6 +279,17 @@ private enum Mode {
             "reader.controls.mode.singlePage"
         case .spread:
             "reader.controls.mode.spread"
+        }
+    }
+}
+
+private enum ReadingDirectionOption {
+    case rightToLeft
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .rightToLeft:
+            "reader.controls.direction.rightToLeft"
         }
     }
 }

@@ -1021,6 +1021,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读" } }
       }
     },
+    "reader.commands.toggleControls" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show or Hide Controls" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示或隐藏控件" } }
+      }
+    },
     "reader.commands.nextPage" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Page" } },

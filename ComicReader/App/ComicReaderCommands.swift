@@ -26,6 +26,12 @@ struct ComicReaderCommands: Commands {
             .keyboardShortcut(nextPageKey, modifiers: [])
             .disabled(readerCommandSet?.nextPage.isEnabled != true)
 
+            Button("reader.commands.toggleControls") {
+                readerCommandSet?.toggleControls.performIfEnabled()
+            }
+            .keyboardShortcut("h", modifiers: .command)
+            .disabled(readerCommandSet?.toggleControls.isEnabled != true)
+
             Divider()
 
             Button("reader.navigation.previousChapter") {
@@ -92,6 +98,7 @@ struct ReaderCommandSet {
     let previousChapter: ReaderCommandAction
     let nextChapter: ReaderCommandAction
     let showChapterList: ReaderCommandAction
+    let toggleControls: ReaderCommandAction
 }
 
 private struct ImportFoldersCommandKey: FocusedValueKey {

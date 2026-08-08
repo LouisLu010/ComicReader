@@ -10,6 +10,7 @@ struct ReaderScreen: View {
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
     @State private var thumbnailReloadGeneration: UInt64 = 0
     @State private var presentedSheet: ReaderPresentedSheet?
+    @State private var controlsAreVisible = true
     @Environment(\.scenePhase) private var scenePhase
 
     init(
@@ -43,6 +44,10 @@ struct ReaderScreen: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(
+            controlsAreVisible ? .visible : .hidden,
+            for: .navigationBar
+        )
         .preferredColorScheme(.dark)
         .task {
             _ = await controller.load()
@@ -68,6 +73,7 @@ struct ReaderScreen: View {
 
             visibleAssetSnapshot = .empty
             presentedSheet = nil
+            controlsAreVisible = true
         }
         .onDisappear {
             visibleAssetSnapshot = .empty
@@ -78,7 +84,8 @@ struct ReaderScreen: View {
             readerControlsToolbar
         }
         .safeAreaInset(edge: .bottom, spacing: 12) {
-            if let progress = readerPageProgress,
+            if controlsAreVisible,
+               let progress = readerPageProgress,
                let readerContent = controller.content,
                let layout = controller.layout,
                let sessionController = controller.sessionController {
@@ -165,6 +172,8 @@ struct ReaderScreen: View {
                     onVisiblePresentationChanged: {
                         controller.setVisiblePresentationID($0)
                     },
+                    isTapInteractionBlocked: presentedSheet != nil,
+                    onTapAction: handleTapAction,
                     visibleAssetSnapshot: $visibleAssetSnapshot
                 )
                 .environment(
@@ -203,7 +212,8 @@ struct ReaderScreen: View {
 
     @ToolbarContentBuilder
     private var readerControlsToolbar: some ToolbarContent {
-        if let sessionController = controller.sessionController {
+        if controlsAreVisible,
+           let sessionController = controller.sessionController {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     presentChapterList()
@@ -293,8 +303,35 @@ struct ReaderScreen: View {
             showChapterList: ReaderCommandAction(
                 isEnabled: navigationEnabled && hasChapters,
                 perform: presentChapterList
+            ),
+            toggleControls: ReaderCommandAction(
+                isEnabled: presentedSheet == nil,
+                perform: toggleControls
             )
         )
+    }
+
+    private func handleTapAction(_ action: ReaderTapAction) {
+        guard presentedSheet == nil else {
+            return
+        }
+
+        switch action {
+        case let .movePage(step):
+            _ = controller.movePage(step)
+        case .toggleControls:
+            toggleControls()
+        case .ignore:
+            break
+        }
+    }
+
+    private func toggleControls() {
+        guard presentedSheet == nil else {
+            return
+        }
+
+        controlsAreVisible.toggle()
     }
 
     private func presentChapterList() {
@@ -440,6 +477,14 @@ private struct ReaderPageNavigationView: View {
                     Spacer()
                     Text(pageDescription)
                         .monospacedDigit()
+                        .accessibilityIdentifier(
+                            "reader.navigation.currentPage"
+                        )
+                        .accessibilityValue(
+                            Text(
+                                verbatim: "\(displayedPage)/\(progress.totalPages)"
+                            )
+                        )
                 }
                 .font(.caption)
 
@@ -485,6 +530,7 @@ private struct ReaderPageNavigationView: View {
 
             selectedPage = Double(currentPage)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reader.progress")
     }
 
