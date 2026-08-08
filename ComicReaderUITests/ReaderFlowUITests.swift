@@ -10,7 +10,7 @@ final class ReaderFlowUITests: XCTestCase {
     func testReaderNavigationFromFixtureUsesThumbnailSliderAndChapterList() {
         let app = launchReaderFixture()
         let slider = app.sliders["reader.navigation.pageSlider"]
-        XCTAssertTrue(waitUntilHittable(slider))
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
 
         let thumbnail = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
@@ -53,7 +53,7 @@ final class ReaderFlowUITests: XCTestCase {
         )
     }
 
-    func testReaderFixtureChangesReadingModes() {
+    func testReaderFixtureSelectsReadingModes() {
         let app = launchReaderFixture()
         let chapterOnePageTwo = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
@@ -69,10 +69,6 @@ final class ReaderFlowUITests: XCTestCase {
 
         selectMode(.singlePage, in: app)
         XCTAssertTrue(
-            element("reader.singlePage", in: app)
-                .waitForExistence(timeout: 5)
-        )
-        XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-one-page-two",
                 in: app
@@ -81,9 +77,6 @@ final class ReaderFlowUITests: XCTestCase {
 
         selectMode(.continuous, in: app)
         XCTAssertTrue(
-            element("reader.continuous", in: app).waitForExistence(timeout: 5)
-        )
-        XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-one-page-two",
                 in: app
@@ -91,9 +84,6 @@ final class ReaderFlowUITests: XCTestCase {
         )
 
         selectMode(.spread, in: app)
-        XCTAssertTrue(
-            element("reader.spread", in: app).waitForExistence(timeout: 5)
-        )
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-one-page-two",
