@@ -335,6 +335,10 @@ private struct ReaderControlsMenu: View {
                         )
                     }
                     .accessibilityIdentifier(mode.accessibilityIdentifier)
+                    .accessibilityLabel(mode.controlTitle)
+                    .accessibilityAddTraits(
+                        selectedMode == mode ? .isSelected : []
+                    )
                 }
             }
 
@@ -349,6 +353,10 @@ private struct ReaderControlsMenu: View {
                         )
                     }
                     .accessibilityIdentifier(direction.accessibilityIdentifier)
+                    .accessibilityLabel(direction.controlTitle)
+                    .accessibilityAddTraits(
+                        selectedDirection == direction ? .isSelected : []
+                    )
                 }
             }
         } label: {

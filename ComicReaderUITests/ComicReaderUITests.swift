@@ -26,4 +26,19 @@ final class ComicReaderUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
     }
+
+    func testUnknownFixtureFailsClosed() {
+        let app = XCUIApplication()
+        app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
+            "unknown-fixture"
+        )
+        app.launch()
+
+        let failure = app.descendants(matching: .any)["uiTestFixture.failed"]
+        XCTAssertTrue(failure.waitForExistence(timeout: 5))
+        XCTAssertTrue(failure.label.contains("Unknown UI test fixture."))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["library.empty"].exists
+        )
+    }
 }

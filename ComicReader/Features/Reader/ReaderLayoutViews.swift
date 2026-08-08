@@ -86,6 +86,7 @@ struct ReaderContentView: View {
                 )
             case .singlePage, .spread:
                 ReaderPagedView(
+                    mode: layout.effectiveMode,
                     presentations: layout.pagedDisplayPresentations,
                     assetResolver: assetResolver,
                     imagePipeline: imagePipeline,
@@ -702,6 +703,7 @@ private struct ReaderContinuousView: View {
 }
 
 private struct ReaderPagedView: View {
+    let mode: ReadingMode
     let presentations: [ReaderPresentation]
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
@@ -744,7 +746,9 @@ private struct ReaderPagedView: View {
         .scrollIndicators(.hidden)
         // 领域层已决定双页的物理左右槽位，避免 Locale 再次反转。
         .environment(\.layoutDirection, .leftToRight)
-        .accessibilityIdentifier("reader.paged")
+        .accessibilityIdentifier(
+            mode == .spread ? "reader.spread" : "reader.singlePage"
+        )
     }
 
 }

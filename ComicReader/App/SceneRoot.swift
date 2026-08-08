@@ -6,13 +6,14 @@ private struct LibraryCatalogRefreshID: Equatable {
     let allowsLibraryWrites: Bool
 }
 
+@MainActor
 struct SceneRoot: View {
     let modelContainer: ModelContainer?
     let readerFeatureServices: ReaderFeatureServices?
 
     @State private var router = AppRouter()
     @State private var importCoordinator = FolderImportCoordinator()
-    @State private var libraryCatalog = LibraryCatalogCoordinator()
+    @State private var libraryCatalog: LibraryCatalogCoordinator
     @State private var allowsIncrementalCatalogRefresh = false
     @Environment(ImportJobCoordinator.self) private var importJobs
     @Environment(LibraryStateRepository.self) private var libraryState
@@ -21,10 +22,14 @@ struct SceneRoot: View {
     init(
         modelContainer: ModelContainer? = nil,
         readerFeatureServices: ReaderFeatureServices?
-            = ReaderFeatureServices.applicationSupport()
+            = ReaderFeatureServices.applicationSupport(),
+        libraryCatalog: LibraryCatalogCoordinator? = nil
     ) {
         self.modelContainer = modelContainer
         self.readerFeatureServices = readerFeatureServices
+        _libraryCatalog = State(
+            initialValue: libraryCatalog ?? LibraryCatalogCoordinator()
+        )
     }
 
     var body: some View {
