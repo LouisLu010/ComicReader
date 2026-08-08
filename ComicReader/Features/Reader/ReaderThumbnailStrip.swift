@@ -107,7 +107,8 @@ private struct ReaderThumbnailButton: View {
                 assetResolver: assetResolver,
                 imagePipeline: imagePipeline,
                 imagePriority: .utility,
-                reloadGeneration: reloadGeneration
+                reloadGeneration: reloadGeneration,
+                accessibilityIdentifierPrefix: "reader.thumbnail"
             )
             .environment(
                 \.readerViewportVisiblePageIDs,

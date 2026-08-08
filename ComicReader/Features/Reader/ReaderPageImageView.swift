@@ -9,6 +9,7 @@ struct ReaderPageImageView: View {
     let imageRequestScale: Double
     let imagePriority: TaskPriority
     let reloadGeneration: UInt64
+    let accessibilityIdentifierPrefix: String
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.readerViewportVisiblePageIDs)
@@ -26,7 +27,8 @@ struct ReaderPageImageView: View {
         imagePipeline: ReaderImagePipeline,
         imageRequestScale: Double = 1,
         imagePriority: TaskPriority = .userInitiated,
-        reloadGeneration: UInt64 = 0
+        reloadGeneration: UInt64 = 0,
+        accessibilityIdentifierPrefix: String = "reader.page"
     ) {
         presentedPage = page
         self.assetResolver = assetResolver
@@ -34,6 +36,7 @@ struct ReaderPageImageView: View {
         self.imageRequestScale = imageRequestScale
         self.imagePriority = imagePriority
         self.reloadGeneration = reloadGeneration
+        self.accessibilityIdentifierPrefix = accessibilityIdentifierPrefix
     }
 
     var body: some View {
@@ -87,7 +90,7 @@ struct ReaderPageImageView: View {
             .resizable()
             .scaledToFit()
             .accessibilityIdentifier(
-                "reader.page.image.\(presentedPage.page.id.rawValue)"
+                "\(accessibilityIdentifierPrefix).image.\(presentedPage.page.id.rawValue)"
             )
         } else if failedRequestID?.location == presentedPage.location {
             unavailablePlaceholder
@@ -98,7 +101,7 @@ struct ReaderPageImageView: View {
                     Text(verbatim: presentedPage.page.originalFileName)
                 )
                 .accessibilityIdentifier(
-                    "reader.page.loading.\(presentedPage.page.id.rawValue)"
+                    "\(accessibilityIdentifierPrefix).loading.\(presentedPage.page.id.rawValue)"
                 )
         }
     }
@@ -123,7 +126,7 @@ struct ReaderPageImageView: View {
         .background(.secondary.opacity(0.08))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(
-            "reader.page.error.\(presentedPage.page.id.rawValue)"
+            "\(accessibilityIdentifierPrefix).error.\(presentedPage.page.id.rawValue)"
         )
     }
 
