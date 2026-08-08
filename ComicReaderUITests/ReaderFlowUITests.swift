@@ -19,18 +19,14 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilHittable(thumbnail))
         thumbnail.tap()
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-one-page-two",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-one-page-two", in: app)
+                .waitForExistence(timeout: 8)
         )
 
         slider.adjust(toNormalizedSliderPosition: 1)
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-two-page-two",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-two-page-two", in: app)
+                .waitForExistence(timeout: 8)
         )
 
         let chapterButton = app.buttons["reader.navigation.chapters"]
@@ -47,10 +43,8 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilHittable(chapterTwoButton))
         chapterTwoButton.tap()
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-two-page-one",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-two-page-one", in: app)
+                .waitForExistence(timeout: 8)
         )
     }
 
@@ -62,34 +56,26 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilHittable(chapterOnePageTwo))
         chapterOnePageTwo.tap()
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-one-page-two",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-one-page-two", in: app)
+                .waitForExistence(timeout: 8)
         )
 
         selectMode(.singlePage, in: app)
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-one-page-two",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-one-page-two", in: app)
+                .waitForExistence(timeout: 8)
         )
 
         selectMode(.continuous, in: app)
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-one-page-two",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-one-page-two", in: app)
+                .waitForExistence(timeout: 8)
         )
 
         selectMode(.spread, in: app)
         XCTAssertTrue(
-            element(
-                "reader.page.image.ui-chapter-one-page-two",
-                in: app
-            ).waitForExistence(timeout: 8)
+            pageImage("ui-chapter-one-page-two", in: app)
+                .waitForExistence(timeout: 8)
         )
 
         let landscapePage = app.buttons[
@@ -98,7 +84,7 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilHittable(landscapePage))
         landscapePage.tap()
         XCTAssertTrue(
-            element("reader.page.image.ui-chapter-two-page-one", in: app)
+            pageImage("ui-chapter-two-page-one", in: app)
                 .waitForExistence(timeout: 8)
         )
     }
@@ -176,7 +162,7 @@ final class ReaderFlowUITests: XCTestCase {
             element("reader.screen", in: app).waitForExistence(timeout: 8)
         )
         XCTAssertTrue(
-            element("reader.page.image.ui-cover", in: app)
+            pageImage("ui-cover", in: app)
                 .waitForExistence(timeout: 10)
         )
         return app
@@ -209,7 +195,10 @@ final class ReaderFlowUITests: XCTestCase {
         _ pageID: String,
         in app: XCUIApplication
     ) -> XCUIElement {
-        element("reader.page.image.\(pageID)", in: app)
+        let identifier = "reader.page.image.\(pageID)"
+        let matches = app.images.matching(identifier: identifier)
+        XCTAssertLessThanOrEqual(matches.count, 1, "Expected one primary page image")
+        return app.images[identifier]
     }
 
     private func tap(horizontalOffset: CGFloat, on element: XCUIElement) {
