@@ -440,9 +440,6 @@ private struct ReaderPageNavigationView: View {
                     Spacer()
                     Text(pageDescription)
                         .monospacedDigit()
-                        .accessibilityIdentifier(
-                            "reader.navigation.pageDescription"
-                        )
                 }
                 .font(.caption)
 

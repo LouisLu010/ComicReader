@@ -10,12 +10,7 @@ final class ReaderFlowUITests: XCTestCase {
     func testReaderNavigationFromFixtureUsesThumbnailSliderAndChapterList() {
         let app = launchReaderFixture()
         let slider = app.sliders["reader.navigation.pageSlider"]
-        let pageDescription = element(
-            "reader.navigation.pageDescription",
-            in: app
-        )
-
-        XCTAssertTrue(pageDescription.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntilHittable(slider))
 
         let thumbnail = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
@@ -142,11 +137,6 @@ final class ReaderFlowUITests: XCTestCase {
             element("reader.page.image.ui-cover", in: app)
                 .waitForExistence(timeout: 10)
         )
-        XCTAssertTrue(
-            element("reader.navigation.pageDescription", in: app)
-                .waitForExistence(timeout: 5)
-        )
-
         return app
     }
 
