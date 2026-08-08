@@ -10,7 +10,6 @@ struct ReaderScreen: View {
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
     @State private var thumbnailReloadGeneration: UInt64 = 0
     @State private var presentedSheet: ReaderPresentedSheet?
-    @State private var controlsAreVisible = true
     @Environment(\.scenePhase) private var scenePhase
 
     init(
@@ -37,6 +36,16 @@ struct ReaderScreen: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 content(viewportSize: proxy.size)
+
+                if !controlsAreVisible {
+                    ReaderControlsRevealButton(onReveal: toggleControls)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .bottomTrailing
+                        )
+                        .padding()
+                }
             }
             .onChange(of: proxy.size, initial: true) { _, size in
                 controller.setViewportSize(size)
@@ -73,7 +82,6 @@ struct ReaderScreen: View {
 
             visibleAssetSnapshot = .empty
             presentedSheet = nil
-            controlsAreVisible = true
         }
         .onDisappear {
             visibleAssetSnapshot = .empty
@@ -252,6 +260,10 @@ struct ReaderScreen: View {
         )
     }
 
+    private var controlsAreVisible: Bool {
+        controller.sessionController?.session.controlsAreVisible ?? true
+    }
+
     private func readerCommandSet(
         for sessionController: ReaderSessionController
     ) -> ReaderCommandSet {
@@ -327,11 +339,12 @@ struct ReaderScreen: View {
     }
 
     private func toggleControls() {
-        guard presentedSheet == nil else {
+        guard presentedSheet == nil,
+              let sessionController = controller.sessionController else {
             return
         }
 
-        controlsAreVisible.toggle()
+        sessionController.toggleControls()
     }
 
     private func presentChapterList() {
@@ -350,6 +363,22 @@ private enum ReaderPresentedSheet: String, Identifiable {
 
     var id: String {
         rawValue
+    }
+}
+
+private struct ReaderControlsRevealButton: View {
+    let onReveal: () -> Void
+
+    var body: some View {
+        Button(action: onReveal) {
+            Label(
+                "reader.controls.show",
+                systemImage: "rectangle.3.group"
+            )
+            .labelStyle(.iconOnly)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("reader.controls.reveal")
     }
 }
 

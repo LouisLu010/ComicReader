@@ -1063,6 +1063,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读设置" } }
       }
     },
+    "reader.controls.show" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Reader Controls" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示阅读控件" } }
+      }
+    },
     "reader.controls.mode" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Mode" } },

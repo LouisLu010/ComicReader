@@ -143,8 +143,6 @@ struct ReaderContentView: View {
             await prefetchAdjacentPages()
         }
         .accessibilityValue(Text(verbatim: zoomAccessibilityValue))
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("reader.tapSurface")
     }
 
     private var layoutIdentity: ReaderLayoutDisplayIdentity {

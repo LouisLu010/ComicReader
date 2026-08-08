@@ -3,6 +3,25 @@ import XCTest
 @testable import ComicReader
 
 final class ReaderSessionTests: XCTestCase {
+    func testControlsStartVisibleAndToggleWithinTheSession() throws {
+        var session = try makeSession(
+            chapters: [
+                chapter(
+                    makeChapterID("chapter-1"),
+                    pages: [page("page-1")]
+                ),
+            ]
+        )
+
+        XCTAssertTrue(session.controlsAreVisible)
+
+        session.toggleControls()
+        XCTAssertFalse(session.controlsAreVisible)
+
+        session.toggleControls()
+        XCTAssertTrue(session.controlsAreVisible)
+    }
+
     func testContinuousLayoutKeepsLogicalPageOrderWithoutChapterBoundaries() throws {
         let firstChapterID = makeChapterID("chapter-1")
         let secondChapterID = makeChapterID("chapter-2")

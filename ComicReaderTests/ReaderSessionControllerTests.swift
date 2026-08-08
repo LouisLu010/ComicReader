@@ -117,6 +117,27 @@ final class ReaderSessionControllerTests: XCTestCase {
         )
     }
 
+    func testTogglingControlsStaysWithinTheReaderSession() throws {
+        let controller = ReaderSessionController(
+            session: try session(
+                chapters: [
+                    chapter(
+                        chapterID("chapter-1"),
+                        pages: [page("page-1")]
+                    ),
+                ]
+            )
+        )
+
+        XCTAssertTrue(controller.session.controlsAreVisible)
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+
+        controller.toggleControls()
+
+        XCTAssertFalse(controller.session.controlsAreVisible)
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+    }
+
     func testZoomChangePreservesPositionAndPersistsOnce() async throws {
         let chapterID = chapterID("chapter-1")
         let firstPage = page("page-1")

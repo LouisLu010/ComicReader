@@ -527,6 +527,7 @@ struct ReaderSession: Sendable {
     private(set) var layoutCapability: ReaderLayoutCapability
     private(set) var layout: ReaderLayout
     private(set) var position: ReadingPosition
+    private(set) var controlsAreVisible: Bool
     private(set) var completedChapterIDs: Set<ImportChapterCandidate.ID>
     private let chapterIDs: Set<ImportChapterCandidate.ID>
 
@@ -561,6 +562,7 @@ struct ReaderSession: Sendable {
         position = restoredPosition.flatMap { position in
             Self.contains(position.location, in: comic) ? position : nil
         } ?? initialPosition
+        controlsAreVisible = true
         recordContinuousCompletionIfNeeded()
     }
 
@@ -597,6 +599,10 @@ struct ReaderSession: Sendable {
 
         readingDirection = direction
         rebuildLayout()
+    }
+
+    mutating func toggleControls() {
+        controlsAreVisible.toggle()
     }
 
     mutating func setLayoutCapability(_ capability: ReaderLayoutCapability) {

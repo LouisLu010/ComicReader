@@ -103,6 +103,10 @@ final class ReaderSessionController {
         queueProgressPersistence()
     }
 
+    func toggleControls() {
+        session.toggleControls()
+    }
+
     @discardableResult
     func setZoomScale(_ zoomScale: Double) -> Bool {
         guard session.setZoomScale(zoomScale) else {
