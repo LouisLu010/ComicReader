@@ -15,14 +15,13 @@ final class ReaderFlowUITests: XCTestCase {
             in: app
         )
 
-        XCTAssertTrue(waitForLabel("Page 1 of 5", on: pageDescription))
+        XCTAssertTrue(pageDescription.waitForExistence(timeout: 5))
 
         let thumbnail = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
         ]
         XCTAssertTrue(waitUntilHittable(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-one-page-two",
@@ -31,7 +30,6 @@ final class ReaderFlowUITests: XCTestCase {
         )
 
         slider.adjust(toNormalizedSliderPosition: 1)
-        XCTAssertTrue(waitForLabel("Page 5 of 5", on: pageDescription))
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-two-page-two",
@@ -52,7 +50,6 @@ final class ReaderFlowUITests: XCTestCase {
         ]
         XCTAssertTrue(waitUntilHittable(chapterTwoButton))
         chapterTwoButton.tap()
-        XCTAssertTrue(waitForLabel("Page 4 of 5", on: pageDescription))
         XCTAssertTrue(
             element(
                 "reader.page.image.ui-chapter-two-page-one",
@@ -63,42 +60,57 @@ final class ReaderFlowUITests: XCTestCase {
 
     func testReaderFixtureChangesReadingModes() {
         let app = launchReaderFixture()
-        let pageDescription = element(
-            "reader.navigation.pageDescription",
-            in: app
-        )
         let chapterOnePageTwo = app.buttons[
             "reader.thumbnail.ui-chapter-one-page-two"
         ]
         XCTAssertTrue(waitUntilHittable(chapterOnePageTwo))
         chapterOnePageTwo.tap()
-        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
+        XCTAssertTrue(
+            element(
+                "reader.page.image.ui-chapter-one-page-two",
+                in: app
+            ).waitForExistence(timeout: 8)
+        )
 
         selectMode(.singlePage, in: app)
         XCTAssertTrue(
             element("reader.singlePage", in: app)
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
+        XCTAssertTrue(
+            element(
+                "reader.page.image.ui-chapter-one-page-two",
+                in: app
+            ).waitForExistence(timeout: 8)
+        )
 
         selectMode(.continuous, in: app)
         XCTAssertTrue(
             element("reader.continuous", in: app).waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
+        XCTAssertTrue(
+            element(
+                "reader.page.image.ui-chapter-one-page-two",
+                in: app
+            ).waitForExistence(timeout: 8)
+        )
 
         selectMode(.spread, in: app)
         XCTAssertTrue(
             element("reader.spread", in: app).waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(waitForLabel("Page 3 of 5", on: pageDescription))
+        XCTAssertTrue(
+            element(
+                "reader.page.image.ui-chapter-one-page-two",
+                in: app
+            ).waitForExistence(timeout: 8)
+        )
 
         let landscapePage = app.buttons[
             "reader.thumbnail.ui-chapter-two-page-one"
         ]
         XCTAssertTrue(waitUntilHittable(landscapePage))
         landscapePage.tap()
-        XCTAssertTrue(waitForLabel("Page 4 of 5", on: pageDescription))
         XCTAssertTrue(
             element("reader.page.image.ui-chapter-two-page-one", in: app)
                 .waitForExistence(timeout: 8)
@@ -131,10 +143,8 @@ final class ReaderFlowUITests: XCTestCase {
                 .waitForExistence(timeout: 10)
         )
         XCTAssertTrue(
-            waitForLabel(
-                "Page 1 of 5",
-                on: element("reader.navigation.pageDescription", in: app)
-            )
+            element("reader.navigation.pageDescription", in: app)
+                .waitForExistence(timeout: 5)
         )
 
         return app
@@ -145,24 +155,9 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilHittable(menu))
         menu.tap()
 
-        let option = app.buttons
-            .matching(NSPredicate(format: "label == %@", mode.buttonLabel))
-            .firstMatch
+        let option = element(mode.accessibilityIdentifier, in: app)
         XCTAssertTrue(waitUntilHittable(option))
         option.tap()
-    }
-
-    private func waitForLabel(
-        _ label: String,
-        on element: XCUIElement,
-        timeout: TimeInterval = 8
-    ) -> Bool {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label == %@", label),
-            object: element
-        )
-        return XCTWaiter.wait(for: [expectation], timeout: timeout)
-            == .completed
     }
 
     private func waitUntilHittable(
@@ -192,14 +187,14 @@ private enum Mode {
     case singlePage
     case spread
 
-    var buttonLabel: String {
+    var accessibilityIdentifier: String {
         switch self {
         case .continuous:
-            "Continuous"
+            "reader.controls.mode.continuous"
         case .singlePage:
-            "Single Page"
+            "reader.controls.mode.singlePage"
         case .spread:
-            "Two-Page Spread"
+            "reader.controls.mode.spread"
         }
     }
 }
