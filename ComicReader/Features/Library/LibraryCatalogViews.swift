@@ -155,6 +155,10 @@ struct ComicDetailView: View {
                     ),
                     resolvedReaderPreferences: libraryState
                         .resolvedReaderPreferences(for: comic.id),
+                    canModifyReaderPreferences: (
+                        libraryState.canModifyState(for: comic.id)
+                            && libraryState.isWriteAvailable
+                    ),
                     preferencesWriter: libraryState
                 )
             } label: {

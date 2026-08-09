@@ -8,11 +8,15 @@ struct ReaderScreen: View {
     let title: String
     let readerOverrides: ComicReaderOverrides
     let resolvedReaderPreferences: ResolvedReaderPreferences
+    let canModifyReaderPreferences: Bool
 
     @State private var controller: ReaderScreenController
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
     @State private var thumbnailReloadGeneration: UInt64 = 0
     @State private var presentedSheet: ReaderPresentedSheet?
+    @State private var readerOverridesDraft: ComicReaderOverrides
+    @State private var isSavingReaderPreference = false
+    @State private var readerPreferenceSaveFailed = false
     @Environment(\.scenePhase) private var scenePhase
     private let preferencesWriter: (any ReaderPreferenceWriting)?
 
@@ -24,12 +28,14 @@ struct ReaderScreen: View {
         persistedProgress: LibraryReadingProgress?,
         readerOverrides: ComicReaderOverrides = .none,
         resolvedReaderPreferences: ResolvedReaderPreferences = .default,
+        canModifyReaderPreferences: Bool = false,
         preferencesWriter: (any ReaderPreferenceWriting)? = nil
     ) {
         self.comicID = comicID
         self.title = title
         self.readerOverrides = readerOverrides
         self.resolvedReaderPreferences = resolvedReaderPreferences
+        self.canModifyReaderPreferences = canModifyReaderPreferences
         self.preferencesWriter = preferencesWriter
         _controller = State(
             initialValue: ReaderScreenController(
@@ -41,6 +47,7 @@ struct ReaderScreen: View {
             )
         )
         _presentedSheet = State(initialValue: nil)
+        _readerOverridesDraft = State(initialValue: readerOverrides)
     }
 
     var body: some View {
@@ -100,6 +107,13 @@ struct ReaderScreen: View {
             initial: true
         ) { _, preferences in
             _ = controller.applyResolvedReaderPreferences(preferences)
+        }
+        .onChange(of: readerOverrides, initial: true) { _, overrides in
+            guard !isSavingReaderPreference else {
+                return
+            }
+
+            readerOverridesDraft = overrides
         }
         .onDisappear {
             visibleAssetSnapshot = .empty
@@ -166,6 +180,14 @@ struct ReaderScreen: View {
                 )
                 .presentationDetents([.medium, .large])
             }
+        }
+        .alert(
+            "reader.preferences.saveFailed.title",
+            isPresented: $readerPreferenceSaveFailed
+        ) {
+            Button("common.ok", role: .cancel) {}
+        } message: {
+            Text("reader.preferences.saveFailed.message")
         }
         .accessibilityIdentifier("reader.screen")
     }
@@ -265,9 +287,14 @@ struct ReaderScreen: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 ReaderControlsMenu(
-                    overrides: readerOverrides,
+                    overrides: readerOverridesDraft,
                     onSelectMode: setReadingModeOverride,
                     onSelectDirection: setReadingDirectionOverride
+                )
+                .disabled(
+                    !canModifyReaderPreferences
+                        || isSavingReaderPreference
+                        || preferencesWriter == nil
                 )
             }
         }
@@ -383,28 +410,41 @@ struct ReaderScreen: View {
     }
 
     private func setReadingModeOverride(_ mode: ReadingMode?) {
-        guard let preferencesWriter else {
-            return
-        }
-
-        Task { @MainActor in
-            _ = await preferencesWriter.setReadingModeOverride(
-                mode,
-                for: comicID
-            )
-        }
+        saveReaderPreference(.mode(mode))
     }
 
     private func setReadingDirectionOverride(_ direction: ReadingDirection?) {
-        guard let preferencesWriter else {
+        saveReaderPreference(.direction(direction))
+    }
+
+    private func saveReaderPreference(
+        _ mutation: ComicReaderPreferenceMutation
+    ) {
+        guard canModifyReaderPreferences,
+              !isSavingReaderPreference,
+              let preferencesWriter else {
             return
         }
 
+        var updatedOverrides = readerOverridesDraft
+        mutation.apply(to: &updatedOverrides)
+        guard updatedOverrides != readerOverridesDraft else {
+            return
+        }
+
+        readerOverridesDraft = updatedOverrides
+        isSavingReaderPreference = true
+        readerPreferenceSaveFailed = false
         Task { @MainActor in
-            _ = await preferencesWriter.setReadingDirectionOverride(
-                direction,
-                for: comicID
+            let didSave = await mutation.persist(
+                using: preferencesWriter,
+                comicID: comicID
             )
+            if !didSave {
+                readerOverridesDraft = readerOverrides
+                readerPreferenceSaveFailed = true
+            }
+            isSavingReaderPreference = false
         }
     }
 }
@@ -421,6 +461,33 @@ private enum ReaderPresentedSheet: String, Identifiable {
 private struct ReaderContentIdentity: Hashable {
     let mode: ReadingMode
     let direction: ReadingDirection
+}
+
+private enum ComicReaderPreferenceMutation {
+    case mode(ReadingMode?)
+    case direction(ReadingDirection?)
+
+    func apply(to overrides: inout ComicReaderOverrides) {
+        switch self {
+        case let .mode(mode):
+            overrides.readingMode = mode
+        case let .direction(direction):
+            overrides.readingDirection = direction
+        }
+    }
+
+    @MainActor
+    func persist(
+        using writer: any ReaderPreferenceWriting,
+        comicID: ManagedComicID
+    ) async -> Bool {
+        switch self {
+        case let .mode(mode):
+            await writer.setReadingModeOverride(mode, for: comicID)
+        case let .direction(direction):
+            await writer.setReadingDirectionOverride(direction, for: comicID)
+        }
+    }
 }
 
 private struct ReaderControlsRevealButton: View {

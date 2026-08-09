@@ -7,6 +7,9 @@ struct SettingsView: View {
     @Environment(LibraryPersistenceController.self) private var persistence
 
     @State private var isRecoveryConfirmationPresented = false
+    @State private var readerPreferencesDraft = ReaderGlobalPreferences.default
+    @State private var isSavingReaderPreferences = false
+    @State private var readerPreferenceSaveFailed = false
 
     var body: some View {
         Form {
@@ -18,10 +21,16 @@ struct SettingsView: View {
                     ForEach(ReadingMode.allCases, id: \.rawValue) { mode in
                         Text(mode.controlTitle)
                             .tag(mode)
+                            .accessibilityIdentifier(
+                                "settings.reader.defaultMode.\(mode.rawValue)"
+                            )
                     }
                 }
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("settings.reader.defaultMode")
+                .accessibilityValue(
+                    Text(readerPreferencesDraft.defaultReadingMode.controlTitle)
+                )
 
                 Picker(
                     "settings.reader.defaultDirection",
@@ -33,14 +42,32 @@ struct SettingsView: View {
                     ) { direction in
                         Text(direction.controlTitle)
                             .tag(direction)
+                            .accessibilityIdentifier(
+                                "settings.reader.defaultDirection.\(direction.rawValue)"
+                            )
                     }
                 }
                 .pickerStyle(.menu)
                 .accessibilityIdentifier("settings.reader.defaultDirection")
+                .accessibilityValue(
+                    Text(
+                        readerPreferencesDraft.defaultReadingDirection
+                            .controlTitle
+                    )
+                )
 
                 Text("settings.reader.defaults.description")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+
+                if readerPreferenceSaveFailed {
+                    Label(
+                        "settings.reader.saveFailed",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("settings.reader.saveFailed")
+                }
             }
             .disabled(!canModifyReaderPreferences)
 
@@ -128,6 +155,16 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("settings.title")
+        .onChange(
+            of: libraryState.globalReaderPreferences,
+            initial: true
+        ) { _, preferences in
+            guard !isSavingReaderPreferences else {
+                return
+            }
+
+            readerPreferencesDraft = preferences
+        }
         .alert(
             "settings.library.repair.confirm.title",
             isPresented: $isRecoveryConfirmationPresented
@@ -152,18 +189,18 @@ struct SettingsView: View {
     }
 
     private var canModifyReaderPreferences: Bool {
-        libraryState.status == .ready && libraryState.isWriteAvailable
+        libraryState.status == .ready
+            && libraryState.isWriteAvailable
+            && !isSavingReaderPreferences
     }
 
     private var defaultReadingModeBinding: Binding<ReadingMode> {
         Binding(
             get: {
-                libraryState.globalReaderPreferences.defaultReadingMode
+                readerPreferencesDraft.defaultReadingMode
             },
             set: { mode in
-                Task { @MainActor in
-                    _ = await libraryState.setDefaultReadingMode(mode)
-                }
+                saveReaderPreference(.defaultMode(mode))
             }
         )
     }
@@ -171,14 +208,10 @@ struct SettingsView: View {
     private var defaultReadingDirectionBinding: Binding<ReadingDirection> {
         Binding(
             get: {
-                libraryState.globalReaderPreferences.defaultReadingDirection
+                readerPreferencesDraft.defaultReadingDirection
             },
             set: { direction in
-                Task { @MainActor in
-                    _ = await libraryState.setDefaultReadingDirection(
-                        direction
-                    )
-                }
+                saveReaderPreference(.defaultDirection(direction))
             }
         )
     }
@@ -188,18 +221,15 @@ struct SettingsView: View {
     ) -> Binding<ReaderTapZoneAction> {
         Binding(
             get: {
-                let tapAreas = libraryState.globalReaderPreferences.tapAreas
+                let tapAreas = readerPreferencesDraft.tapAreas
                 return isLeftZone
                     ? tapAreas.leftAction
                     : tapAreas.rightAction
             },
             set: { action in
-                Task { @MainActor in
-                    _ = await libraryState.setTapZoneAction(
-                        action,
-                        isLeftZone: isLeftZone
-                    )
-                }
+                saveReaderPreference(
+                    isLeftZone ? .leftTap(action) : .rightTap(action)
+                )
             }
         )
     }
@@ -213,10 +243,38 @@ struct SettingsView: View {
             ForEach(ReaderTapZoneAction.allCases, id: \.rawValue) { action in
                 Text(action.controlTitle)
                     .tag(action)
+                    .accessibilityIdentifier(
+                        "\(accessibilityIdentifier).\(action.rawValue)"
+                    )
             }
         }
         .pickerStyle(.menu)
         .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityValue(Text(selection.wrappedValue.controlTitle))
+    }
+
+    private func saveReaderPreference(
+        _ mutation: ReaderGlobalPreferenceMutation
+    ) {
+        guard canModifyReaderPreferences else {
+            return
+        }
+
+        var updatedPreferences = readerPreferencesDraft
+        mutation.apply(to: &updatedPreferences)
+        guard updatedPreferences != readerPreferencesDraft else {
+            return
+        }
+
+        readerPreferencesDraft = updatedPreferences
+        isSavingReaderPreferences = true
+        readerPreferenceSaveFailed = false
+        Task { @MainActor in
+            let didSave = await mutation.persist(using: libraryState)
+            readerPreferencesDraft = libraryState.globalReaderPreferences
+            isSavingReaderPreferences = false
+            readerPreferenceSaveFailed = !didSave
+        }
     }
 
     private var canRebuildLibraryIndex: Bool {
@@ -237,6 +295,40 @@ struct SettingsView: View {
         }
 
         await libraryState.reconcile(catalogItems: libraryCatalog.comics)
+    }
+}
+
+private enum ReaderGlobalPreferenceMutation {
+    case defaultMode(ReadingMode)
+    case defaultDirection(ReadingDirection)
+    case leftTap(ReaderTapZoneAction)
+    case rightTap(ReaderTapZoneAction)
+
+    func apply(to preferences: inout ReaderGlobalPreferences) {
+        switch self {
+        case let .defaultMode(mode):
+            preferences.defaultReadingMode = mode
+        case let .defaultDirection(direction):
+            preferences.defaultReadingDirection = direction
+        case let .leftTap(action):
+            preferences.tapAreas.leftAction = action
+        case let .rightTap(action):
+            preferences.tapAreas.rightAction = action
+        }
+    }
+
+    @MainActor
+    func persist(using repository: LibraryStateRepository) async -> Bool {
+        switch self {
+        case let .defaultMode(mode):
+            await repository.setDefaultReadingMode(mode)
+        case let .defaultDirection(direction):
+            await repository.setDefaultReadingDirection(direction)
+        case let .leftTap(action):
+            await repository.setTapZoneAction(action, isLeftZone: true)
+        case let .rightTap(action):
+            await repository.setTapZoneAction(action, isLeftZone: false)
+        }
     }
 }
 

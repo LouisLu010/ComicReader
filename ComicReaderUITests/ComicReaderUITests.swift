@@ -50,9 +50,7 @@ final class ComicReaderUITests: XCTestCase {
         ]
         app.launch()
 
-        let settings = app.descendants(matching: .any)["sidebar.settings"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 8))
-        settings.tap()
+        openSettings(in: app)
 
         for identifier in [
             "settings.reader.defaultMode",
@@ -60,11 +58,91 @@ final class ComicReaderUITests: XCTestCase {
             "settings.reader.tapArea.left",
             "settings.reader.tapArea.right",
         ] {
-            XCTAssertTrue(
-                app.descendants(matching: .any)[identifier]
-                    .waitForExistence(timeout: 5),
-                "Missing reader setting: \(identifier)"
-            )
+            let setting = element(identifier, in: app)
+            XCTAssertTrue(waitUntilHittable(setting, timeout: 8))
         }
+
+        let defaultMode = element("settings.reader.defaultMode", in: app)
+        defaultMode.tap()
+        let singlePage = element(
+            "settings.reader.defaultMode.singlePage",
+            in: app
+        )
+        XCTAssertTrue(waitUntilHittable(singlePage))
+        singlePage.tap()
+        XCTAssertTrue(waitUntilHittable(defaultMode, timeout: 8))
+        XCTAssertTrue(waitForValue("Single Page", of: defaultMode))
+
+        let leftTap = element("settings.reader.tapArea.left", in: app)
+        leftTap.tap()
+        let disabled = element(
+            "settings.reader.tapArea.left.disabled",
+            in: app
+        )
+        XCTAssertTrue(waitUntilHittable(disabled))
+        disabled.tap()
+        XCTAssertTrue(waitUntilHittable(leftTap, timeout: 8))
+        XCTAssertTrue(waitForValue("Disabled", of: leftTap))
+
+        app.terminate()
+        app.launch()
+        openSettings(in: app)
+        XCTAssertTrue(
+            waitForValue(
+                "Single Page",
+                of: element("settings.reader.defaultMode", in: app),
+                timeout: 8
+            )
+        )
+        XCTAssertTrue(
+            waitForValue(
+                "Disabled",
+                of: element("settings.reader.tapArea.left", in: app),
+                timeout: 8
+            )
+        )
+    }
+
+    private func openSettings(in app: XCUIApplication) {
+        let settings = element("sidebar.settings", in: app)
+        XCTAssertTrue(waitUntilHittable(settings, timeout: 8))
+        settings.tap()
+    }
+
+    private func element(
+        _ identifier: String,
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
+    private func waitUntilHittable(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND hittable == true"
+            ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func waitForValue(
+        _ value: String,
+        of element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND value == %@",
+                value
+            ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
     }
 }
