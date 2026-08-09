@@ -538,6 +538,75 @@ final class LibraryStateRepositoryTests: XCTestCase {
     }
 
     @MainActor
+    func testRecordProgressPreservesMigratedLegacyPreferenceFields() async throws {
+        let container = try makeContainer()
+        let comicID = managedComicID(
+            "00000000-0000-0000-0000-000000000423"
+        )
+        let seedContext = ModelContext(container)
+        seedContext.insert(
+            ComicReaderSchemaV4.StoredComic(
+                comicID: comicID.rawValue,
+                displayName: "Legacy Preference Comic",
+                sourceRootName: "legacy-preference-source",
+                importedAt: .distantPast,
+                chapterCount: 2,
+                pageCount: 12
+            )
+        )
+        seedContext.insert(
+            ComicReaderSchemaV4.StoredReadingProgress(
+                comicID: comicID.rawValue,
+                chapterID: "chapter-1",
+                pageID: "page-1",
+                pageOffset: 0,
+                zoomScale: 1,
+                readingModeRawValue: ReadingMode.spread.rawValue,
+                readingDirectionRawValue: ReadingDirection.rightToLeft.rawValue,
+                isCompleted: false,
+                updatedAt: Date(timeIntervalSince1970: 100)
+            )
+        )
+        try seedContext.save()
+        let repository = await makeRepository(container: container)
+
+        let didRecord = await repository.recordProgress(
+            LibraryReadingProgress(
+                chapterID: "chapter-2",
+                pageID: "page-8",
+                pageOffset: 0.75,
+                zoomScale: 2,
+                readingMode: .singlePage,
+                readingDirection: .leftToRight,
+                updatedAt: Date(timeIntervalSince1970: 200)
+            ),
+            for: comicID
+        )
+
+        XCTAssertTrue(didRecord)
+        let storedProgress = try XCTUnwrap(
+            try ModelContext(container).fetch(
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+            ).first
+        )
+        XCTAssertEqual(
+            storedProgress.readingModeRawValue,
+            ReadingMode.spread.rawValue
+        )
+        XCTAssertEqual(
+            storedProgress.readingDirectionRawValue,
+            ReadingDirection.rightToLeft.rawValue
+        )
+        XCTAssertEqual(
+            repository.readerOverrides(for: comicID),
+            ComicReaderOverrides(
+                readingMode: .spread,
+                readingDirection: .rightToLeft
+            )
+        )
+    }
+
+    @MainActor
     func testReaderPreferencesPersistAndResolveOverridesOverGlobalDefaults() async throws {
         let container = try makeContainer()
         let repository = await makeRepository(container: container)
@@ -781,8 +850,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-8",
             pageOffset: 0.75,
             zoomScale: 2,
-            readingMode: .spread,
-            readingDirection: .rightToLeft,
             isCompleted: true,
             updatedAt: Date(timeIntervalSince1970: 200)
         )
@@ -791,7 +858,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-2",
             pageOffset: 0.25,
             zoomScale: 1,
-            readingMode: .singlePage,
             updatedAt: Date(timeIntervalSince1970: 100)
         )
 
@@ -848,8 +914,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-10",
             pageOffset: 1,
             zoomScale: 3,
-            readingMode: .spread,
-            readingDirection: .rightToLeft,
             completedChapterIDs: ["chapter-3"],
             isCompleted: true,
             updatedAt: timestamp
@@ -859,7 +923,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-4",
             pageOffset: 0.5,
             zoomScale: 1.5,
-            readingMode: .singlePage,
             updatedAt: timestamp
         )
         let expectedProgress = LibraryReadingProgress(
@@ -867,8 +930,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: lastProgress.pageID,
             pageOffset: lastProgress.pageOffset,
             zoomScale: lastProgress.zoomScale,
-            readingMode: lastProgress.readingMode,
-            readingDirection: lastProgress.readingDirection,
             completedChapterIDs: ["chapter-3"],
             isCompleted: true,
             updatedAt: lastProgress.updatedAt
@@ -910,8 +971,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-10",
             pageOffset: 1,
             zoomScale: 1,
-            readingMode: .spread,
-            readingDirection: .rightToLeft,
             completedChapterIDs: ["chapter-2"],
             isCompleted: true,
             updatedAt: Date(timeIntervalSince1970: 100)
@@ -921,7 +980,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-2",
             pageOffset: 0.5,
             zoomScale: 2,
-            readingMode: .singlePage,
             updatedAt: Date(timeIntervalSince1970: 200)
         )
         let expectedProgress = LibraryReadingProgress(
@@ -929,8 +987,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: newerIncompleteProgress.pageID,
             pageOffset: newerIncompleteProgress.pageOffset,
             zoomScale: newerIncompleteProgress.zoomScale,
-            readingMode: newerIncompleteProgress.readingMode,
-            readingDirection: newerIncompleteProgress.readingDirection,
             completedChapterIDs: ["chapter-2"],
             isCompleted: true,
             updatedAt: newerIncompleteProgress.updatedAt
@@ -978,8 +1034,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-2",
             pageOffset: 0.5,
             zoomScale: 2,
-            readingMode: .spread,
-            readingDirection: .rightToLeft,
             completedChapterIDs: ["chapter-1"],
             updatedAt: Date(timeIntervalSince1970: 200)
         )
@@ -988,7 +1042,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: "page-10",
             pageOffset: 1,
             zoomScale: 1,
-            readingMode: .singlePage,
             completedChapterIDs: ["chapter-2"],
             isCompleted: true,
             updatedAt: Date(timeIntervalSince1970: 100)
@@ -998,8 +1051,6 @@ final class LibraryStateRepositoryTests: XCTestCase {
             pageID: newerIncompleteProgress.pageID,
             pageOffset: newerIncompleteProgress.pageOffset,
             zoomScale: newerIncompleteProgress.zoomScale,
-            readingMode: newerIncompleteProgress.readingMode,
-            readingDirection: newerIncompleteProgress.readingDirection,
             completedChapterIDs: ["chapter-1", "chapter-2"],
             isCompleted: true,
             updatedAt: newerIncompleteProgress.updatedAt

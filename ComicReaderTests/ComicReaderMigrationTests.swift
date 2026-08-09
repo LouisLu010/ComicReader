@@ -173,6 +173,16 @@ final class ComicReaderMigrationTests: XCTestCase {
                 1
             )
 
+            let didClearMode = await repository.setReadingModeOverride(
+                nil,
+                for: comicID
+            )
+            let didClearDirection = await repository
+                .setReadingDirectionOverride(nil, for: comicID)
+            XCTAssertTrue(didClearMode)
+            XCTAssertTrue(didClearDirection)
+            XCTAssertEqual(repository.readerOverrides(for: comicID), .none)
+
             let progress = try XCTUnwrap(
                 try backfilledContext.fetch(
                     FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
@@ -195,10 +205,19 @@ final class ComicReaderMigrationTests: XCTestCase {
 
         XCTAssertEqual(
             restoredRepository.readerOverrides(for: comicID),
-            ComicReaderOverrides(
-                readingMode: .spread,
-                readingDirection: .rightToLeft
-            )
+            .none
+        )
+        let reopenedContext = ModelContext(reopenedContainer)
+        let preferencesRecords = try reopenedContext.fetch(
+            FetchDescriptor<
+                ComicReaderSchemaV4.StoredReaderGlobalPreferences
+            >()
+        )
+        XCTAssertEqual(preferencesRecords.count, 1)
+        XCTAssertEqual(
+            preferencesRecords.first?
+                .legacyProgressPreferencesBackfillVersion,
+            1
         )
     }
 

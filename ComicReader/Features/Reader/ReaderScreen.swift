@@ -203,6 +203,12 @@ struct ReaderScreen: View {
                     onTapAction: handleTapAction,
                     visibleAssetSnapshot: $visibleAssetSnapshot
                 )
+                .id(
+                    ReaderContentIdentity(
+                        mode: layout.effectiveMode,
+                        direction: layout.direction
+                    )
+                )
                 .environment(
                     \.readerViewportVisiblePageIDs,
                     visibleAssetSnapshot.pageIDs
@@ -409,6 +415,12 @@ private enum ReaderPresentedSheet: String, Identifiable {
     var id: String {
         rawValue
     }
+}
+
+/// 布局语义变化时重建阅读内容状态，让连续模式在首帧就带着恢复请求。
+private struct ReaderContentIdentity: Hashable {
+    let mode: ReadingMode
+    let direction: ReadingDirection
 }
 
 private struct ReaderControlsRevealButton: View {

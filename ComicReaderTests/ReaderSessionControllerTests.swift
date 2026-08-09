@@ -124,6 +124,47 @@ final class ReaderSessionControllerTests: XCTestCase {
         XCTAssertEqual(controller.session.readingDirection, .rightToLeft)
     }
 
+    func testSwitchingToContinuousPersistsNewChapterCompletion() async throws {
+        let chapterID = chapterID("chapter-1")
+        let firstPage = page("page-1")
+        let recorder = RecordingReaderProgressRecorder()
+        let restoredPosition = ReadingPosition(
+            location: .chapter(chapterID, firstPage.id),
+            pageOffset: 1,
+            zoomScale: 1
+        )
+        let readerSession = try session(
+            chapters: [chapter(chapterID, pages: [firstPage])],
+            readingMode: .singlePage,
+            restoredPosition: restoredPosition
+        )
+        let controller = ReaderSessionController(
+            session: readerSession,
+            recorder: recorder,
+            persistedProgress: LibraryReadingProgress(
+                chapterID: restoredPosition.storageChapterID,
+                pageID: restoredPosition.pageID.rawValue,
+                pageOffset: restoredPosition.pageOffset,
+                zoomScale: restoredPosition.zoomScale
+            ),
+            debounceNanoseconds: 60_000_000_000
+        )
+
+        controller.setReadingPreferences(
+            mode: .continuous,
+            direction: .leftToRight
+        )
+        let didPersist = await controller.flushPendingProgress()
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(recorder.records.count, 1)
+        XCTAssertEqual(
+            recorder.records[0].progress.completedChapterIDs,
+            [chapterID.rawValue]
+        )
+        XCTAssertTrue(recorder.records[0].progress.isCompleted)
+    }
+
     func testTogglingControlsStaysWithinTheReaderSession() throws {
         let controller = ReaderSessionController(
             session: try session(

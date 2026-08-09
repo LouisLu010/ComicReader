@@ -112,7 +112,11 @@ final class ReaderSessionController {
         mode: ReadingMode,
         direction: ReadingDirection
     ) {
+        let previousCompletedChapterIDs = session.completedChapterIDs
         session.setReadingPreferences(mode: mode, direction: direction)
+        if session.completedChapterIDs != previousCompletedChapterIDs {
+            queueProgressPersistence()
+        }
     }
 
     func toggleControls() {

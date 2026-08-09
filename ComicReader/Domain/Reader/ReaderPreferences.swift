@@ -1,6 +1,12 @@
 import Foundation
 
-enum ReaderTapZoneAction: String, CaseIterable, Codable, Equatable, Sendable {
+enum ReaderTapZoneAction:
+    String,
+    CaseIterable,
+    Codable,
+    Equatable,
+    Hashable,
+    Sendable {
     /// 根据当前阅读方向保留默认的物理左右翻页行为。
     case automatic
     case previousPage

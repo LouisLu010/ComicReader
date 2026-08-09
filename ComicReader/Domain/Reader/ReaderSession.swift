@@ -1,12 +1,12 @@
 import Foundation
 
-enum ReadingMode: String, CaseIterable, Codable, Equatable, Sendable {
+enum ReadingMode: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
     case continuous
     case singlePage
     case spread
 }
 
-enum ReadingDirection: String, CaseIterable, Codable, Equatable, Sendable {
+enum ReadingDirection: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
     case leftToRight
     case rightToLeft
 }
