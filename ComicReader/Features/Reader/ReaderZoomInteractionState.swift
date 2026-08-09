@@ -58,6 +58,21 @@ struct ReaderZoomInteractionState: Equatable, Sendable {
         )
     }
 
+    @discardableResult
+    mutating func adjustCommittedScale(by delta: Double) -> Bool {
+        guard delta.isFinite, delta != 0 else {
+            return false
+        }
+
+        let targetScale = Self.normalizedScale(committedScale + delta)
+        guard targetScale != committedScale else {
+            return false
+        }
+
+        setCommittedScale(targetScale)
+        return true
+    }
+
     mutating func updateMagnification(_ magnification: Double) {
         transientMagnification = Self.normalizedMagnification(magnification)
     }

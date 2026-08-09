@@ -111,6 +111,41 @@ final class ReaderZoomInteractionStateTests: XCTestCase {
         XCTAssertEqual(state.offset, .zero)
     }
 
+    func testCommittedScaleAdjustmentUsesStepsAndClampsAtBounds() {
+        var state = makeState(scale: 1)
+
+        XCTAssertTrue(state.adjustCommittedScale(by: 0.5))
+        XCTAssertEqual(state.committedScale, 1.5)
+        XCTAssertTrue(state.adjustCommittedScale(by: 100))
+        XCTAssertEqual(
+            state.committedScale,
+            ReaderZoomInteractionState.maximumScale
+        )
+        XCTAssertFalse(state.adjustCommittedScale(by: 0.5))
+
+        XCTAssertTrue(state.adjustCommittedScale(by: -100))
+        XCTAssertEqual(
+            state.committedScale,
+            ReaderZoomInteractionState.minimumScale
+        )
+        XCTAssertFalse(state.adjustCommittedScale(by: -0.5))
+    }
+
+    func testCommittedScaleAdjustmentClearsOffsetAtOneAndIgnoresInvalidDelta() {
+        var state = makeState(scale: 1.5)
+        state.setOffset(CGPoint(x: 100, y: 50))
+
+        XCTAssertTrue(state.adjustCommittedScale(by: -0.5))
+        XCTAssertEqual(state.committedScale, 1)
+        XCTAssertEqual(state.offset, .zero)
+
+        let unchangedState = state
+        for delta in [Double.zero, .nan, .infinity, -.infinity] {
+            XCTAssertFalse(state.adjustCommittedScale(by: delta))
+            XCTAssertEqual(state, unchangedState)
+        }
+    }
+
     func testOffsetAndTranslationClampToScaledContentBounds() {
         var state = makeState(scale: 2)
 
