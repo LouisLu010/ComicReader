@@ -70,6 +70,55 @@ open ComicReader.xcodeproj
 
 仓库与 CI 不存放证书、私钥、Provisioning Profile 或签名密码，也不负责安装。未签名 IPA 需由使用者在仓库之外自行签名。
 
+### 下载与校验未签名产物
+
+请登录 GitHub，打开状态为成功的 `Main Unsigned Artifact` 运行，并在页面底部的 `Artifacts` 区域下载 `comicreader-main-unsigned-<完整 SHA>`。不要下载源码 ZIP 或日志压缩包。
+
+浏览器下载的是 GitHub 生成的外层 Artifact ZIP。解压一次后会得到：
+
+- `ComicReader-main-<短 SHA>-unsigned.ipa`；
+- `ComicReader-main-<短 SHA>.dSYM.zip`；
+- `ComicReader-main-<短 SHA>-build-info.txt`；
+- `ComicReader-main-<短 SHA>-SHA256SUMS.txt`。
+
+`.ipa` 本身也是 ZIP 容器，但自行签名时应直接把它交给签名工具，无需手动再次解压。Workflow 中的 `compression-level: 0` 仅关闭数据压缩以加快上传，仍会生成合法的 Artifact ZIP。
+
+推荐使用 GitHub CLI 下载。该命令会自动解开外层 Artifact ZIP：
+
+```powershell
+gh auth login
+
+$runId = gh run list `
+  -R LouisLu010/ComicReader `
+  --workflow main.yml `
+  --status success `
+  --limit 1 `
+  --json databaseId `
+  --jq '.[0].databaseId'
+
+gh run download $runId `
+  -R LouisLu010/ComicReader `
+  --pattern 'comicreader-main-unsigned-*' `
+  --dir .\ComicReaderArtifact
+```
+
+下载后可核对产物 Hash：
+
+```powershell
+Get-Content .\ComicReaderArtifact\ComicReader-*-SHA256SUMS.txt
+Get-FileHash -Algorithm SHA256 -Path .\ComicReaderArtifact\ComicReader-*-unsigned.ipa
+Get-FileHash -Algorithm SHA256 -Path .\ComicReaderArtifact\ComicReader-*.dSYM.zip
+```
+
+如果浏览器下载的 `.zip` 仍无法解压，先检查文件是否下载完整，以及文件头是否为 ZIP 的 `50 4B`：
+
+```powershell
+Format-Hex .\artifact.zip | Select-Object -First 1
+Expand-Archive -LiteralPath .\artifact.zip -DestinationPath .\ComicReaderArtifact
+```
+
+若文件很小，或文件内容以 HTML、JSON 开头，通常是未登录时保存了登录页／错误响应，或下载了尚未成功运行的页面内容，需要从成功运行底部的 `Artifacts` 区域重新下载。
+
 ## 隐私与内容安全
 
 请勿向仓库、Issue、日志或 CI Artifact 提交：
