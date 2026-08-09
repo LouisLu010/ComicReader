@@ -98,8 +98,8 @@ final class ComicReaderUITests: XCTestCase {
     }
 
     private func openSettings(in app: XCUIApplication) {
-        let settings = element("sidebar.settings", in: app)
-        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        let settings = app.buttons["app.settings"]
+        XCTAssertTrue(waitUntilHittable(settings, timeout: 8))
         settings.tap()
     }
 
