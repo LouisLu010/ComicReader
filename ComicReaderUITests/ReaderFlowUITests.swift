@@ -196,9 +196,10 @@ final class ReaderFlowUITests: XCTestCase {
         in app: XCUIApplication
     ) -> XCUIElement {
         let identifier = "reader.page.image.\(pageID)"
-        let matches = app.images.matching(identifier: identifier)
+        let matches = app.descendants(matching: .any)
+            .matching(identifier: identifier)
         XCTAssertLessThanOrEqual(matches.count, 1, "Expected one primary page image")
-        return app.images[identifier]
+        return app.descendants(matching: .any)[identifier]
     }
 
     private func tap(horizontalOffset: CGFloat, on element: XCUIElement) {
