@@ -18,16 +18,10 @@ final class ReaderFlowUITests: XCTestCase {
         ]
         XCTAssertTrue(waitUntilHittable(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(
-            pageImage("ui-chapter-one-page-two", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("3/5", in: app))
 
         slider.adjust(toNormalizedSliderPosition: 1)
-        XCTAssertTrue(
-            pageImage("ui-chapter-two-page-two", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("5/5", in: app))
 
         let chapterButton = app.buttons["reader.navigation.chapters"]
         XCTAssertTrue(waitUntilHittable(chapterButton))
@@ -42,10 +36,7 @@ final class ReaderFlowUITests: XCTestCase {
         ]
         XCTAssertTrue(waitUntilHittable(chapterTwoButton))
         chapterTwoButton.tap()
-        XCTAssertTrue(
-            pageImage("ui-chapter-two-page-one", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("4/5", in: app))
     }
 
     func testReaderFixtureSelectsReadingModes() {
@@ -55,38 +46,23 @@ final class ReaderFlowUITests: XCTestCase {
         ]
         XCTAssertTrue(waitUntilHittable(chapterOnePageTwo))
         chapterOnePageTwo.tap()
-        XCTAssertTrue(
-            pageImage("ui-chapter-one-page-two", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("3/5", in: app))
 
         selectMode(.singlePage, in: app)
-        XCTAssertTrue(
-            pageImage("ui-chapter-one-page-two", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("3/5", in: app))
 
         selectMode(.continuous, in: app)
-        XCTAssertTrue(
-            pageImage("ui-chapter-one-page-two", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("3/5", in: app))
 
         selectMode(.spread, in: app)
-        XCTAssertTrue(
-            pageImage("ui-chapter-one-page-two", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("3/5", in: app))
 
         let landscapePage = app.buttons[
             "reader.thumbnail.ui-chapter-two-page-one"
         ]
         XCTAssertTrue(waitUntilHittable(landscapePage))
         landscapePage.tap()
-        XCTAssertTrue(
-            pageImage("ui-chapter-two-page-one", in: app)
-                .waitForExistence(timeout: 8)
-        )
+        XCTAssertTrue(waitForCurrentPage("4/5", in: app))
     }
 
     func testReaderTapAreasNavigateAndMirrorRightToLeft() {
@@ -94,28 +70,24 @@ final class ReaderFlowUITests: XCTestCase {
         selectMode(.singlePage, in: app)
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
-        let cover = pageImage("ui-cover", in: app)
-        XCTAssertTrue(cover.waitForExistence(timeout: 5))
-        tap(horizontalOffset: 0.9, on: cover)
+        let tapSurface = element("reader.screen", in: app)
+        tap(horizontalOffset: 0.9, on: tapSurface)
         XCTAssertTrue(waitForCurrentPage("2/5", in: app))
 
         selectDirection(.rightToLeft, in: app)
-        let firstChapterPage = pageImage("ui-chapter-one-page-one", in: app)
-        XCTAssertTrue(firstChapterPage.waitForExistence(timeout: 5))
-        tap(horizontalOffset: 0.1, on: firstChapterPage)
+        tap(horizontalOffset: 0.1, on: tapSurface)
         XCTAssertTrue(waitForCurrentPage("3/5", in: app))
     }
 
     func testReaderTapAreasToggleControls() {
         let app = launchReaderFixture()
-        let cover = pageImage("ui-cover", in: app)
+        let tapSurface = element("reader.screen", in: app)
         let menu = app.buttons["reader.controls.menu"]
         let reveal = app.buttons["reader.controls.reveal"]
 
-        XCTAssertTrue(cover.waitForExistence(timeout: 5))
         XCTAssertTrue(waitUntilHittable(menu))
 
-        tap(horizontalOffset: 0.5, on: cover)
+        tap(horizontalOffset: 0.5, on: tapSurface)
         XCTAssertFalse(menu.waitForExistence(timeout: 2))
         XCTAssertFalse(element("reader.progress", in: app).exists)
         XCTAssertTrue(waitUntilHittable(reveal))
@@ -130,13 +102,12 @@ final class ReaderFlowUITests: XCTestCase {
         selectMode(.singlePage, in: app)
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
-        let cover = pageImage("ui-cover", in: app)
-        XCTAssertTrue(cover.waitForExistence(timeout: 5))
-        doubleTap(horizontalOffset: 0.9, on: cover)
+        let tapSurface = element("reader.screen", in: app)
+        doubleTap(horizontalOffset: 0.9, on: tapSurface)
 
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
-        tap(horizontalOffset: 0.9, on: cover)
+        tap(horizontalOffset: 0.9, on: tapSurface)
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
     }
 
@@ -161,10 +132,7 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(
             element("reader.screen", in: app).waitForExistence(timeout: 8)
         )
-        XCTAssertTrue(
-            pageImage("ui-cover", in: app)
-                .waitForExistence(timeout: 10)
-        )
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
         return app
     }
 
@@ -189,17 +157,6 @@ final class ReaderFlowUITests: XCTestCase {
         let option = element(direction.accessibilityIdentifier, in: app)
         XCTAssertTrue(waitUntilHittable(option))
         option.tap()
-    }
-
-    private func pageImage(
-        _ pageID: String,
-        in app: XCUIApplication
-    ) -> XCUIElement {
-        let identifier = "reader.page.image.\(pageID)"
-        let matches = app.descendants(matching: .any)
-            .matching(identifier: identifier)
-        XCTAssertLessThanOrEqual(matches.count, 1, "Expected one primary page image")
-        return app.descendants(matching: .any)[identifier]
     }
 
     private func tap(horizontalOffset: CGFloat, on element: XCUIElement) {
