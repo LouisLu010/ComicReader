@@ -39,6 +39,80 @@ final class LibraryStateRepositoryTests: XCTestCase {
     }
 
     @MainActor
+    func testPreferenceWritesFailSafelyWithoutAConfiguredStore() async {
+        let repository = LibraryStateRepository()
+
+        let didSetMode = await repository.setDefaultReadingMode(.spread)
+        let didSetDirection = await repository.setDefaultReadingDirection(
+            .rightToLeft
+        )
+        let didSetTap = await repository.setTapZoneAction(
+            .disabled,
+            isLeftZone: true
+        )
+
+        XCTAssertFalse(didSetMode)
+        XCTAssertFalse(didSetDirection)
+        XCTAssertFalse(didSetTap)
+        XCTAssertEqual(repository.status, .unavailable)
+        XCTAssertFalse(repository.isWriteAvailable)
+        XCTAssertEqual(repository.globalReaderPreferences, .default)
+    }
+
+    @MainActor
+    func testComicPreferenceWritesRejectUnknownComicWithoutDisablingStore() async throws {
+        let repository = await makeRepository(container: try makeContainer())
+        let unknownComicID = managedComicID(
+            "00000000-0000-0000-0000-000000000422"
+        )
+
+        let didSetMode = await repository.setReadingModeOverride(
+            .spread,
+            for: unknownComicID
+        )
+        let didSetDirection = await repository.setReadingDirectionOverride(
+            .rightToLeft,
+            for: unknownComicID
+        )
+
+        XCTAssertFalse(didSetMode)
+        XCTAssertFalse(didSetDirection)
+        XCTAssertEqual(repository.status, .ready)
+        XCTAssertTrue(repository.isWriteAvailable)
+        XCTAssertEqual(repository.readerOverrides(for: unknownComicID), .none)
+    }
+
+    @MainActor
+    func testGlobalPreferencesIgnoreRecordsUsingAnotherKey() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        context.insert(
+            ComicReaderSchemaV4.StoredReaderGlobalPreferences(
+                recordKey: "foreign-preferences",
+                defaultReadingModeRawValue: ReadingMode.spread.rawValue,
+                defaultReadingDirectionRawValue: (
+                    ReadingDirection.rightToLeft.rawValue
+                ),
+                leftTapActionRawValue: ReaderTapZoneAction.disabled.rawValue,
+                rightTapActionRawValue: ReaderTapZoneAction.disabled.rawValue,
+                legacyProgressPreferencesBackfillVersion: 1
+            )
+        )
+        try context.save()
+
+        let repository = await makeRepository(container: container)
+
+        XCTAssertEqual(repository.globalReaderPreferences, .default)
+        let records = try ModelContext(container).fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReaderGlobalPreferences>()
+        )
+        XCTAssertEqual(
+            Set(records.map(\.recordKey)),
+            ["foreign-preferences", "reader-global-v1"]
+        )
+    }
+
+    @MainActor
     func testConcurrentConfigurationKeepsSharedRepositoryReady() async throws {
         let container = try makeContainer()
         let repository = LibraryStateRepository()
@@ -233,7 +307,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let context = ModelContext(container)
         let storedComics = try context.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         )
         let storedComic = try XCTUnwrap(storedComics.first)
         XCTAssertEqual(storedComic.displayName, "Updated Title")
@@ -242,7 +316,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(storedComic.isFavorite)
         XCTAssertEqual(
             try context.fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
             ).count,
             1
         )
@@ -413,7 +487,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
     }
 
     @MainActor
-    func testRecordProgressPersistsReadingModeAndDirection() async throws {
+    func testRecordProgressDoesNotWriteLegacyReaderPreferenceFields() async throws {
         let container = try makeContainer()
         let repository = await makeRepository(container: container)
         let comic = catalogItem(
@@ -431,27 +505,172 @@ final class LibraryStateRepositoryTests: XCTestCase {
             readingDirection: .rightToLeft,
             updatedAt: Date(timeIntervalSince1970: 200)
         )
+        let expectedProgress = LibraryReadingProgress(
+            chapterID: progress.chapterID,
+            pageID: progress.pageID,
+            pageOffset: progress.pageOffset,
+            zoomScale: progress.zoomScale,
+            updatedAt: progress.updatedAt
+        )
 
         await assertRecords(progress, for: comic.id, using: repository)
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
             storedProgress.readingModeRawValue,
-            ReadingMode.spread.rawValue
+            ReadingMode.continuous.rawValue
         )
         XCTAssertEqual(
             storedProgress.readingDirectionRawValue,
-            ReadingDirection.rightToLeft.rawValue
+            ReadingDirection.leftToRight.rawValue
         )
+        XCTAssertEqual(repository.state(for: comic.id).progress, expectedProgress)
 
         let restoredRepository = await makeRepository(container: container)
         XCTAssertEqual(
             restoredRepository.state(for: comic.id).progress,
-            progress
+            expectedProgress
+        )
+    }
+
+    @MainActor
+    func testReaderPreferencesPersistAndResolveOverridesOverGlobalDefaults() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000420"),
+            title: "Preference Resolution Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+
+        let didSetMode = await repository.setDefaultReadingMode(.singlePage)
+        let didSetDirection = await repository.setDefaultReadingDirection(
+            .rightToLeft
+        )
+        let didSetLeftTap = await repository.setTapZoneAction(
+            .disabled,
+            isLeftZone: true
+        )
+        let didSetRightTap = await repository.setTapZoneAction(
+            .toggleControls,
+            isLeftZone: false
+        )
+
+        XCTAssertTrue(didSetMode)
+        XCTAssertTrue(didSetDirection)
+        XCTAssertTrue(didSetLeftTap)
+        XCTAssertTrue(didSetRightTap)
+        let expectedGlobal = ReaderGlobalPreferences(
+            defaultReadingMode: .singlePage,
+            defaultReadingDirection: .rightToLeft,
+            tapAreas: ReaderTapAreaPreferences(
+                leftAction: .disabled,
+                rightAction: .toggleControls
+            )
+        )
+        XCTAssertEqual(repository.globalReaderPreferences, expectedGlobal)
+        XCTAssertEqual(repository.readerOverrides(for: comic.id), .none)
+        XCTAssertEqual(
+            repository.resolvedReaderPreferences(for: comic.id),
+            ComicReaderOverrides.none.resolved(using: expectedGlobal)
+        )
+
+        let didOverrideMode = await repository.setReadingModeOverride(
+            .spread,
+            for: comic.id
+        )
+        let didOverrideDirection = await repository
+            .setReadingDirectionOverride(.leftToRight, for: comic.id)
+
+        XCTAssertTrue(didOverrideMode)
+        XCTAssertTrue(didOverrideDirection)
+        XCTAssertEqual(
+            repository.readerOverrides(for: comic.id),
+            ComicReaderOverrides(
+                readingMode: .spread,
+                readingDirection: .leftToRight
+            )
+        )
+        XCTAssertEqual(
+            repository.resolvedReaderPreferences(for: comic.id),
+            ResolvedReaderPreferences(
+                readingMode: .spread,
+                readingDirection: .leftToRight,
+                tapAreas: expectedGlobal.tapAreas
+            )
+        )
+
+        let restoredRepository = await makeRepository(container: container)
+        XCTAssertEqual(
+            restoredRepository.resolvedReaderPreferences(for: comic.id),
+            repository.resolvedReaderPreferences(for: comic.id)
+        )
+
+        let didClearMode = await restoredRepository.setReadingModeOverride(
+            nil,
+            for: comic.id
+        )
+        let didClearDirection = await restoredRepository
+            .setReadingDirectionOverride(nil, for: comic.id)
+
+        XCTAssertTrue(didClearMode)
+        XCTAssertTrue(didClearDirection)
+        XCTAssertEqual(restoredRepository.readerOverrides(for: comic.id), .none)
+        XCTAssertEqual(
+            restoredRepository.resolvedReaderPreferences(for: comic.id),
+            ComicReaderOverrides.none.resolved(using: expectedGlobal)
+        )
+    }
+
+    @MainActor
+    func testReaderPreferencesFallBackForUnknownStoredRawValues() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000421"),
+            title: "Future Preference Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+
+        let context = ModelContext(container)
+        let globalRecord = try XCTUnwrap(
+            try context.fetch(
+                FetchDescriptor<
+                    ComicReaderSchemaV4.StoredReaderGlobalPreferences
+                >()
+            ).first
+        )
+        globalRecord.defaultReadingModeRawValue = "future-mode"
+        globalRecord.defaultReadingDirectionRawValue = "future-direction"
+        globalRecord.leftTapActionRawValue = "future-left-action"
+        globalRecord.rightTapActionRawValue = "future-right-action"
+        let comicRecord = try XCTUnwrap(
+            try context.fetch(
+                FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+            ).first
+        )
+        comicRecord.readingModeOverrideRawValue = "future-mode"
+        comicRecord.readingDirectionOverrideRawValue = "future-direction"
+        try context.save()
+
+        let restoredRepository = await makeRepository(container: container)
+
+        XCTAssertEqual(
+            restoredRepository.globalReaderPreferences,
+            ReaderGlobalPreferences.default
+        )
+        XCTAssertEqual(restoredRepository.readerOverrides(for: comic.id), .none)
+        XCTAssertEqual(
+            restoredRepository.resolvedReaderPreferences(for: comic.id),
+            ComicReaderOverrides.none.resolved(
+                using: ReaderGlobalPreferences.default
+            )
         )
     }
 
@@ -485,7 +704,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -514,7 +733,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let timestamp = Date(timeIntervalSince1970: 300)
         let context = ModelContext(container)
         context.insert(
-            ComicReaderSchemaV3.StoredReadingProgress(
+            ComicReaderSchemaV4.StoredReadingProgress(
                 comicID: comic.id.rawValue,
                 chapterID: "chapter-future",
                 pageID: "page-future",
@@ -840,7 +1059,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedContext = ModelContext(container)
         let seededStoredProgress = try XCTUnwrap(
             try seedContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
             ).first
         )
         seededStoredProgress.completedChapterIDs = [
@@ -878,7 +1097,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let mergedStoredProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -986,7 +1205,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedRepository = await makeRepository(container: container)
         await seedRepository.reconcile(catalogItems: [first, second])
         for storedComic in try seedContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         ) {
             seedContext.delete(storedComic)
         }
@@ -996,7 +1215,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let rebuiltRepository = await makeRepository(container: container)
         await rebuiltRepository.reconcile(catalogItems: [first, second])
         let rebuiltComics = try rebuiltContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         )
 
         XCTAssertEqual(
@@ -1070,7 +1289,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         await coordinator.reloadAndReconcile(with: rebuiltRepository)
 
         let rebuiltRecords = try ModelContext(rebuiltContainer).fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         )
         XCTAssertEqual(rebuiltRecords.map(\.comicID), [comic.id.rawValue])
         XCTAssertEqual(coordinator.comics.map(\.id), [comic.id])

@@ -20,6 +20,7 @@ struct LibraryReadingProgress: Equatable, Sendable {
     let pageID: String
     let pageOffset: Double
     let zoomScale: Double
+    /// 仅用于读取 V1–V3 进度中的旧偏好影子值，不再作为偏好写入来源。
     let readingMode: ReadingMode
     let readingDirection: ReadingDirection
     let completedChapterIDs: Set<String>
@@ -61,10 +62,25 @@ struct LibraryReadingProgress: Equatable, Sendable {
 }
 
 struct LibraryComicUserState: Equatable, Sendable {
-    static let empty = Self(isFavorite: false, progress: nil)
+    static let empty = Self(
+        isFavorite: false,
+        progress: nil,
+        readerOverrides: .none
+    )
 
     let isFavorite: Bool
     let progress: LibraryReadingProgress?
+    let readerOverrides: ComicReaderOverrides
+
+    init(
+        isFavorite: Bool,
+        progress: LibraryReadingProgress?,
+        readerOverrides: ComicReaderOverrides = .none
+    ) {
+        self.isFavorite = isFavorite
+        self.progress = progress
+        self.readerOverrides = readerOverrides
+    }
 }
 
 enum LibraryStateRepositoryStatus: Equatable, Sendable {
@@ -78,6 +94,7 @@ enum LibraryStateRepositoryStatus: Equatable, Sendable {
 private struct LibraryStateStoreSnapshot: Sendable {
     let statesByComicID: [ManagedComicID: LibraryComicUserState]
     let indexedComicIDs: Set<ManagedComicID>
+    let globalReaderPreferences: ReaderGlobalPreferences
 }
 
 private enum LibraryStateProgressWriteResult: Sendable {
@@ -91,11 +108,12 @@ private actor LibraryStateStore {
     func snapshot() throws -> LibraryStateStoreSnapshot {
         try makeSnapshot(
             storedComics: modelContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+                FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
             ),
             storedProgress: modelContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
-            )
+                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+            ),
+            globalPreferences: try globalPreferencesRecord()
         )
     }
 
@@ -103,11 +121,12 @@ private actor LibraryStateStore {
         catalogItems: [LibraryCatalogItem]
     ) throws -> LibraryStateStoreSnapshot {
         var storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
         )
+        let globalPreferences = try globalPreferencesRecord()
         var comicsByID = firstStoredComicsByComicID(storedComics)
 
         for item in catalogItems {
@@ -121,7 +140,7 @@ private actor LibraryStateStore {
                 storedComic.chapterCount = record.chapterCount
                 storedComic.pageCount = record.pageCount
             } else {
-                let storedComic = ComicReaderSchemaV3.StoredComic(
+                let storedComic = ComicReaderSchemaV4.StoredComic(
                     comicID: comicID,
                     displayName: record.displayName,
                     sourceRootName: record.sourceRootName,
@@ -138,7 +157,8 @@ private actor LibraryStateStore {
         try saveOrRollback()
         return makeSnapshot(
             storedComics: storedComics,
-            storedProgress: storedProgress
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
         )
     }
 
@@ -146,11 +166,12 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateStoreSnapshot? {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
         )
+        let globalPreferences = try globalPreferencesRecord()
         guard let storedComic = storedComics.first(where: {
             $0.comicID == comicID.rawValue
         }) else {
@@ -161,7 +182,8 @@ private actor LibraryStateStore {
         try saveOrRollback()
         return makeSnapshot(
             storedComics: storedComics,
-            storedProgress: storedProgress
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
         )
     }
 
@@ -170,8 +192,9 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateProgressWriteResult {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
         )
+        let globalPreferences = try globalPreferencesRecord()
         guard storedComics.contains(where: {
             $0.comicID == comicID.rawValue
         }) else {
@@ -179,7 +202,7 @@ private actor LibraryStateStore {
         }
 
         var storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV3.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
         )
         if let record = storedProgress.first(where: {
             $0.comicID == comicID.rawValue
@@ -205,7 +228,8 @@ private actor LibraryStateStore {
                     return .applied(
                         makeSnapshot(
                             storedComics: storedComics,
-                            storedProgress: storedProgress
+                            storedProgress: storedProgress,
+                            globalPreferences: globalPreferences
                         )
                     )
                 }
@@ -213,7 +237,8 @@ private actor LibraryStateStore {
                 return .rejected(
                     makeSnapshot(
                         storedComics: storedComics,
-                        storedProgress: storedProgress
+                        storedProgress: storedProgress,
+                        globalPreferences: globalPreferences
                     )
                 )
             }
@@ -222,21 +247,17 @@ private actor LibraryStateStore {
             record.pageID = progress.pageID
             record.pageOffset = progress.pageOffset
             record.zoomScale = progress.zoomScale
-            record.readingModeRawValue = progress.readingMode.rawValue
-            record.readingDirectionRawValue = progress.readingDirection.rawValue
             // 尚无显式“标记未读”操作，已读状态必须在不同窗口间合并。
             record.completedChapterIDs = mergedCompletedChapterIDs
             record.isCompleted = record.isCompleted || progress.isCompleted
             record.updatedAt = progress.updatedAt
         } else {
-            let record = ComicReaderSchemaV3.StoredReadingProgress(
+            let record = ComicReaderSchemaV4.StoredReadingProgress(
                 comicID: comicID.rawValue,
                 chapterID: progress.chapterID,
                 pageID: progress.pageID,
                 pageOffset: progress.pageOffset,
                 zoomScale: progress.zoomScale,
-                readingModeRawValue: progress.readingMode.rawValue,
-                readingDirectionRawValue: progress.readingDirection.rawValue,
                 completedChapterIDs: progress.completedChapterIDs.sorted(),
                 isCompleted: progress.isCompleted,
                 updatedAt: progress.updatedAt
@@ -249,7 +270,205 @@ private actor LibraryStateStore {
         return .applied(
             makeSnapshot(
                 storedComics: storedComics,
-                storedProgress: storedProgress
+                storedProgress: storedProgress,
+                globalPreferences: globalPreferences
+            )
+        )
+    }
+
+    func setDefaultReadingMode(
+        _ readingMode: ReadingMode
+    ) throws -> LibraryStateStoreSnapshot {
+        let storedComics = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+        )
+        let storedProgress = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+        )
+        let globalPreferences = try globalPreferencesRecord()
+        globalPreferences.defaultReadingModeRawValue = readingMode.rawValue
+        try saveOrRollback()
+
+        return makeSnapshot(
+            storedComics: storedComics,
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
+        )
+    }
+
+    func setDefaultReadingDirection(
+        _ readingDirection: ReadingDirection
+    ) throws -> LibraryStateStoreSnapshot {
+        let storedComics = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+        )
+        let storedProgress = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+        )
+        let globalPreferences = try globalPreferencesRecord()
+        globalPreferences.defaultReadingDirectionRawValue = readingDirection.rawValue
+        try saveOrRollback()
+
+        return makeSnapshot(
+            storedComics: storedComics,
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
+        )
+    }
+
+    func setTapZoneAction(
+        _ action: ReaderTapZoneAction,
+        isLeftZone: Bool
+    ) throws -> LibraryStateStoreSnapshot {
+        let storedComics = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+        )
+        let storedProgress = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+        )
+        let globalPreferences = try globalPreferencesRecord()
+        if isLeftZone {
+            globalPreferences.leftTapActionRawValue = action.rawValue
+        } else {
+            globalPreferences.rightTapActionRawValue = action.rawValue
+        }
+        try saveOrRollback()
+
+        return makeSnapshot(
+            storedComics: storedComics,
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
+        )
+    }
+
+    func setReadingModeOverride(
+        _ readingMode: ReadingMode?,
+        for comicID: ManagedComicID
+    ) throws -> LibraryStateStoreSnapshot? {
+        let storedComics = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+        )
+        let storedProgress = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+        )
+        let globalPreferences = try globalPreferencesRecord()
+        guard let storedComic = storedComics.first(where: {
+            $0.comicID == comicID.rawValue
+        }) else {
+            return nil
+        }
+
+        storedComic.readingModeOverrideRawValue = readingMode?.rawValue
+        try saveOrRollback()
+
+        return makeSnapshot(
+            storedComics: storedComics,
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
+        )
+    }
+
+    func setReadingDirectionOverride(
+        _ readingDirection: ReadingDirection?,
+        for comicID: ManagedComicID
+    ) throws -> LibraryStateStoreSnapshot? {
+        let storedComics = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+        )
+        let storedProgress = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+        )
+        let globalPreferences = try globalPreferencesRecord()
+        guard let storedComic = storedComics.first(where: {
+            $0.comicID == comicID.rawValue
+        }) else {
+            return nil
+        }
+
+        storedComic.readingDirectionOverrideRawValue = readingDirection?.rawValue
+        try saveOrRollback()
+
+        return makeSnapshot(
+            storedComics: storedComics,
+            storedProgress: storedProgress,
+            globalPreferences: globalPreferences
+        )
+    }
+
+    private func globalPreferencesRecord() throws
+        -> ComicReaderSchemaV4.StoredReaderGlobalPreferences {
+        let recordKey = "reader-global-v1"
+        let records = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReaderGlobalPreferences>(
+                predicate: #Predicate { record in
+                    record.recordKey == recordKey
+                }
+            )
+        )
+        let record: ComicReaderSchemaV4.StoredReaderGlobalPreferences
+        if let existingRecord = records.first {
+            record = existingRecord
+        } else {
+            record = ComicReaderSchemaV4.StoredReaderGlobalPreferences()
+            modelContext.insert(record)
+        }
+
+        guard record.legacyProgressPreferencesBackfillVersion < 1 else {
+            return record
+        }
+
+        let storedComics = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+        )
+        let storedProgress = try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+        )
+        let progressByComicID = firstStoredProgressByComicID(storedProgress)
+
+        for storedComic in storedComics {
+            guard let progress = progressByComicID[storedComic.comicID] else {
+                continue
+            }
+
+            // 旧 schema 无法区分默认值与显式选择；保守固化旧行为，
+            // 避免升级后修改全局默认时悄然改变已读漫画的布局。
+            if storedComic.readingModeOverrideRawValue == nil,
+               ReadingMode(rawValue: progress.readingModeRawValue) != nil {
+                storedComic.readingModeOverrideRawValue = (
+                    progress.readingModeRawValue
+                )
+            }
+
+            if storedComic.readingDirectionOverrideRawValue == nil,
+               ReadingDirection(rawValue: progress.readingDirectionRawValue) != nil {
+                storedComic.readingDirectionOverrideRawValue = (
+                    progress.readingDirectionRawValue
+                )
+            }
+        }
+
+        record.legacyProgressPreferencesBackfillVersion = 1
+        try saveOrRollback()
+        return record
+    }
+
+    private func readerGlobalPreferences(
+        from record: ComicReaderSchemaV4.StoredReaderGlobalPreferences
+    ) -> ReaderGlobalPreferences {
+        ReaderGlobalPreferences(
+            defaultReadingMode: ReadingMode(
+                rawValue: record.defaultReadingModeRawValue
+            ) ?? ReaderGlobalPreferences.default.defaultReadingMode,
+            defaultReadingDirection: ReadingDirection(
+                rawValue: record.defaultReadingDirectionRawValue
+            ) ?? ReaderGlobalPreferences.default.defaultReadingDirection,
+            tapAreas: ReaderTapAreaPreferences(
+                leftAction: ReaderTapZoneAction(
+                    rawValue: record.leftTapActionRawValue
+                ) ?? ReaderTapAreaPreferences.default.leftAction,
+                rightAction: ReaderTapZoneAction(
+                    rawValue: record.rightTapActionRawValue
+                ) ?? ReaderTapAreaPreferences.default.rightAction
             )
         )
     }
@@ -264,8 +483,9 @@ private actor LibraryStateStore {
     }
 
     private func makeSnapshot(
-        storedComics: [ComicReaderSchemaV3.StoredComic],
-        storedProgress: [ComicReaderSchemaV3.StoredReadingProgress]
+        storedComics: [ComicReaderSchemaV4.StoredComic],
+        storedProgress: [ComicReaderSchemaV4.StoredReadingProgress],
+        globalPreferences: ComicReaderSchemaV4.StoredReaderGlobalPreferences
     ) -> LibraryStateStoreSnapshot {
         let comicsByID = firstStoredComicsByComicID(storedComics)
         let progressByComicID = firstStoredProgressByComicID(storedProgress)
@@ -293,20 +513,33 @@ private actor LibraryStateStore {
             statesByComicID[ManagedComicID(rawValue: rawComicID)] =
                 LibraryComicUserState(
                     isFavorite: storedComic.isFavorite,
-                    progress: progress
+                    progress: progress,
+                    readerOverrides: ComicReaderOverrides(
+                        readingMode: ReadingMode(
+                            rawValue: storedComic.readingModeOverrideRawValue
+                                ?? ""
+                        ),
+                        readingDirection: ReadingDirection(
+                            rawValue: storedComic.readingDirectionOverrideRawValue
+                                ?? ""
+                        )
+                    )
                 )
         }
 
         return LibraryStateStoreSnapshot(
             statesByComicID: statesByComicID,
-            indexedComicIDs: Set(statesByComicID.keys)
+            indexedComicIDs: Set(statesByComicID.keys),
+            globalReaderPreferences: readerGlobalPreferences(
+                from: globalPreferences
+            )
         )
     }
 
     private func firstStoredComicsByComicID(
-        _ records: [ComicReaderSchemaV3.StoredComic]
-    ) -> [UUID: ComicReaderSchemaV3.StoredComic] {
-        var recordsByComicID: [UUID: ComicReaderSchemaV3.StoredComic] = [:]
+        _ records: [ComicReaderSchemaV4.StoredComic]
+    ) -> [UUID: ComicReaderSchemaV4.StoredComic] {
+        var recordsByComicID: [UUID: ComicReaderSchemaV4.StoredComic] = [:]
         for record in records where recordsByComicID[record.comicID] == nil {
             recordsByComicID[record.comicID] = record
         }
@@ -314,10 +547,10 @@ private actor LibraryStateStore {
     }
 
     private func firstStoredProgressByComicID(
-        _ records: [ComicReaderSchemaV3.StoredReadingProgress]
-    ) -> [UUID: ComicReaderSchemaV3.StoredReadingProgress] {
+        _ records: [ComicReaderSchemaV4.StoredReadingProgress]
+    ) -> [UUID: ComicReaderSchemaV4.StoredReadingProgress] {
         var recordsByComicID: [
-            UUID: ComicReaderSchemaV3.StoredReadingProgress
+            UUID: ComicReaderSchemaV4.StoredReadingProgress
         ] = [:]
         for record in records where recordsByComicID[record.comicID] == nil {
             recordsByComicID[record.comicID] = record
@@ -332,6 +565,7 @@ final class LibraryStateRepository {
     private(set) var status: LibraryStateRepositoryStatus = .unconfigured
     private(set) var isWriteAvailable = false
     private(set) var statesByComicID: [ManagedComicID: LibraryComicUserState] = [:]
+    private(set) var globalReaderPreferences = ReaderGlobalPreferences.default
 
     @ObservationIgnored private var store: LibraryStateStore?
     @ObservationIgnored private var configuredContainer: ModelContainer?
@@ -362,6 +596,7 @@ final class LibraryStateRepository {
             configuredContainer = nil
             indexedComicIDs = []
             statesByComicID = [:]
+            globalReaderPreferences = .default
             isWriteAvailable = false
             status = .unavailable
             return
@@ -393,6 +628,7 @@ final class LibraryStateRepository {
         store = nil
         indexedComicIDs = []
         statesByComicID = [:]
+        globalReaderPreferences = .default
         isWriteAvailable = false
         status = .loading
         configuredContainer = modelContainer
@@ -483,6 +719,16 @@ final class LibraryStateRepository {
         statesByComicID[comicID] ?? .empty
     }
 
+    func readerOverrides(for comicID: ManagedComicID) -> ComicReaderOverrides {
+        state(for: comicID).readerOverrides
+    }
+
+    func resolvedReaderPreferences(
+        for comicID: ManagedComicID
+    ) -> ResolvedReaderPreferences {
+        readerOverrides(for: comicID).resolved(using: globalReaderPreferences)
+    }
+
     func canModifyState(for comicID: ManagedComicID) -> Bool {
         status == .ready && indexedComicIDs.contains(comicID)
     }
@@ -517,6 +763,210 @@ final class LibraryStateRepository {
 
             isWriteAvailable = false
             status = .failed
+        }
+    }
+
+    @discardableResult
+    func setDefaultReadingMode(_ readingMode: ReadingMode) async -> Bool {
+        guard let store else {
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
+            return false
+        }
+
+        let generation = configurationGeneration
+        do {
+            let snapshot = try await store.setDefaultReadingMode(readingMode)
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
+            status = .ready
+            return true
+        } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            isWriteAvailable = false
+            status = .failed
+            return false
+        }
+    }
+
+    @discardableResult
+    func setDefaultReadingDirection(
+        _ readingDirection: ReadingDirection
+    ) async -> Bool {
+        guard let store else {
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
+            return false
+        }
+
+        let generation = configurationGeneration
+        do {
+            let snapshot = try await store.setDefaultReadingDirection(
+                readingDirection
+            )
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
+            status = .ready
+            return true
+        } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            isWriteAvailable = false
+            status = .failed
+            return false
+        }
+    }
+
+    @discardableResult
+    func setTapZoneAction(
+        _ action: ReaderTapZoneAction,
+        isLeftZone: Bool
+    ) async -> Bool {
+        guard let store else {
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
+            return false
+        }
+
+        let generation = configurationGeneration
+        do {
+            let snapshot = try await store.setTapZoneAction(
+                action,
+                isLeftZone: isLeftZone
+            )
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
+            status = .ready
+            return true
+        } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            isWriteAvailable = false
+            status = .failed
+            return false
+        }
+    }
+
+    @discardableResult
+    func setReadingModeOverride(
+        _ readingMode: ReadingMode?,
+        for comicID: ManagedComicID
+    ) async -> Bool {
+        guard let store else {
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
+            return false
+        }
+
+        let generation = configurationGeneration
+        do {
+            let snapshot = try await store.setReadingModeOverride(
+                readingMode,
+                for: comicID
+            )
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            guard let snapshot else {
+                isWriteAvailable = true
+                status = .ready
+                return false
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
+            status = .ready
+            return true
+        } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            isWriteAvailable = false
+            status = .failed
+            return false
+        }
+    }
+
+    @discardableResult
+    func setReadingDirectionOverride(
+        _ readingDirection: ReadingDirection?,
+        for comicID: ManagedComicID
+    ) async -> Bool {
+        guard let store else {
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
+            return false
+        }
+
+        let generation = configurationGeneration
+        do {
+            let snapshot = try await store.setReadingDirectionOverride(
+                readingDirection,
+                for: comicID
+            )
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            guard let snapshot else {
+                isWriteAvailable = true
+                status = .ready
+                return false
+            }
+
+            apply(snapshot)
+            isWriteAvailable = true
+            status = .ready
+            return true
+        } catch {
+            guard generation == configurationGeneration,
+                  self.store === store else {
+                return false
+            }
+
+            isWriteAvailable = false
+            status = .failed
+            return false
         }
     }
 
@@ -627,5 +1077,6 @@ final class LibraryStateRepository {
     private func apply(_ snapshot: LibraryStateStoreSnapshot) {
         statesByComicID = snapshot.statesByComicID
         indexedComicIDs = snapshot.indexedComicIDs
+        globalReaderPreferences = snapshot.globalReaderPreferences
     }
 }
