@@ -105,16 +105,19 @@ struct ReaderZoomInteractionState: Equatable, Sendable {
         )
     }
 
-    mutating func translate(by translation: CGSize) {
+    @discardableResult
+    mutating func translate(by translation: CGSize) -> Bool {
         guard translation.width.isFinite,
               translation.height.isFinite else {
-            return
+            return false
         }
 
+        let previousOffset = offset
         setOffset(CGPoint(
             x: Self.addingFinite(offset.x, translation.width),
             y: Self.addingFinite(offset.y, translation.height)
         ))
+        return offset != previousOffset
     }
 
     mutating func updateGeometry(

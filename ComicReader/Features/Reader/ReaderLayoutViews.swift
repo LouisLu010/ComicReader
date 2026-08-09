@@ -90,13 +90,26 @@ struct ReaderContentView: View {
                 .simultaneousGesture(tapGesture)
 
             if controlsAreVisible, activeZoomPresentationID != nil {
-                ReaderZoomControls(
-                    value: zoomAccessibilityValue,
-                    canZoomOut: canZoomOut,
-                    canZoomIn: canZoomIn,
-                    onZoomOut: { adjustZoom(by: -0.5) },
-                    onZoomIn: { adjustZoom(by: 0.5) }
-                )
+                VStack(alignment: .leading, spacing: 8) {
+                    ReaderZoomControls(
+                        value: zoomAccessibilityValue,
+                        canZoomOut: canZoomOut,
+                        canZoomIn: canZoomIn,
+                        onZoomOut: { adjustZoom(by: -0.5) },
+                        onZoomIn: { adjustZoom(by: 0.5) }
+                    )
+
+                    ReaderPanControls(
+                        canMoveLeft: canPan(by: panLeftTranslation),
+                        canMoveRight: canPan(by: panRightTranslation),
+                        canMoveUp: canPan(by: panUpTranslation),
+                        canMoveDown: canPan(by: panDownTranslation),
+                        onMoveLeft: { pan(by: panLeftTranslation) },
+                        onMoveRight: { pan(by: panRightTranslation) },
+                        onMoveUp: { pan(by: panUpTranslation) },
+                        onMoveDown: { pan(by: panDownTranslation) }
+                    )
+                }
                 .padding()
             }
         }
@@ -125,6 +138,10 @@ struct ReaderContentView: View {
             of: visiblePresentationID,
             initial: true
         ) { _, presentationID in
+            guard visiblePresentationID == presentationID else {
+                return
+            }
+
             onVisiblePresentationChanged(presentationID)
             synchronizePagedVisibleAssets(presentationID)
             handleVisiblePresentation(presentationID)
@@ -154,7 +171,7 @@ struct ReaderContentView: View {
                 zoomTransform: zoomTransform,
                 imageRequestScale: committedImageRequestScale,
                 isScrollDisabled: isZoomed,
-                onContinueChapterBoundary: onContinueChapterBoundary,
+                onContinueChapterBoundary: handleChapterBoundaryContinue,
                 onViewportPositionChanged: handleContinuousViewportPosition,
                 onGeometriesChanged: handleContinuousGeometries,
                 onRestoreCompleted: handleContinuousRestoreCompleted
@@ -169,7 +186,7 @@ struct ReaderContentView: View {
                 zoomTransform: zoomTransform,
                 imageRequestScale: committedImageRequestScale,
                 isScrollDisabled: isZoomed,
-                onContinueChapterBoundary: onContinueChapterBoundary
+                onContinueChapterBoundary: handleChapterBoundaryContinue
             )
         }
     }
@@ -184,6 +201,22 @@ struct ReaderContentView: View {
         activeZoomPresentationID != nil
             && zoomState.committedScale
                 < ReaderZoomInteractionState.maximumScale
+    }
+
+    private var panLeftTranslation: CGSize {
+        CGSize(width: -viewportSize.width / 4, height: 0)
+    }
+
+    private var panRightTranslation: CGSize {
+        CGSize(width: viewportSize.width / 4, height: 0)
+    }
+
+    private var panUpTranslation: CGSize {
+        CGSize(width: 0, height: -viewportSize.height / 4)
+    }
+
+    private var panDownTranslation: CGSize {
+        CGSize(width: 0, height: viewportSize.height / 4)
     }
 
     private var layoutIdentity: ReaderLayoutDisplayIdentity {
@@ -409,6 +442,21 @@ struct ReaderContentView: View {
         _ = sessionController.move(to: location)
     }
 
+    private func handleChapterBoundaryContinue(
+        _ chapterID: ImportChapterCandidate.ID
+    ) {
+        onContinueChapterBoundary(chapterID)
+
+        guard let presentationID = layout.presentations.first(where: {
+            $0.locations.contains(where: { $0.chapterID == chapterID })
+        })?.id else {
+            return
+        }
+
+        visiblePresentationID = presentationID
+        onVisiblePresentationChanged(presentationID)
+    }
+
     private func synchronizePosition(
         for boundary: ReaderChapterBoundary,
         at presentationID: ReaderPresentationID
@@ -538,6 +586,23 @@ struct ReaderContentView: View {
         }
 
         commitZoomScale()
+    }
+
+    private func canPan(by translation: CGSize) -> Bool {
+        guard activeZoomPresentationID != nil, isZoomed else {
+            return false
+        }
+
+        var candidate = zoomState
+        return candidate.translate(by: translation)
+    }
+
+    private func pan(by translation: CGSize) {
+        guard activeZoomPresentationID != nil, isZoomed else {
+            return
+        }
+
+        zoomState.translate(by: translation)
     }
 
     private func handleSingleTap(at location: CGPoint) {
@@ -675,6 +740,70 @@ private struct ReaderZoomControls: View {
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
         .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ReaderPanControls: View {
+    let canMoveLeft: Bool
+    let canMoveRight: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let onMoveLeft: () -> Void
+    let onMoveRight: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            panButton(
+                "reader.pan.left",
+                identifier: "reader.pan.left",
+                systemImage: "arrow.left",
+                isEnabled: canMoveLeft,
+                action: onMoveLeft
+            )
+            panButton(
+                "reader.pan.right",
+                identifier: "reader.pan.right",
+                systemImage: "arrow.right",
+                isEnabled: canMoveRight,
+                action: onMoveRight
+            )
+            panButton(
+                "reader.pan.up",
+                identifier: "reader.pan.up",
+                systemImage: "arrow.up",
+                isEnabled: canMoveUp,
+                action: onMoveUp
+            )
+            panButton(
+                "reader.pan.down",
+                identifier: "reader.pan.down",
+                systemImage: "arrow.down",
+                isEnabled: canMoveDown,
+                action: onMoveDown
+            )
+        }
+        .buttonStyle(.bordered)
+        .padding(8)
+        .foregroundStyle(.white)
+        .background(.ultraThinMaterial, in: Capsule())
+        .accessibilityElement(children: .contain)
+    }
+
+    private func panButton(
+        _ title: LocalizedStringKey,
+        identifier: String,
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+        }
+        .disabled(!isEnabled)
+        .accessibilityIdentifier(identifier)
     }
 }
 

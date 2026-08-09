@@ -49,6 +49,7 @@ final class ReaderFlowUITests: XCTestCase {
         )
         continueButton.tap()
         XCTAssertTrue(waitForCurrentPage("4/5", in: app))
+        XCTAssertTrue(valueRemains("4/5", of: currentPage(in: app)))
 
         slider.adjust(toNormalizedSliderPosition: 1)
         XCTAssertTrue(waitForCurrentPage("5/5", in: app))
@@ -158,9 +159,18 @@ final class ReaderFlowUITests: XCTestCase {
         selectMode(.singlePage, in: app)
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
+        let nextPage = app.buttons["reader.navigation.nextPage"]
+        XCTAssertTrue(waitUntilEnabled(nextPage))
+        nextPage.tap()
+        XCTAssertTrue(waitForCurrentPage("2/5", in: app))
+
         let zoomIn = app.buttons["reader.zoom.in"]
         let zoomOut = app.buttons["reader.zoom.out"]
         let zoomValue = app.staticTexts["reader.zoom.value"]
+        let panLeft = app.buttons["reader.pan.left"]
+        let panRight = app.buttons["reader.pan.right"]
+        let panUp = app.buttons["reader.pan.up"]
+        let panDown = app.buttons["reader.pan.down"]
         XCTAssertTrue(waitUntilEnabled(zoomIn))
         XCTAssertTrue(zoomOut.waitForExistence(timeout: 5))
         XCTAssertTrue(zoomValue.waitForExistence(timeout: 5))
@@ -168,25 +178,70 @@ final class ReaderFlowUITests: XCTestCase {
             app.staticTexts.matching(identifier: "reader.zoom.value").count,
             1
         )
-        XCTAssertFalse(zoomOut.isEnabled)
+        XCTAssertTrue(waitUntilEnabled(zoomOut))
         XCTAssertTrue(waitForValue("100%", of: zoomValue))
+        for (identifier, panButton) in [
+            ("reader.pan.left", panLeft),
+            ("reader.pan.right", panRight),
+            ("reader.pan.up", panUp),
+            ("reader.pan.down", panDown),
+        ] {
+            XCTAssertTrue(panButton.waitForExistence(timeout: 5))
+            XCTAssertEqual(
+                app.buttons.matching(identifier: identifier).count,
+                1
+            )
+            XCTAssertFalse(panButton.isEnabled)
+        }
 
         zoomIn.tap()
         XCTAssertTrue(waitForValue("150%", of: zoomValue))
-        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        XCTAssertTrue(waitForCurrentPage("2/5", in: app))
+        XCTAssertTrue(waitUntilEnabled(panLeft))
+        XCTAssertTrue(waitUntilEnabled(panRight))
+        XCTAssertTrue(waitUntilEnabled(panUp))
+        XCTAssertTrue(waitUntilEnabled(panDown))
+
+        panLeft.tap()
+        XCTAssertTrue(waitUntilDisabled(panLeft))
+        XCTAssertTrue(waitUntilEnabled(panRight))
+
+        panRight.tap()
+        XCTAssertTrue(waitUntilEnabled(panLeft))
+        panRight.tap()
+        XCTAssertTrue(waitUntilDisabled(panRight))
+        XCTAssertTrue(waitUntilEnabled(panLeft))
+        panLeft.tap()
+        XCTAssertTrue(waitUntilEnabled(panRight))
+
+        panUp.tap()
+        XCTAssertTrue(waitUntilDisabled(panUp))
+        XCTAssertTrue(waitUntilEnabled(panDown))
+        panDown.tap()
+        XCTAssertTrue(waitUntilEnabled(panUp))
+        panDown.tap()
+        XCTAssertTrue(waitUntilDisabled(panDown))
+        XCTAssertTrue(waitUntilEnabled(panUp))
+        panUp.tap()
+        XCTAssertTrue(waitUntilEnabled(panDown))
+        XCTAssertTrue(valueRemains("2/5", of: currentPage(in: app)))
 
         XCTAssertTrue(waitUntilEnabled(zoomOut))
         zoomOut.tap()
         XCTAssertTrue(waitForValue("100%", of: zoomValue))
-        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        XCTAssertTrue(waitForCurrentPage("2/5", in: app))
+        for panButton in [panLeft, panRight, panUp, panDown] {
+            XCTAssertTrue(waitUntilDisabled(panButton))
+        }
 
         let tapSurface = singlePageSurface(in: app)
         doubleTap(horizontalOffset: 0.9, on: tapSurface)
 
-        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        XCTAssertTrue(waitForValue("200%", of: zoomValue))
+        XCTAssertTrue(valueRemains("2/5", of: currentPage(in: app)))
 
         tap(horizontalOffset: 0.9, on: tapSurface)
-        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        XCTAssertTrue(valueRemains("2/5", of: currentPage(in: app)))
     }
 
     private func launchReaderFixture() -> XCUIApplication {
@@ -268,10 +323,33 @@ final class ReaderFlowUITests: XCTestCase {
         _ page: String,
         in app: XCUIApplication
     ) -> Bool {
-        waitForValue(
-            page,
-            of: element("reader.navigation.currentPage", in: app)
+        waitForValue(page, of: currentPage(in: app))
+    }
+
+    private func currentPage(in app: XCUIApplication) -> XCUIElement {
+        element("reader.navigation.currentPage", in: app)
+    }
+
+    private func valueRemains(
+        _ value: String,
+        of element: XCUIElement,
+        duration: TimeInterval = 0.75
+    ) -> Bool {
+        guard element.exists,
+              String(describing: element.value ?? "") == value else {
+            return false
+        }
+
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == false OR value != %@",
+                value
+            ),
+            object: element
         )
+        expectation.isInverted = true
+        return XCTWaiter.wait(for: [expectation], timeout: duration)
+            == .completed
     }
 
     private func waitForValue(
@@ -321,6 +399,20 @@ final class ReaderFlowUITests: XCTestCase {
             predicate: NSPredicate(
                 format: "exists == true AND hittable == true "
                     + "AND enabled == true"
+            ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func waitUntilDisabled(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND enabled == false"
             ),
             object: element
         )

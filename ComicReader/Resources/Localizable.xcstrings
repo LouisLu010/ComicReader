@@ -1219,6 +1219,30 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存阅读设置" } }
       }
     },
+    "reader.pan.down" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move Image Down" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向下移动图片" } }
+      }
+    },
+    "reader.pan.left" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move Image Left" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向左移动图片" } }
+      }
+    },
+    "reader.pan.right" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move Image Right" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向右移动图片" } }
+      }
+    },
+    "reader.pan.up" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move Image Up" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "向上移动图片" } }
+      }
+    },
     "reader.progress.page" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Page %1$lld of %2$lld" } },

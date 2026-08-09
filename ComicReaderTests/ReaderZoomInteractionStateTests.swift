@@ -152,16 +152,22 @@ final class ReaderZoomInteractionStateTests: XCTestCase {
         state.setOffset(CGPoint(x: 1_000, y: -1_000))
         XCTAssertEqual(state.offset, CGPoint(x: 150, y: -100))
 
-        state.translate(by: CGSize(width: -100, height: 75))
+        XCTAssertTrue(
+            state.translate(by: CGSize(width: -100, height: 75))
+        )
         XCTAssertEqual(state.offset, CGPoint(x: 50, y: -25))
 
-        state.translate(by: CGSize(width: -1_000, height: 1_000))
+        XCTAssertTrue(
+            state.translate(by: CGSize(width: -1_000, height: 1_000))
+        )
         XCTAssertEqual(state.offset, CGPoint(x: -150, y: 100))
 
-        state.translate(by: CGSize(
-            width: -CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        ))
+        XCTAssertFalse(
+            state.translate(by: CGSize(
+                width: -CGFloat.greatestFiniteMagnitude,
+                height: CGFloat.greatestFiniteMagnitude
+            ))
+        )
         XCTAssertEqual(state.offset, CGPoint(x: -150, y: 100))
     }
 
@@ -169,11 +175,42 @@ final class ReaderZoomInteractionStateTests: XCTestCase {
         var state = makeState(scale: 2)
         state.setOffset(CGPoint(x: 50, y: 25))
 
-        state.translate(by: CGSize(width: CGFloat.nan, height: 10))
+        XCTAssertFalse(
+            state.translate(by: CGSize(width: CGFloat.nan, height: 10))
+        )
         XCTAssertEqual(state.offset, CGPoint(x: 50, y: 25))
 
         state.setOffset(CGPoint(x: CGFloat.infinity, y: 10))
         XCTAssertEqual(state.offset, .zero)
+    }
+
+    func testTranslationReportsAvailabilityAndBoundariesInEveryDirection() {
+        let cases: [(CGSize, CGPoint)] = [
+            (CGSize(width: -75, height: 0), CGPoint(x: -75, y: 0)),
+            (CGSize(width: 75, height: 0), CGPoint(x: 75, y: 0)),
+            (CGSize(width: 0, height: -50), CGPoint(x: 0, y: -50)),
+            (CGSize(width: 0, height: 50), CGPoint(x: 0, y: 50)),
+        ]
+
+        for (translation, expectedOffset) in cases {
+            var unzoomedState = makeState(scale: 1)
+            XCTAssertFalse(unzoomedState.translate(by: translation))
+            XCTAssertEqual(unzoomedState.offset, .zero)
+
+            var zoomedState = makeState(scale: 1.5)
+            XCTAssertTrue(zoomedState.translate(by: translation))
+            XCTAssertEqual(
+                zoomedState.offset.x,
+                expectedOffset.x,
+                accuracy: 0.000_001
+            )
+            XCTAssertEqual(
+                zoomedState.offset.y,
+                expectedOffset.y,
+                accuracy: 0.000_001
+            )
+            XCTAssertFalse(zoomedState.translate(by: translation))
+        }
     }
 
     func testGeometryChangeReclampsOffsetAfterRotation() {
