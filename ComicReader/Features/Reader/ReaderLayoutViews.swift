@@ -10,8 +10,10 @@ struct ReaderContentView: View {
     let navigationRequest: ReaderNavigationRequest?
     let onVisiblePresentationChanged: (ReaderPresentationID?) -> Void
     let tapAreas: ReaderTapAreaPreferences
+    let controlsAreVisible: Bool
     let isTapInteractionBlocked: Bool
     let onTapAction: (ReaderTapAction) -> Void
+    let onContinueChapterBoundary: (ImportChapterCandidate.ID) -> Void
     @Binding var visibleAssetSnapshot: ReaderVisibleAssetSnapshot
 
     @Environment(\.displayScale) private var displayScale
@@ -34,8 +36,12 @@ struct ReaderContentView: View {
             ReaderPresentationID?
         ) -> Void,
         tapAreas: ReaderTapAreaPreferences,
+        controlsAreVisible: Bool,
         isTapInteractionBlocked: Bool,
         onTapAction: @escaping (ReaderTapAction) -> Void,
+        onContinueChapterBoundary: @escaping (
+            ImportChapterCandidate.ID
+        ) -> Void,
         visibleAssetSnapshot: Binding<ReaderVisibleAssetSnapshot>
     ) {
         self.layout = layout
@@ -46,8 +52,10 @@ struct ReaderContentView: View {
         self.navigationRequest = navigationRequest
         self.onVisiblePresentationChanged = onVisiblePresentationChanged
         self.tapAreas = tapAreas
+        self.controlsAreVisible = controlsAreVisible
         self.isTapInteractionBlocked = isTapInteractionBlocked
         self.onTapAction = onTapAction
+        self.onContinueChapterBoundary = onContinueChapterBoundary
         _visibleAssetSnapshot = visibleAssetSnapshot
 
         let restoredPosition = sessionController.session.position
@@ -74,43 +82,25 @@ struct ReaderContentView: View {
     }
 
     var body: some View {
-        Group {
-            switch layout.effectiveMode {
-            case .continuous:
-                ReaderContinuousView(
-                    presentations: layout.presentations,
-                    chapterCompletionIDsByPresentationID: (
-                        layout.chapterCompletionIDsByPresentationID
-                    ),
-                    assetResolver: assetResolver,
-                    imagePipeline: imagePipeline,
-                    viewportHeight: viewportSize.height,
-                    displayScale: displayScale,
-                    restoreRequest: continuousRestoreRequest,
-                    zoomTransform: zoomTransform,
-                    imageRequestScale: committedImageRequestScale,
-                    isScrollDisabled: isZoomed,
-                    onViewportPositionChanged: handleContinuousViewportPosition,
-                    onGeometriesChanged: handleContinuousGeometries,
-                    onRestoreCompleted: handleContinuousRestoreCompleted
+        ZStack(alignment: .topLeading) {
+            readerContent
+                .contentShape(Rectangle())
+                .simultaneousGesture(magnificationGesture)
+                .simultaneousGesture(panGesture)
+                .simultaneousGesture(tapGesture)
+
+            if controlsAreVisible, activeZoomPresentationID != nil {
+                ReaderZoomControls(
+                    value: zoomAccessibilityValue,
+                    canZoomOut: canZoomOut,
+                    canZoomIn: canZoomIn,
+                    onZoomOut: { adjustZoom(by: -0.5) },
+                    onZoomIn: { adjustZoom(by: 0.5) }
                 )
-            case .singlePage, .spread:
-                ReaderPagedView(
-                    mode: layout.effectiveMode,
-                    presentations: layout.pagedDisplayPresentations,
-                    assetResolver: assetResolver,
-                    imagePipeline: imagePipeline,
-                    visiblePresentationID: $visiblePresentationID,
-                    zoomTransform: zoomTransform,
-                    imageRequestScale: committedImageRequestScale,
-                    isScrollDisabled: isZoomed
-                )
+                .padding()
             }
         }
-        .contentShape(Rectangle())
-        .simultaneousGesture(magnificationGesture)
-        .simultaneousGesture(panGesture)
-        .simultaneousGesture(tapGesture)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: viewportSize, initial: true) { _, size in
             zoomState.updateGeometry(
                 viewportSize: size,
@@ -145,7 +135,55 @@ struct ReaderContentView: View {
         .task(id: prefetchRequestID) {
             await prefetchAdjacentPages()
         }
-        .accessibilityValue(Text(verbatim: zoomAccessibilityValue))
+    }
+
+    @ViewBuilder
+    private var readerContent: some View {
+        switch layout.effectiveMode {
+        case .continuous:
+            ReaderContinuousView(
+                presentations: layout.presentations,
+                chapterCompletionIDsByPresentationID: (
+                    layout.chapterCompletionIDsByPresentationID
+                ),
+                assetResolver: assetResolver,
+                imagePipeline: imagePipeline,
+                viewportHeight: viewportSize.height,
+                displayScale: displayScale,
+                restoreRequest: continuousRestoreRequest,
+                zoomTransform: zoomTransform,
+                imageRequestScale: committedImageRequestScale,
+                isScrollDisabled: isZoomed,
+                onContinueChapterBoundary: onContinueChapterBoundary,
+                onViewportPositionChanged: handleContinuousViewportPosition,
+                onGeometriesChanged: handleContinuousGeometries,
+                onRestoreCompleted: handleContinuousRestoreCompleted
+            )
+        case .singlePage, .spread:
+            ReaderPagedView(
+                mode: layout.effectiveMode,
+                presentations: layout.pagedDisplayPresentations,
+                assetResolver: assetResolver,
+                imagePipeline: imagePipeline,
+                visiblePresentationID: $visiblePresentationID,
+                zoomTransform: zoomTransform,
+                imageRequestScale: committedImageRequestScale,
+                isScrollDisabled: isZoomed,
+                onContinueChapterBoundary: onContinueChapterBoundary
+            )
+        }
+    }
+
+    private var canZoomOut: Bool {
+        activeZoomPresentationID != nil
+            && zoomState.committedScale
+                > ReaderZoomInteractionState.minimumScale
+    }
+
+    private var canZoomIn: Bool {
+        activeZoomPresentationID != nil
+            && zoomState.committedScale
+                < ReaderZoomInteractionState.maximumScale
     }
 
     private var layoutIdentity: ReaderLayoutDisplayIdentity {
@@ -493,8 +531,18 @@ struct ReaderContentView: View {
             }
     }
 
+    private func adjustZoom(by delta: Double) {
+        guard activeZoomPresentationID != nil,
+              zoomState.adjustCommittedScale(by: delta) else {
+            return
+        }
+
+        commitZoomScale()
+    }
+
     private func handleSingleTap(at location: CGPoint) {
-        guard location.x.isFinite,
+        guard activeZoomPresentationID != nil,
+              location.x.isFinite,
               location.y.isFinite,
               viewportSize.width.isFinite,
               viewportSize.height.isFinite,
@@ -592,6 +640,44 @@ struct ReaderContentView: View {
     }
 }
 
+private struct ReaderZoomControls: View {
+    let value: String
+    let canZoomOut: Bool
+    let canZoomIn: Bool
+    let onZoomOut: () -> Void
+    let onZoomIn: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onZoomOut) {
+                Label("reader.zoom.out", systemImage: "minus.magnifyingglass")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(!canZoomOut)
+            .accessibilityIdentifier("reader.zoom.out")
+
+            Text(verbatim: value)
+                .monospacedDigit()
+                .frame(minWidth: 48)
+                .accessibilityLabel("reader.zoom.value")
+                .accessibilityValue(Text(verbatim: value))
+                .accessibilityIdentifier("reader.zoom.value")
+
+            Button(action: onZoomIn) {
+                Label("reader.zoom.in", systemImage: "plus.magnifyingglass")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(!canZoomIn)
+            .accessibilityIdentifier("reader.zoom.in")
+        }
+        .buttonStyle(.bordered)
+        .padding(8)
+        .foregroundStyle(.white)
+        .background(.ultraThinMaterial, in: Capsule())
+        .accessibilityElement(children: .contain)
+    }
+}
+
 private struct ReaderContinuousView: View {
     let presentations: [ReaderPresentation]
     let chapterCompletionIDsByPresentationID: [
@@ -605,6 +691,7 @@ private struct ReaderContinuousView: View {
     let zoomTransform: ReaderZoomTransform
     let imageRequestScale: Double
     let isScrollDisabled: Bool
+    let onContinueChapterBoundary: (ImportChapterCandidate.ID) -> Void
     let onViewportPositionChanged: (ReaderContinuousViewportPosition) -> Void
     let onGeometriesChanged: ([ReaderContinuousPageGeometry]) -> Void
     let onRestoreCompleted: (
@@ -631,7 +718,10 @@ private struct ReaderContinuousView: View {
                                 imagePipeline: imagePipeline,
                                 imageRequestScale: isActive
                                     ? imageRequestScale
-                                    : 1
+                                    : 1,
+                                onContinueChapterBoundary: (
+                                    onContinueChapterBoundary
+                                )
                             )
                         }
                         .background {
@@ -762,6 +852,7 @@ private struct ReaderPagedView: View {
     let zoomTransform: ReaderZoomTransform
     let imageRequestScale: Double
     let isScrollDisabled: Bool
+    let onContinueChapterBoundary: (ImportChapterCandidate.ID) -> Void
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -780,7 +871,10 @@ private struct ReaderPagedView: View {
                             imagePipeline: imagePipeline,
                             imageRequestScale: isActive
                                 ? imageRequestScale
-                                : 1
+                                : 1,
+                            onContinueChapterBoundary: (
+                                onContinueChapterBoundary
+                            )
                         )
                     }
                     .frame(maxHeight: .infinity)
@@ -843,6 +937,7 @@ private struct ReaderPresentationView: View {
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
     let imageRequestScale: Double
+    let onContinueChapterBoundary: (ImportChapterCandidate.ID) -> Void
 
     @ViewBuilder
     var body: some View {
@@ -873,7 +968,10 @@ private struct ReaderPresentationView: View {
                 )
             }
         case let .chapterBoundary(boundary):
-            ReaderChapterBoundaryView(boundary: boundary)
+            ReaderChapterBoundaryView(
+                boundary: boundary,
+                onContinue: onContinueChapterBoundary
+            )
         }
     }
 
@@ -953,15 +1051,26 @@ private struct ReaderPageSlot: View {
 
 private struct ReaderChapterBoundaryView: View {
     let boundary: ReaderChapterBoundary
+    let onContinue: (ImportChapterCandidate.ID) -> Void
 
     var body: some View {
         ContentUnavailableView {
             Label(titleKey, systemImage: "checkmark.circle")
         } description: {
             Text(descriptionKey)
+        } actions: {
+            if let nextChapterID = boundary.nextChapterID {
+                Button("reader.chapterBoundary.continue") {
+                    onContinue(nextChapterID)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier(
+                    "reader.chapterBoundary.continue."
+                        + boundary.completedChapterID.rawValue
+                )
+            }
         }
         .foregroundStyle(.white)
-        .accessibilityIdentifier("reader.chapterBoundary")
     }
 
     private var titleKey: LocalizedStringKey {

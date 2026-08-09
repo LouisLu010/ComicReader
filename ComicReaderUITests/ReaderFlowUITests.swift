@@ -10,6 +10,21 @@ final class ReaderFlowUITests: XCTestCase {
 
     func testReaderNavigationFromFixtureUsesThumbnailSliderAndChapterList() {
         let app = launchReaderFixture()
+        selectMode(.singlePage, in: app)
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
+        let previousPage = app.buttons["reader.navigation.previousPage"]
+        let nextPage = app.buttons["reader.navigation.nextPage"]
+        XCTAssertTrue(previousPage.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitUntilEnabled(nextPage))
+        XCTAssertFalse(previousPage.isEnabled)
+
+        nextPage.tap()
+        XCTAssertTrue(waitForCurrentPage("2/5", in: app))
+        XCTAssertTrue(waitUntilEnabled(previousPage))
+        previousPage.tap()
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
         let slider = element("reader.navigation.pageSlider", in: app)
         XCTAssertTrue(slider.waitForExistence(timeout: 5))
 
@@ -20,7 +35,36 @@ final class ReaderFlowUITests: XCTestCase {
         thumbnail.tap()
         XCTAssertTrue(waitForCurrentPage("3/5", in: app))
 
+        XCTAssertTrue(waitUntilEnabled(nextPage))
+        nextPage.tap()
+        let continueButton = app.buttons[
+            "reader.chapterBoundary.continue.ui-chapter-one"
+        ]
+        XCTAssertTrue(waitUntilHittable(continueButton))
+        XCTAssertEqual(
+            app.buttons.matching(
+                identifier: "reader.chapterBoundary.continue.ui-chapter-one"
+            ).count,
+            1
+        )
+        continueButton.tap()
+        XCTAssertTrue(waitForCurrentPage("4/5", in: app))
+
         slider.adjust(toNormalizedSliderPosition: 1)
+        XCTAssertTrue(waitForCurrentPage("5/5", in: app))
+
+        XCTAssertTrue(waitUntilEnabled(nextPage))
+        nextPage.tap()
+        let zoomIn = app.buttons["reader.zoom.in"]
+        XCTAssertTrue(waitUntilGone(zoomIn))
+        XCTAssertFalse(
+            app.buttons[
+                "reader.chapterBoundary.continue.ui-chapter-two"
+            ].waitForExistence(timeout: 1)
+        )
+        XCTAssertTrue(waitUntilEnabled(previousPage))
+        previousPage.tap()
+        XCTAssertTrue(waitUntilEnabled(zoomIn))
         XCTAssertTrue(waitForCurrentPage("5/5", in: app))
 
         let chapterButton = app.buttons["reader.navigation.chapters"]
@@ -85,12 +129,22 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
         let tapSurface = singlePageSurface(in: app)
         let menu = app.buttons["reader.controls.menu"]
+        let hide = app.buttons["reader.controls.hide"]
         let reveal = app.buttons["reader.controls.reveal"]
 
         XCTAssertTrue(waitUntilHittable(menu))
+        XCTAssertTrue(waitUntilHittable(hide))
+
+        hide.tap()
+        XCTAssertTrue(waitUntilGone(hide))
+        XCTAssertTrue(waitUntilHittable(reveal))
+
+        reveal.tap()
+        XCTAssertTrue(waitUntilHittable(hide))
+        XCTAssertTrue(waitUntilHittable(menu))
 
         tap(horizontalOffset: 0.5, on: tapSurface)
-        XCTAssertFalse(menu.waitForExistence(timeout: 2))
+        XCTAssertTrue(waitUntilGone(menu))
         XCTAssertFalse(element("reader.progress", in: app).exists)
         XCTAssertTrue(waitUntilHittable(reveal))
 
@@ -102,6 +156,28 @@ final class ReaderFlowUITests: XCTestCase {
     func testReaderDoubleTapZoomDoesNotNavigate() {
         let app = launchReaderFixture()
         selectMode(.singlePage, in: app)
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
+        let zoomIn = app.buttons["reader.zoom.in"]
+        let zoomOut = app.buttons["reader.zoom.out"]
+        let zoomValue = app.staticTexts["reader.zoom.value"]
+        XCTAssertTrue(waitUntilEnabled(zoomIn))
+        XCTAssertTrue(zoomOut.waitForExistence(timeout: 5))
+        XCTAssertTrue(zoomValue.waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.staticTexts.matching(identifier: "reader.zoom.value").count,
+            1
+        )
+        XCTAssertFalse(zoomOut.isEnabled)
+        XCTAssertTrue(waitForValue("100%", of: zoomValue))
+
+        zoomIn.tap()
+        XCTAssertTrue(waitForValue("150%", of: zoomValue))
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+
+        XCTAssertTrue(waitUntilEnabled(zoomOut))
+        zoomOut.tap()
+        XCTAssertTrue(waitForValue("100%", of: zoomValue))
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
         let tapSurface = singlePageSurface(in: app)
@@ -218,6 +294,33 @@ final class ReaderFlowUITests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(
                 format: "exists == true AND hittable == true"
+            ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func waitUntilGone(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func waitUntilEnabled(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND hittable == true "
+                    + "AND enabled == true"
             ),
             object: element
         )

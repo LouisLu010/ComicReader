@@ -103,13 +103,6 @@ final class ComicReaderUITests: XCTestCase {
         settings.tap()
     }
 
-    private func element(
-        _ identifier: String,
-        in app: XCUIApplication
-    ) -> XCUIElement {
-        app.descendants(matching: .any)[identifier]
-    }
-
     private func waitUntilHittable(
         _ element: XCUIElement,
         timeout: TimeInterval = 5

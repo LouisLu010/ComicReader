@@ -149,12 +149,23 @@ struct ReaderScreen: View {
 
                     ReaderPageNavigationView(
                         progress: progress,
+                        readingDirection: layout.direction,
+                        canMoveToPreviousPage: (
+                            controller.canMoveToPreviousPage
+                        ),
+                        canMoveToNextPage: controller.canMoveToNextPage,
                         canMoveToPreviousChapter: (
                             controller.canMoveToPreviousChapter
                         ),
                         canMoveToNextChapter: controller.canMoveToNextChapter,
                         onSelectPage: { pageNumber in
                             _ = controller.jumpToPage(pageNumber)
+                        },
+                        onMoveToPreviousPage: {
+                            _ = controller.movePage(.backward)
+                        },
+                        onMoveToNextPage: {
+                            _ = controller.movePage(.forward)
                         },
                         onMoveToPreviousChapter: {
                             _ = controller.moveToPreviousChapter()
@@ -220,8 +231,12 @@ struct ReaderScreen: View {
                         controller.setVisiblePresentationID($0)
                     },
                     tapAreas: controller.resolvedReaderPreferences.tapAreas,
+                    controlsAreVisible: controlsAreVisible,
                     isTapInteractionBlocked: presentedSheet != nil,
                     onTapAction: handleTapAction,
+                    onContinueChapterBoundary: { chapterID in
+                        _ = controller.jumpToChapter(chapterID)
+                    },
                     visibleAssetSnapshot: $visibleAssetSnapshot
                 )
                 .id(
@@ -295,6 +310,17 @@ struct ReaderScreen: View {
                         || isSavingReaderPreference
                         || preferencesWriter == nil
                 )
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: toggleControls) {
+                    Label(
+                        "reader.controls.hide",
+                        systemImage: "eye.slash"
+                    )
+                }
+                .disabled(presentedSheet != nil)
+                .accessibilityIdentifier("reader.controls.hide")
             }
         }
     }
@@ -614,9 +640,14 @@ private struct ReaderPageProgress: Equatable {
 
 private struct ReaderPageNavigationView: View {
     let progress: ReaderPageProgress
+    let readingDirection: ReadingDirection
+    let canMoveToPreviousPage: Bool
+    let canMoveToNextPage: Bool
     let canMoveToPreviousChapter: Bool
     let canMoveToNextChapter: Bool
     let onSelectPage: (Int) -> Void
+    let onMoveToPreviousPage: () -> Void
+    let onMoveToNextPage: () -> Void
     let onMoveToPreviousChapter: () -> Void
     let onMoveToNextChapter: () -> Void
 
@@ -625,33 +656,80 @@ private struct ReaderPageNavigationView: View {
 
     init(
         progress: ReaderPageProgress,
+        readingDirection: ReadingDirection,
+        canMoveToPreviousPage: Bool,
+        canMoveToNextPage: Bool,
         canMoveToPreviousChapter: Bool,
         canMoveToNextChapter: Bool,
         onSelectPage: @escaping (Int) -> Void,
+        onMoveToPreviousPage: @escaping () -> Void,
+        onMoveToNextPage: @escaping () -> Void,
         onMoveToPreviousChapter: @escaping () -> Void,
         onMoveToNextChapter: @escaping () -> Void
     ) {
         self.progress = progress
+        self.readingDirection = readingDirection
+        self.canMoveToPreviousPage = canMoveToPreviousPage
+        self.canMoveToNextPage = canMoveToNextPage
         self.canMoveToPreviousChapter = canMoveToPreviousChapter
         self.canMoveToNextChapter = canMoveToNextChapter
         self.onSelectPage = onSelectPage
+        self.onMoveToPreviousPage = onMoveToPreviousPage
+        self.onMoveToNextPage = onMoveToNextPage
         self.onMoveToPreviousChapter = onMoveToPreviousChapter
         self.onMoveToNextChapter = onMoveToNextChapter
         _selectedPage = State(initialValue: Double(progress.currentPage))
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onMoveToPreviousChapter) {
-                Label(
-                    "reader.navigation.previousChapter",
-                    systemImage: "backward.end"
-                )
-                .labelStyle(.iconOnly)
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Button(action: onMoveToPreviousChapter) {
+                    Label(
+                        "reader.navigation.previousChapter",
+                        systemImage: previousChapterSystemImage
+                    )
+                    .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canMoveToPreviousChapter)
+                .accessibilityIdentifier("reader.navigation.previousChapter")
+
+                Button(action: onMoveToPreviousPage) {
+                    Label(
+                        "reader.navigation.previousPage",
+                        systemImage: previousPageSystemImage
+                    )
+                    .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canMoveToPreviousPage)
+                .accessibilityIdentifier("reader.navigation.previousPage")
+
+                Spacer(minLength: 24)
+
+                Button(action: onMoveToNextPage) {
+                    Label(
+                        "reader.navigation.nextPage",
+                        systemImage: nextPageSystemImage
+                    )
+                    .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canMoveToNextPage)
+                .accessibilityIdentifier("reader.navigation.nextPage")
+
+                Button(action: onMoveToNextChapter) {
+                    Label(
+                        "reader.navigation.nextChapter",
+                        systemImage: nextChapterSystemImage
+                    )
+                    .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canMoveToNextChapter)
+                .accessibilityIdentifier("reader.navigation.nextChapter")
             }
-            .buttonStyle(.bordered)
-            .disabled(!canMoveToPreviousChapter)
-            .accessibilityIdentifier("reader.navigation.previousChapter")
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -687,19 +765,8 @@ private struct ReaderPageNavigationView: View {
                 .accessibilityValue(Text(verbatim: pageDescription))
                 .accessibilityIdentifier("reader.navigation.pageSlider")
             }
-            .frame(maxWidth: 420)
-
-            Button(action: onMoveToNextChapter) {
-                Label(
-                    "reader.navigation.nextChapter",
-                    systemImage: "forward.end"
-                )
-                .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.bordered)
-            .disabled(!canMoveToNextChapter)
-            .accessibilityIdentifier("reader.navigation.nextChapter")
         }
+        .frame(maxWidth: 480)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .foregroundStyle(.white)
@@ -714,6 +781,22 @@ private struct ReaderPageNavigationView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reader.progress")
+    }
+
+    private var previousPageSystemImage: String {
+        readingDirection == .leftToRight ? "chevron.left" : "chevron.right"
+    }
+
+    private var nextPageSystemImage: String {
+        readingDirection == .leftToRight ? "chevron.right" : "chevron.left"
+    }
+
+    private var previousChapterSystemImage: String {
+        readingDirection == .leftToRight ? "backward.end" : "forward.end"
+    }
+
+    private var nextChapterSystemImage: String {
+        readingDirection == .leftToRight ? "forward.end" : "backward.end"
     }
 
     private var pageDescription: String {

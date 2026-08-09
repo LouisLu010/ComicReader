@@ -993,8 +993,14 @@
     },
     "reader.chapter.continue" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Swipe to continue to the next chapter." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续滑动以进入下一话。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use the button below or the chapter list to continue." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用下方按钮或章节列表继续阅读。" } }
+      }
+    },
+    "reader.chapterBoundary.continue" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue to Next Chapter" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进入下一话" } }
       }
     },
     "reader.chapter.finished" : {
@@ -1061,6 +1067,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow Global Settings" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随全局设置" } }
+      }
+    },
+    "reader.controls.hide" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Reader Controls" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏阅读控件" } }
       }
     },
     "reader.controls.menu" : {
@@ -1153,6 +1165,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一话" } }
       }
     },
+    "reader.navigation.nextPage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一页" } }
+      }
+    },
     "reader.navigation.pageSlider" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump to Page" } },
@@ -1163,6 +1181,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Chapter" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一话" } }
+      }
+    },
+    "reader.navigation.previousPage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一页" } }
       }
     },
     "reader.navigation.thumbnails" : {
@@ -1205,6 +1229,24 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Try Again" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } }
+      }
+    },
+    "reader.zoom.in" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Zoom In" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放大" } }
+      }
+    },
+    "reader.zoom.out" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Zoom Out" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缩小" } }
+      }
+    },
+    "reader.zoom.value" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Zoom Level" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "缩放级别" } }
       }
     },
     "settings.about.section" : {
