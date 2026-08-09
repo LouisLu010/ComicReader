@@ -87,7 +87,10 @@ struct ReaderContentView: View {
                 .contentShape(Rectangle())
                 .simultaneousGesture(magnificationGesture)
                 .simultaneousGesture(panGesture)
-                .simultaneousGesture(tapGesture)
+                .simultaneousGesture(
+                    tapGesture,
+                    including: contentTapGestureMask
+                )
 
             if controlsAreVisible, activeZoomPresentationID != nil {
                 VStack(alignment: .leading, spacing: 8) {
@@ -291,6 +294,10 @@ struct ReaderContentView: View {
     private var isZoomed: Bool {
         activeZoomPresentationID != nil
             && renderedZoomState.scale > 1.000_5
+    }
+
+    private var contentTapGestureMask: GestureMask {
+        activeZoomPresentationID == nil ? .subviews : .all
     }
 
     private var zoomAccessibilityValue: String {

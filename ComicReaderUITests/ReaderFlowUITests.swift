@@ -50,6 +50,10 @@ final class ReaderFlowUITests: XCTestCase {
         continueButton.tap()
         XCTAssertTrue(waitForCurrentPage("4/5", in: app))
         XCTAssertTrue(valueRemains("4/5", of: currentPage(in: app)))
+        XCTAssertTrue(
+            waitUntilHittable(app.buttons["reader.controls.hide"])
+        )
+        XCTAssertFalse(app.buttons["reader.controls.reveal"].exists)
 
         slider.adjust(toNormalizedSliderPosition: 1)
         XCTAssertTrue(waitForCurrentPage("5/5", in: app))
