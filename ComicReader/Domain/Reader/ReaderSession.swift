@@ -583,22 +583,31 @@ struct ReaderSession: Sendable {
     }
 
     mutating func setReadingMode(_ mode: ReadingMode) {
-        guard readingMode != mode else {
+        setReadingPreferences(
+            mode: mode,
+            direction: readingDirection
+        )
+    }
+
+    mutating func setReadingDirection(_ direction: ReadingDirection) {
+        setReadingPreferences(
+            mode: readingMode,
+            direction: direction
+        )
+    }
+
+    mutating func setReadingPreferences(
+        mode: ReadingMode,
+        direction: ReadingDirection
+    ) {
+        guard readingMode != mode || readingDirection != direction else {
             return
         }
 
         readingMode = mode
-        rebuildLayout()
-        recordContinuousCompletionIfNeeded()
-    }
-
-    mutating func setReadingDirection(_ direction: ReadingDirection) {
-        guard readingDirection != direction else {
-            return
-        }
-
         readingDirection = direction
         rebuildLayout()
+        recordContinuousCompletionIfNeeded()
     }
 
     mutating func toggleControls() {

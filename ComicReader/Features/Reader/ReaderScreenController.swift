@@ -33,6 +33,7 @@ final class ReaderScreenController {
     private(set) var navigationIndex: ReaderNavigationIndex?
     private(set) var visiblePresentationID: ReaderPresentationID?
     private(set) var navigationRequest: ReaderNavigationRequest?
+    private(set) var resolvedReaderPreferences: ResolvedReaderPreferences
 
     @ObservationIgnored let imagePipeline: ReaderImagePipeline
     @ObservationIgnored private let contentLoader: any ReaderContentLoading
@@ -50,6 +51,7 @@ final class ReaderScreenController {
         contentLoader: any ReaderContentLoading,
         progressRecorder: (any ReaderProgressRecording)? = nil,
         persistedProgress: LibraryReadingProgress? = nil,
+        resolvedReaderPreferences: ResolvedReaderPreferences = .default,
         imagePipeline: ReaderImagePipeline = ReaderImagePipeline(),
         initialLayoutCapability: ReaderLayoutCapability = .singlePageOnly
     ) {
@@ -57,6 +59,7 @@ final class ReaderScreenController {
         self.contentLoader = contentLoader
         self.progressRecorder = progressRecorder
         self.persistedProgress = persistedProgress
+        self.resolvedReaderPreferences = resolvedReaderPreferences
         self.imagePipeline = imagePipeline
         layoutCapability = initialLayoutCapability
         state = .idle
@@ -105,6 +108,7 @@ final class ReaderScreenController {
             var session = try await sessionBuilder.makeSession(
                 comic: loadedContent.comic,
                 persistedProgress: persistedProgress,
+                resolvedReaderPreferences: resolvedReaderPreferences,
                 layoutCapability: layoutCapability
             )
             try Task.checkCancellation()
@@ -114,6 +118,10 @@ final class ReaderScreenController {
 
             // 窗口可能在后台构建 Session 时改变尺寸，安装前再应用最新能力。
             session.setLayoutCapability(layoutCapability)
+            session.setReadingPreferences(
+                mode: resolvedReaderPreferences.readingMode,
+                direction: resolvedReaderPreferences.readingDirection
+            )
             let sessionController = ReaderSessionController(
                 session: session,
                 recorder: progressRecorder,
@@ -181,32 +189,56 @@ final class ReaderScreenController {
         setLayoutCapability(policy.capability(for: size))
     }
 
-    /// 保持当前页面位置，仅更新用户选择的阅读布局偏好。
-    /// `ReaderSessionController` 会合并并节流对应的进度持久化。
+    /// 保持当前页面位置，将偏好仓库解析出的最终值应用到活动会话。
     @discardableResult
-    func setReadingMode(_ mode: ReadingMode) -> Bool {
-        guard let sessionController,
-              sessionController.session.readingMode != mode else {
+    func applyResolvedReaderPreferences(
+        _ preferences: ResolvedReaderPreferences
+    ) -> Bool {
+        guard resolvedReaderPreferences != preferences else {
             return false
         }
 
-        sessionController.setReadingMode(mode)
+        let layoutPreferencesChanged = (
+            resolvedReaderPreferences.readingMode != preferences.readingMode
+                || resolvedReaderPreferences.readingDirection
+                    != preferences.readingDirection
+        )
+        resolvedReaderPreferences = preferences
+
+        guard layoutPreferencesChanged, let sessionController else {
+            return true
+        }
+
+        sessionController.setReadingPreferences(
+            mode: preferences.readingMode,
+            direction: preferences.readingDirection
+        )
         refreshNavigationState()
         return true
     }
 
-    /// 保持当前页面位置，仅更新用户选择的阅读方向。
-    /// `ReaderSessionController` 会合并并节流对应的进度持久化。
+    /// 供内部测试与预览使用；产品 UI 应先写入单本覆盖，再应用解析值。
+    @discardableResult
+    func setReadingMode(_ mode: ReadingMode) -> Bool {
+        applyResolvedReaderPreferences(
+            ResolvedReaderPreferences(
+                readingMode: mode,
+                readingDirection: resolvedReaderPreferences.readingDirection,
+                tapAreas: resolvedReaderPreferences.tapAreas
+            )
+        )
+    }
+
+    /// 供内部测试与预览使用；产品 UI 应先写入单本覆盖，再应用解析值。
     @discardableResult
     func setReadingDirection(_ direction: ReadingDirection) -> Bool {
-        guard let sessionController,
-              sessionController.session.readingDirection != direction else {
-            return false
-        }
-
-        sessionController.setReadingDirection(direction)
-        refreshNavigationState()
-        return true
+        applyResolvedReaderPreferences(
+            ResolvedReaderPreferences(
+                readingMode: resolvedReaderPreferences.readingMode,
+                readingDirection: direction,
+                tapAreas: resolvedReaderPreferences.tapAreas
+            )
+        )
     }
 
     func setVisiblePresentationID(_ presentationID: ReaderPresentationID?) {
@@ -483,6 +515,7 @@ private actor ReaderSessionBuilder {
     func makeSession(
         comic: ReaderComic,
         persistedProgress: LibraryReadingProgress?,
+        resolvedReaderPreferences: ResolvedReaderPreferences,
         layoutCapability: ReaderLayoutCapability
     ) throws -> ReaderSession {
         try Task.checkCancellation()
@@ -497,9 +530,8 @@ private actor ReaderSessionBuilder {
 
         let session = try ReaderSession(
             comic: comic,
-            readingMode: persistedProgress?.readingMode ?? .continuous,
-            readingDirection: persistedProgress?.readingDirection
-                ?? .leftToRight,
+            readingMode: resolvedReaderPreferences.readingMode,
+            readingDirection: resolvedReaderPreferences.readingDirection,
             layoutCapability: layoutCapability,
             restoredPosition: ReaderProgressBridge.readingPosition(
                 from: persistedProgress

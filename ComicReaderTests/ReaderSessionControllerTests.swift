@@ -92,29 +92,36 @@ final class ReaderSessionControllerTests: XCTestCase {
         XCTAssertEqual(controller.progressPersistenceState, .saved)
     }
 
-    func testModeAndDirectionChangesPersistTogether() async throws {
+    func testReadingPreferenceChangesDoNotScheduleProgressPersistence() async throws {
         let chapterID = chapterID("chapter-1")
         let firstPage = page("page-1")
         let recorder = RecordingReaderProgressRecorder()
+        let readerSession = try session(
+            chapters: [chapter(chapterID, pages: [firstPage])]
+        )
         let controller = ReaderSessionController(
-            session: try session(
-                chapters: [chapter(chapterID, pages: [firstPage])]
-            ),
+            session: readerSession,
             recorder: recorder,
+            persistedProgress: LibraryReadingProgress(
+                chapterID: readerSession.position.storageChapterID,
+                pageID: readerSession.position.pageID.rawValue,
+                pageOffset: readerSession.position.pageOffset,
+                zoomScale: readerSession.position.zoomScale
+            ),
             debounceNanoseconds: 60_000_000_000
         )
 
-        controller.setReadingMode(.spread)
-        controller.setReadingDirection(.rightToLeft)
+        controller.setReadingPreferences(
+            mode: .spread,
+            direction: .rightToLeft
+        )
         let didPersist = await controller.flushPendingProgress()
 
-        XCTAssertTrue(didPersist)
-        XCTAssertEqual(recorder.records.count, 1)
-        XCTAssertEqual(recorder.records[0].progress.readingMode, .spread)
-        XCTAssertEqual(
-            recorder.records[0].progress.readingDirection,
-            .rightToLeft
-        )
+        XCTAssertFalse(didPersist)
+        XCTAssertTrue(recorder.records.isEmpty)
+        XCTAssertEqual(controller.progressPersistenceState, .idle)
+        XCTAssertEqual(controller.session.readingMode, .spread)
+        XCTAssertEqual(controller.session.readingDirection, .rightToLeft)
     }
 
     func testTogglingControlsStaysWithinTheReaderSession() throws {

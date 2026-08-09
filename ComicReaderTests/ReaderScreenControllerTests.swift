@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class ReaderScreenControllerTests: XCTestCase {
-    func testLoadRestoresPositionModeDirectionAndViewportCapability() async throws {
+    func testLoadRestoresPositionAndUsesResolvedReaderPreferences() async throws {
         let fixture = try makeContent()
         let chapterID = fixture.content.comic.chapters[0].id
         let pageID = fixture.content.comic.chapters[0].pages[1].id
@@ -13,8 +13,8 @@ final class ReaderScreenControllerTests: XCTestCase {
             pageID: pageID.rawValue,
             pageOffset: 0.4,
             zoomScale: 2.25,
-            readingMode: .spread,
-            readingDirection: .rightToLeft,
+            readingMode: .singlePage,
+            readingDirection: .leftToRight,
             completedChapterIDs: [
                 chapterID.rawValue,
                 "missing-chapter",
@@ -27,6 +27,11 @@ final class ReaderScreenControllerTests: XCTestCase {
                 content: fixture.content
             ),
             persistedProgress: progress,
+            resolvedReaderPreferences: ResolvedReaderPreferences(
+                readingMode: .spread,
+                readingDirection: .rightToLeft,
+                tapAreas: .default
+            ),
             initialLayoutCapability: .spreadCapable
         )
 
@@ -69,7 +74,12 @@ final class ReaderScreenControllerTests: XCTestCase {
             contentLoader: ImmediateReaderContentLoader(
                 content: fixture.content
             ),
-            persistedProgress: progress
+            persistedProgress: progress,
+            resolvedReaderPreferences: ResolvedReaderPreferences(
+                readingMode: .singlePage,
+                readingDirection: .rightToLeft,
+                tapAreas: .default
+            )
         )
 
         let didLoad = await controller.load()
@@ -84,6 +94,36 @@ final class ReaderScreenControllerTests: XCTestCase {
         )
         XCTAssertEqual(session.readingMode, .singlePage)
         XCTAssertEqual(session.readingDirection, .rightToLeft)
+    }
+
+    func testResolvedPreferencesAppliedBeforeLoadAreUsedByNewSession() async throws {
+        let fixture = try makeContent()
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            ),
+            initialLayoutCapability: .spreadCapable
+        )
+        let preferences = ResolvedReaderPreferences(
+            readingMode: .spread,
+            readingDirection: .rightToLeft,
+            tapAreas: ReaderTapAreaPreferences(
+                leftAction: .disabled,
+                rightAction: .automatic
+            )
+        )
+
+        XCTAssertTrue(controller.applyResolvedReaderPreferences(preferences))
+        XCTAssertFalse(controller.applyResolvedReaderPreferences(preferences))
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+
+        let session = try XCTUnwrap(controller.sessionController?.session)
+        XCTAssertEqual(session.readingMode, .spread)
+        XCTAssertEqual(session.readingDirection, .rightToLeft)
+        XCTAssertEqual(controller.layout?.effectiveMode, .spread)
+        XCTAssertEqual(controller.resolvedReaderPreferences, preferences)
     }
 
     func testLegacyCompletedComicRestoresFinalChapterAsCompleted() async throws {
@@ -129,8 +169,12 @@ final class ReaderScreenControllerTests: XCTestCase {
                 chapterID: fixture.content.comic.chapters[0].id.rawValue,
                 pageID: fixture.content.comic.chapters[0].pages[1].id.rawValue,
                 pageOffset: 0.3,
-                zoomScale: 1.5,
-                readingMode: .spread
+                zoomScale: 1.5
+            ),
+            resolvedReaderPreferences: ResolvedReaderPreferences(
+                readingMode: .spread,
+                readingDirection: .leftToRight,
+                tapAreas: .default
             )
         )
         controller.setViewportSize(CGSize(width: 1_000, height: 700))
@@ -151,41 +195,40 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(controller.layout?.effectiveMode, .singlePage)
     }
 
-    func testReadingControlsRefreshLayoutPreservePositionAndDebouncePersistence() async throws {
+    func testApplyingResolvedPreferencesRefreshesLayoutWithoutPersistingProgress() async throws {
         let fixture = try makeContent()
         let recorder = ScreenProgressRecorder()
-        let controller = ReaderScreenController(
-            comicID: fixture.comicID,
-            contentLoader: ImmediateReaderContentLoader(
-                content: fixture.content
-            ),
-            progressRecorder: recorder,
-            initialLayoutCapability: .spreadCapable
-        )
-
-        XCTAssertFalse(controller.setReadingMode(.spread))
-        XCTAssertFalse(controller.setReadingDirection(.rightToLeft))
-        let didLoad = await controller.load()
-        XCTAssertTrue(didLoad)
-
         let chapter = fixture.content.comic.chapters[0]
         let originalPosition = ReadingPosition(
             location: .chapter(chapter.id, chapter.pages[1].id),
             pageOffset: 0.5,
             zoomScale: 1.5
         )
-        XCTAssertTrue(
-            controller.sessionController?.move(
-                to: originalPosition.location,
+        let controller = ReaderScreenController(
+            comicID: fixture.comicID,
+            contentLoader: ImmediateReaderContentLoader(
+                content: fixture.content
+            ),
+            progressRecorder: recorder,
+            persistedProgress: LibraryReadingProgress(
+                chapterID: originalPosition.storageChapterID,
+                pageID: originalPosition.pageID.rawValue,
                 pageOffset: originalPosition.pageOffset,
                 zoomScale: originalPosition.zoomScale
-            ) == true
+            ),
+            initialLayoutCapability: .spreadCapable
         )
 
-        XCTAssertTrue(controller.setReadingMode(.spread))
-        XCTAssertTrue(controller.setReadingDirection(.rightToLeft))
-        XCTAssertFalse(controller.setReadingMode(.spread))
-        XCTAssertFalse(controller.setReadingDirection(.rightToLeft))
+        let didLoad = await controller.load()
+        XCTAssertTrue(didLoad)
+        let preferences = ResolvedReaderPreferences(
+            readingMode: .spread,
+            readingDirection: .rightToLeft,
+            tapAreas: .default
+        )
+
+        XCTAssertTrue(controller.applyResolvedReaderPreferences(preferences))
+        XCTAssertFalse(controller.applyResolvedReaderPreferences(preferences))
 
         let updatedSession = try XCTUnwrap(controller.sessionController?.session)
         XCTAssertEqual(updatedSession.position, originalPosition)
@@ -196,18 +239,31 @@ final class ReaderScreenControllerTests: XCTestCase {
         XCTAssertEqual(controller.layout?.direction, .rightToLeft)
         XCTAssertEqual(
             controller.sessionController?.progressPersistenceState,
-            .scheduled
+            .idle
         )
 
         let didFlush = await controller.flushPendingProgress()
-        XCTAssertTrue(didFlush)
-        XCTAssertEqual(recorder.records.count, 1)
-        XCTAssertEqual(recorder.records[0].progress.readingMode, .spread)
-        XCTAssertEqual(
-            recorder.records[0].progress.readingDirection,
-            .rightToLeft
+        XCTAssertFalse(didFlush)
+        XCTAssertTrue(recorder.records.isEmpty)
+
+        let layoutBeforeTapChange = controller.layout
+        XCTAssertTrue(
+            controller.applyResolvedReaderPreferences(
+                ResolvedReaderPreferences(
+                    readingMode: .spread,
+                    readingDirection: .rightToLeft,
+                    tapAreas: ReaderTapAreaPreferences(
+                        leftAction: .disabled,
+                        rightAction: .nextPage
+                    )
+                )
+            )
         )
-        XCTAssertEqual(recorder.records[0].progress.pageID, chapter.pages[1].id.rawValue)
+        XCTAssertEqual(controller.layout, layoutBeforeTapChange)
+        XCTAssertEqual(
+            controller.resolvedReaderPreferences.tapAreas.leftAction,
+            .disabled
+        )
     }
 
     func testChapterBoundaryCompletionUsesExplicitBoundaryAndPersists() async throws {

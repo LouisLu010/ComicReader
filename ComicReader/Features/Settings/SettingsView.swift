@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SettingsView: View {
     @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
     @Environment(LibraryStateRepository.self) private var libraryState
@@ -9,6 +10,58 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("settings.reader.section") {
+                Picker(
+                    "settings.reader.defaultMode",
+                    selection: defaultReadingModeBinding
+                ) {
+                    ForEach(ReadingMode.allCases, id: \.rawValue) { mode in
+                        Text(mode.controlTitle)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("settings.reader.defaultMode")
+
+                Picker(
+                    "settings.reader.defaultDirection",
+                    selection: defaultReadingDirectionBinding
+                ) {
+                    ForEach(
+                        ReadingDirection.allCases,
+                        id: \.rawValue
+                    ) { direction in
+                        Text(direction.controlTitle)
+                            .tag(direction)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("settings.reader.defaultDirection")
+
+                Text("settings.reader.defaults.description")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!canModifyReaderPreferences)
+
+            Section("settings.reader.tapAreas.section") {
+                tapActionPicker(
+                    "settings.reader.tapArea.left",
+                    selection: tapZoneBinding(isLeftZone: true),
+                    accessibilityIdentifier: "settings.reader.tapArea.left"
+                )
+                tapActionPicker(
+                    "settings.reader.tapArea.right",
+                    selection: tapZoneBinding(isLeftZone: false),
+                    accessibilityIdentifier: "settings.reader.tapArea.right"
+                )
+
+                Text("settings.reader.tapAreas.description")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!canModifyReaderPreferences)
+
             Section("settings.library.section") {
                 Button {
                     Task {
@@ -98,6 +151,74 @@ struct SettingsView: View {
             || persistence.status == .recoveryFailed
     }
 
+    private var canModifyReaderPreferences: Bool {
+        libraryState.status == .ready && libraryState.isWriteAvailable
+    }
+
+    private var defaultReadingModeBinding: Binding<ReadingMode> {
+        Binding(
+            get: {
+                libraryState.globalReaderPreferences.defaultReadingMode
+            },
+            set: { mode in
+                Task { @MainActor in
+                    _ = await libraryState.setDefaultReadingMode(mode)
+                }
+            }
+        )
+    }
+
+    private var defaultReadingDirectionBinding: Binding<ReadingDirection> {
+        Binding(
+            get: {
+                libraryState.globalReaderPreferences.defaultReadingDirection
+            },
+            set: { direction in
+                Task { @MainActor in
+                    _ = await libraryState.setDefaultReadingDirection(
+                        direction
+                    )
+                }
+            }
+        )
+    }
+
+    private func tapZoneBinding(
+        isLeftZone: Bool
+    ) -> Binding<ReaderTapZoneAction> {
+        Binding(
+            get: {
+                let tapAreas = libraryState.globalReaderPreferences.tapAreas
+                return isLeftZone
+                    ? tapAreas.leftAction
+                    : tapAreas.rightAction
+            },
+            set: { action in
+                Task { @MainActor in
+                    _ = await libraryState.setTapZoneAction(
+                        action,
+                        isLeftZone: isLeftZone
+                    )
+                }
+            }
+        )
+    }
+
+    private func tapActionPicker(
+        _ title: LocalizedStringKey,
+        selection: Binding<ReaderTapZoneAction>,
+        accessibilityIdentifier: String
+    ) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(ReaderTapZoneAction.allCases, id: \.rawValue) { action in
+                Text(action.controlTitle)
+                    .tag(action)
+            }
+        }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
     private var canRebuildLibraryIndex: Bool {
         guard persistence.status == .ready else {
             return false
@@ -116,6 +237,23 @@ struct SettingsView: View {
         }
 
         await libraryState.reconcile(catalogItems: libraryCatalog.comics)
+    }
+}
+
+private extension ReaderTapZoneAction {
+    var controlTitle: LocalizedStringKey {
+        switch self {
+        case .automatic:
+            "reader.tapAction.automatic"
+        case .previousPage:
+            "reader.commands.previousPage"
+        case .nextPage:
+            "reader.commands.nextPage"
+        case .toggleControls:
+            "reader.commands.toggleControls"
+        case .disabled:
+            "reader.tapAction.disabled"
+        }
     }
 }
 

@@ -9,6 +9,7 @@ struct ReaderContentView: View {
     let viewportSize: CGSize
     let navigationRequest: ReaderNavigationRequest?
     let onVisiblePresentationChanged: (ReaderPresentationID?) -> Void
+    let tapAreas: ReaderTapAreaPreferences
     let isTapInteractionBlocked: Bool
     let onTapAction: (ReaderTapAction) -> Void
     @Binding var visibleAssetSnapshot: ReaderVisibleAssetSnapshot
@@ -32,6 +33,7 @@ struct ReaderContentView: View {
         onVisiblePresentationChanged: @escaping (
             ReaderPresentationID?
         ) -> Void,
+        tapAreas: ReaderTapAreaPreferences,
         isTapInteractionBlocked: Bool,
         onTapAction: @escaping (ReaderTapAction) -> Void,
         visibleAssetSnapshot: Binding<ReaderVisibleAssetSnapshot>
@@ -43,6 +45,7 @@ struct ReaderContentView: View {
         self.viewportSize = viewportSize
         self.navigationRequest = navigationRequest
         self.onVisiblePresentationChanged = onVisiblePresentationChanged
+        self.tapAreas = tapAreas
         self.isTapInteractionBlocked = isTapInteractionBlocked
         self.onTapAction = onTapAction
         _visibleAssetSnapshot = visibleAssetSnapshot
@@ -506,6 +509,7 @@ struct ReaderContentView: View {
             horizontalFraction: Double(location.x / viewportSize.width),
             readingMode: layout.effectiveMode,
             readingDirection: layout.direction,
+            tapAreas: tapAreas,
             isZoomed: isZoomed || isMagnifying,
             isInteractionBlocked: isTapInteractionBlocked
         )

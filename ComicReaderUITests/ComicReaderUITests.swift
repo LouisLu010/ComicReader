@@ -41,4 +41,30 @@ final class ComicReaderUITests: XCTestCase {
             app.descendants(matching: .any)["library.empty"].exists
         )
     }
+
+    func testSettingsExposeReaderDefaultsAndTapAreaControls() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let settings = app.descendants(matching: .any)["sidebar.settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+
+        for identifier in [
+            "settings.reader.defaultMode",
+            "settings.reader.defaultDirection",
+            "settings.reader.tapArea.left",
+            "settings.reader.tapArea.right",
+        ] {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[identifier]
+                    .waitForExistence(timeout: 5),
+                "Missing reader setting: \(identifier)"
+            )
+        }
+    }
 }

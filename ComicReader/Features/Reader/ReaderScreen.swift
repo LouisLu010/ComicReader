@@ -4,28 +4,40 @@ import UIKit
 
 @MainActor
 struct ReaderScreen: View {
+    let comicID: ManagedComicID
     let title: String
+    let readerOverrides: ComicReaderOverrides
+    let resolvedReaderPreferences: ResolvedReaderPreferences
 
     @State private var controller: ReaderScreenController
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
     @State private var thumbnailReloadGeneration: UInt64 = 0
     @State private var presentedSheet: ReaderPresentedSheet?
     @Environment(\.scenePhase) private var scenePhase
+    private let preferencesWriter: (any ReaderPreferenceWriting)?
 
     init(
         comicID: ManagedComicID,
         title: String,
         contentLoader: any ReaderContentLoading,
         progressRecorder: (any ReaderProgressRecording)?,
-        persistedProgress: LibraryReadingProgress?
+        persistedProgress: LibraryReadingProgress?,
+        readerOverrides: ComicReaderOverrides = .none,
+        resolvedReaderPreferences: ResolvedReaderPreferences = .default,
+        preferencesWriter: (any ReaderPreferenceWriting)? = nil
     ) {
+        self.comicID = comicID
         self.title = title
+        self.readerOverrides = readerOverrides
+        self.resolvedReaderPreferences = resolvedReaderPreferences
+        self.preferencesWriter = preferencesWriter
         _controller = State(
             initialValue: ReaderScreenController(
                 comicID: comicID,
                 contentLoader: contentLoader,
                 progressRecorder: progressRecorder,
-                persistedProgress: persistedProgress
+                persistedProgress: persistedProgress,
+                resolvedReaderPreferences: resolvedReaderPreferences
             )
         )
         _presentedSheet = State(initialValue: nil)
@@ -82,6 +94,12 @@ struct ReaderScreen: View {
 
             visibleAssetSnapshot = .empty
             presentedSheet = nil
+        }
+        .onChange(
+            of: resolvedReaderPreferences,
+            initial: true
+        ) { _, preferences in
+            _ = controller.applyResolvedReaderPreferences(preferences)
         }
         .onDisappear {
             visibleAssetSnapshot = .empty
@@ -180,6 +198,7 @@ struct ReaderScreen: View {
                     onVisiblePresentationChanged: {
                         controller.setVisiblePresentationID($0)
                     },
+                    tapAreas: controller.resolvedReaderPreferences.tapAreas,
                     isTapInteractionBlocked: presentedSheet != nil,
                     onTapAction: handleTapAction,
                     visibleAssetSnapshot: $visibleAssetSnapshot
@@ -221,7 +240,7 @@ struct ReaderScreen: View {
     @ToolbarContentBuilder
     private var readerControlsToolbar: some ToolbarContent {
         if controlsAreVisible,
-           let sessionController = controller.sessionController {
+           controller.sessionController != nil {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     presentChapterList()
@@ -240,9 +259,9 @@ struct ReaderScreen: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 ReaderControlsMenu(
-                    selectedMode: sessionController.session.readingMode,
-                    selectedDirection: sessionController.session.readingDirection,
-                    controller: controller
+                    overrides: readerOverrides,
+                    onSelectMode: setReadingModeOverride,
+                    onSelectDirection: setReadingDirectionOverride
                 )
             }
         }
@@ -356,6 +375,32 @@ struct ReaderScreen: View {
 
         presentedSheet = .chapters
     }
+
+    private func setReadingModeOverride(_ mode: ReadingMode?) {
+        guard let preferencesWriter else {
+            return
+        }
+
+        Task { @MainActor in
+            _ = await preferencesWriter.setReadingModeOverride(
+                mode,
+                for: comicID
+            )
+        }
+    }
+
+    private func setReadingDirectionOverride(_ direction: ReadingDirection?) {
+        guard let preferencesWriter else {
+            return
+        }
+
+        Task { @MainActor in
+            _ = await preferencesWriter.setReadingDirectionOverride(
+                direction,
+                for: comicID
+            )
+        }
+    }
 }
 
 private enum ReaderPresentedSheet: String, Identifiable {
@@ -384,44 +429,74 @@ private struct ReaderControlsRevealButton: View {
 
 @MainActor
 private struct ReaderControlsMenu: View {
-    let selectedMode: ReadingMode
-    let selectedDirection: ReadingDirection
-    let controller: ReaderScreenController
+    let overrides: ComicReaderOverrides
+    let onSelectMode: (ReadingMode?) -> Void
+    let onSelectDirection: (ReadingDirection?) -> Void
 
     var body: some View {
         Menu {
             Section("reader.controls.mode") {
+                Button {
+                    onSelectMode(nil)
+                } label: {
+                    ReaderControlOptionLabel(
+                        title: "reader.controls.followGlobal",
+                        isSelected: overrides.readingMode == nil
+                    )
+                }
+                .accessibilityIdentifier("reader.controls.mode.followGlobal")
+                .accessibilityAddTraits(
+                    overrides.readingMode == nil ? .isSelected : []
+                )
+
                 ForEach(ReadingMode.allCases, id: \.rawValue) { mode in
                     Button {
-                        _ = controller.setReadingMode(mode)
+                        onSelectMode(mode)
                     } label: {
                         ReaderControlOptionLabel(
                             title: mode.controlTitle,
-                            isSelected: selectedMode == mode
+                            isSelected: overrides.readingMode == mode
                         )
                     }
                     .accessibilityIdentifier(mode.accessibilityIdentifier)
                     .accessibilityLabel(mode.controlTitle)
                     .accessibilityAddTraits(
-                        selectedMode == mode ? .isSelected : []
+                        overrides.readingMode == mode ? .isSelected : []
                     )
                 }
             }
 
             Section("reader.controls.direction") {
+                Button {
+                    onSelectDirection(nil)
+                } label: {
+                    ReaderControlOptionLabel(
+                        title: "reader.controls.followGlobal",
+                        isSelected: overrides.readingDirection == nil
+                    )
+                }
+                .accessibilityIdentifier(
+                    "reader.controls.direction.followGlobal"
+                )
+                .accessibilityAddTraits(
+                    overrides.readingDirection == nil ? .isSelected : []
+                )
+
                 ForEach(ReadingDirection.allCases, id: \.rawValue) { direction in
                     Button {
-                        _ = controller.setReadingDirection(direction)
+                        onSelectDirection(direction)
                     } label: {
                         ReaderControlOptionLabel(
                             title: direction.controlTitle,
-                            isSelected: selectedDirection == direction
+                            isSelected: overrides.readingDirection == direction
                         )
                     }
                     .accessibilityIdentifier(direction.accessibilityIdentifier)
                     .accessibilityLabel(direction.controlTitle)
                     .accessibilityAddTraits(
-                        selectedDirection == direction ? .isSelected : []
+                        overrides.readingDirection == direction
+                            ? .isSelected
+                            : []
                     )
                 }
             }
@@ -622,7 +697,7 @@ private struct ReaderChapterListView: View {
     }
 }
 
-private extension ReadingMode {
+extension ReadingMode {
     var controlTitle: LocalizedStringKey {
         switch self {
         case .continuous:
@@ -639,7 +714,7 @@ private extension ReadingMode {
     }
 }
 
-private extension ReadingDirection {
+extension ReadingDirection {
     var controlTitle: LocalizedStringKey {
         switch self {
         case .leftToRight:

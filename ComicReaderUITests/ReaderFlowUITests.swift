@@ -144,6 +144,12 @@ final class ReaderFlowUITests: XCTestCase {
         let option = element(mode.accessibilityIdentifier, in: app)
         XCTAssertTrue(waitUntilHittable(option))
         option.tap()
+
+        XCTAssertTrue(waitUntilHittable(menu))
+        menu.tap()
+        let selectedOption = element(mode.accessibilityIdentifier, in: app)
+        XCTAssertTrue(waitUntilSelected(selectedOption))
+        selectedOption.tap()
     }
 
     private func selectDirection(
@@ -157,6 +163,15 @@ final class ReaderFlowUITests: XCTestCase {
         let option = element(direction.accessibilityIdentifier, in: app)
         XCTAssertTrue(waitUntilHittable(option))
         option.tap()
+
+        XCTAssertTrue(waitUntilHittable(menu))
+        menu.tap()
+        let selectedOption = element(
+            direction.accessibilityIdentifier,
+            in: app
+        )
+        XCTAssertTrue(waitUntilSelected(selectedOption))
+        selectedOption.tap()
     }
 
     private func tap(horizontalOffset: CGFloat, on element: XCUIElement) {
@@ -205,6 +220,20 @@ final class ReaderFlowUITests: XCTestCase {
             predicate: NSPredicate(
                 format: "exists == true AND hittable == true"
             ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func waitUntilSelected(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 8
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                element.exists && element.isSelected
+            },
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)

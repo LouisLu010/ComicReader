@@ -391,8 +391,10 @@ final class ReaderSessionTests: XCTestCase {
         )
         let initialPosition = session.position
 
-        session.setReadingMode(.spread)
-        session.setReadingDirection(.rightToLeft)
+        session.setReadingPreferences(
+            mode: .spread,
+            direction: .rightToLeft
+        )
 
         let firstPresentation = try XCTUnwrap(
             session.layout.presentations.first

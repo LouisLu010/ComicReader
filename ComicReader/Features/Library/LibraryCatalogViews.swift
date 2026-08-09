@@ -149,7 +149,13 @@ struct ComicDetailView: View {
                     title: comic.record.displayName,
                     contentLoader: readerFeatureServices.contentLoader,
                     progressRecorder: libraryState,
-                    persistedProgress: readingProgress
+                    persistedProgress: readingProgress,
+                    readerOverrides: libraryState.readerOverrides(
+                        for: comic.id
+                    ),
+                    resolvedReaderPreferences: libraryState
+                        .resolvedReaderPreferences(for: comic.id),
+                    preferencesWriter: libraryState
                 )
             } label: {
                 Label(readingActionTitle, systemImage: "book.pages")

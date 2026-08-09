@@ -10,6 +10,21 @@ protocol ReaderProgressRecording: AnyObject {
     ) async -> Bool
 }
 
+@MainActor
+protocol ReaderPreferenceWriting: AnyObject {
+    @discardableResult
+    func setReadingModeOverride(
+        _ readingMode: ReadingMode?,
+        for comicID: ManagedComicID
+    ) async -> Bool
+
+    @discardableResult
+    func setReadingDirectionOverride(
+        _ readingDirection: ReadingDirection?,
+        for comicID: ManagedComicID
+    ) async -> Bool
+}
+
 enum ReaderProgressPersistenceState: Equatable, Sendable {
     case idle
     case scheduled
@@ -93,14 +108,11 @@ final class ReaderSessionController {
         return true
     }
 
-    func setReadingMode(_ mode: ReadingMode) {
-        session.setReadingMode(mode)
-        queueProgressPersistence()
-    }
-
-    func setReadingDirection(_ direction: ReadingDirection) {
-        session.setReadingDirection(direction)
-        queueProgressPersistence()
+    func setReadingPreferences(
+        mode: ReadingMode,
+        direction: ReadingDirection
+    ) {
+        session.setReadingPreferences(mode: mode, direction: direction)
     }
 
     func toggleControls() {
@@ -204,7 +216,7 @@ final class ReaderSessionController {
         persistedProgress: LibraryReadingProgress?
     ) -> Bool {
         guard let persistedProgress else {
-            // 首次打开也需要保存可恢复的位置与当前阅读偏好。
+            // 首次打开也需要保存可恢复的位置。
             return true
         }
 
@@ -312,4 +324,4 @@ final class ReaderSessionController {
     }
 }
 
-extension LibraryStateRepository: ReaderProgressRecording {}
+extension LibraryStateRepository: ReaderPreferenceWriting, ReaderProgressRecording {}

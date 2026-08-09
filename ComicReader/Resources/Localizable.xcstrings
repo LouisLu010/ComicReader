@@ -1057,6 +1057,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从右到左" } }
       }
     },
+    "reader.controls.followGlobal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow Global Settings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随全局设置" } }
+      }
+    },
     "reader.controls.menu" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Reader Controls" } },
@@ -1091,6 +1097,18 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Two-Page Spread" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "双页" } }
+      }
+    },
+    "reader.tapAction.automatic" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Based on Reading Direction" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "随阅读方向" } }
+      }
+    },
+    "reader.tapAction.disabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } }
       }
     },
     "reader.error.invalid.description" : {
@@ -1305,6 +1323,54 @@
             "value" : "隐私"
           }
         }
+      }
+    },
+    "settings.reader.defaultDirection" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Reading Direction" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认阅读方向" } }
+      }
+    },
+    "settings.reader.defaultMode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Reading Mode" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认阅读模式" } }
+      }
+    },
+    "settings.reader.defaults.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comics that follow global settings use these defaults." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择“跟随全局设置”的漫画会使用这些默认值。" } }
+      }
+    },
+    "settings.reader.section" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Defaults" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读默认设置" } }
+      }
+    },
+    "settings.reader.tapArea.left" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Left-Side Tap" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "左侧点击" } }
+      }
+    },
+    "settings.reader.tapArea.right" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Right-Side Tap" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "右侧点击" } }
+      }
+    },
+    "settings.reader.tapAreas.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose what tapping the left or right side does. Page actions are ignored in Continuous mode." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择点击阅读页左侧或右侧时执行的操作；连续滚动模式会忽略翻页操作。" } }
+      }
+    },
+    "settings.reader.tapAreas.section" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap Areas" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击区域" } }
       }
     },
     "settings.title" : {
