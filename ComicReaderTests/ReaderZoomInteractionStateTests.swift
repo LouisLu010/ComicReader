@@ -213,6 +213,31 @@ final class ReaderZoomInteractionStateTests: XCTestCase {
         }
     }
 
+    func testTranslationTreatsFloatingPointBoundaryRemainderAsNoMovement() {
+        let viewportWidth: CGFloat = 982
+        var state = ReaderZoomInteractionState(
+            committedScale: 1.5,
+            viewportSize: CGSize(width: viewportWidth, height: 1_366),
+            contentSize: CGSize(width: viewportWidth, height: 1_366)
+        )
+        let translation = CGSize(width: -viewportWidth / 4, height: 0)
+
+        XCTAssertTrue(state.translate(by: translation))
+        let boundaryOffset = state.offset
+
+        XCTAssertFalse(state.translate(by: translation))
+        XCTAssertEqual(state.offset, boundaryOffset)
+    }
+
+    func testSubpointTranslationBelowToleranceIsNoMovement() {
+        var state = makeState(scale: 1.5)
+
+        XCTAssertFalse(
+            state.translate(by: CGSize(width: 0.000_000_1, height: 0))
+        )
+        XCTAssertEqual(state.offset, .zero)
+    }
+
     func testGeometryChangeReclampsOffsetAfterRotation() {
         var state = ReaderZoomInteractionState(
             committedScale: 2,

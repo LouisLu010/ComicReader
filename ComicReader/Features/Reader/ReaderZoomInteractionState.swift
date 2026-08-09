@@ -4,6 +4,7 @@ struct ReaderZoomInteractionState: Equatable, Sendable {
     static let minimumScale = ReadingPosition.minimumZoomScale
     static let maximumScale = ReadingPosition.maximumZoomScale
     static let doubleTapScale = 2.0
+    private static let offsetChangeTolerance: CGFloat = 0.000_001
 
     private(set) var committedScale: Double
     private(set) var transientMagnification: Double
@@ -117,7 +118,16 @@ struct ReaderZoomInteractionState: Equatable, Sendable {
             x: Self.addingFinite(offset.x, translation.width),
             y: Self.addingFinite(offset.y, translation.height)
         ))
-        return offset != previousOffset
+        let resolvedOffset = offset
+        guard abs(resolvedOffset.x - previousOffset.x)
+                > Self.offsetChangeTolerance
+                || abs(resolvedOffset.y - previousOffset.y)
+                    > Self.offsetChangeTolerance else {
+            committedOffset = previousOffset
+            return false
+        }
+
+        return true
     }
 
     mutating func updateGeometry(
