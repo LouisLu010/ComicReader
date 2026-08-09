@@ -14,6 +14,18 @@ struct AppView: View {
             NavigationStack {
                 detail
             }
+            .toolbar {
+                if router.selectedSection != .settings {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            router.selectedSection = .settings
+                        } label: {
+                            Label("settings.title", systemImage: "gearshape")
+                        }
+                        .accessibilityIdentifier("app.settings")
+                    }
+                }
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .fileImporter(
@@ -35,18 +47,6 @@ struct AppView: View {
             }
         )
         .focusedSceneValue(\.importFoldersCommand, importFoldersCommand)
-        .toolbar {
-            if router.selectedSection != .settings {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        router.selectedSection = .settings
-                    } label: {
-                        Label("settings.title", systemImage: "gearshape")
-                    }
-                    .accessibilityIdentifier("app.settings")
-                }
-            }
-        }
     }
 
     private var sidebar: some View {
