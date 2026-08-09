@@ -64,6 +64,7 @@ struct ReaderScreen: View {
                             alignment: .bottomTrailing
                         )
                         .padding()
+                        .zIndex(2)
                 }
             }
             .onChange(of: proxy.size, initial: true) { _, size in

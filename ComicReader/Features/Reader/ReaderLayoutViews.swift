@@ -114,6 +114,7 @@ struct ReaderContentView: View {
                     )
                 }
                 .padding()
+                .zIndex(2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
