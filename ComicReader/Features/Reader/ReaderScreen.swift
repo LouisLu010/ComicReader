@@ -189,7 +189,6 @@ struct ReaderScreen: View {
         } message: {
             Text("reader.preferences.saveFailed.message")
         }
-        .accessibilityIdentifier("reader.screen")
     }
 
     @ViewBuilder

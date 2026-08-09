@@ -70,7 +70,7 @@ final class ReaderFlowUITests: XCTestCase {
         selectMode(.singlePage, in: app)
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
-        let tapSurface = readerScreen(in: app)
+        let tapSurface = singlePageSurface(in: app)
         tap(horizontalOffset: 0.9, on: tapSurface)
         XCTAssertTrue(waitForCurrentPage("2/5", in: app))
 
@@ -81,7 +81,9 @@ final class ReaderFlowUITests: XCTestCase {
 
     func testReaderTapAreasToggleControls() {
         let app = launchReaderFixture()
-        let tapSurface = readerScreen(in: app)
+        selectMode(.singlePage, in: app)
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        let tapSurface = singlePageSurface(in: app)
         let menu = app.buttons["reader.controls.menu"]
         let reveal = app.buttons["reader.controls.reveal"]
 
@@ -102,7 +104,7 @@ final class ReaderFlowUITests: XCTestCase {
         selectMode(.singlePage, in: app)
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
 
-        let tapSurface = readerScreen(in: app)
+        let tapSurface = singlePageSurface(in: app)
         doubleTap(horizontalOffset: 0.9, on: tapSurface)
 
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
@@ -129,7 +131,6 @@ final class ReaderFlowUITests: XCTestCase {
         let readButton = app.buttons["library.read"]
         XCTAssertTrue(waitUntilHittable(readButton))
         readButton.tap()
-        XCTAssertTrue(readerScreen(in: app).waitForExistence(timeout: 8))
         XCTAssertTrue(waitForCurrentPage("1/5", in: app))
         return app
     }
@@ -238,12 +239,12 @@ final class ReaderFlowUITests: XCTestCase {
             == .completed
     }
 
-    private func readerScreen(in app: XCUIApplication) -> XCUIElement {
-        let screens = app.otherElements.matching(identifier: "reader.screen")
-        let screen = screens.element
-        XCTAssertTrue(screen.waitForExistence(timeout: 8))
-        XCTAssertEqual(screens.count, 1)
-        return screen
+    private func singlePageSurface(in app: XCUIApplication) -> XCUIElement {
+        let surfaces = app.scrollViews.matching(identifier: "reader.singlePage")
+        let surface = surfaces.element
+        XCTAssertTrue(surface.waitForExistence(timeout: 8))
+        XCTAssertEqual(surfaces.count, 1)
+        return surface
     }
 
     private func element(
