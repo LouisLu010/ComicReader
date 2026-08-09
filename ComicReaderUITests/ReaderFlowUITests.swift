@@ -206,28 +206,55 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
+        let pageImageIdentifier = "reader.page.image.ui-chapter-one-page-one"
+        let pageImages = app.descendants(matching: .any).matching(
+            identifier: pageImageIdentifier
+        )
+        let pageImage = pageImages.element
+        XCTAssertTrue(pageImage.waitForExistence(timeout: 5))
+        XCTAssertEqual(pageImages.count, 1)
+        XCTAssertTrue(waitForFrame(of: pageImage) { _ in true })
+        let centeredFrame = pageImage.frame
+        let movementTolerance: CGFloat = 4
+
         panLeft.tap()
-        XCTAssertTrue(waitUntilDisabled(panLeft))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            frame.midX < centeredFrame.midX - movementTolerance
+        })
         XCTAssertTrue(waitUntilEnabled(panRight))
 
         panRight.tap()
-        XCTAssertTrue(waitUntilEnabled(panLeft))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            abs(frame.midX - centeredFrame.midX) <= movementTolerance
+        })
         panRight.tap()
-        XCTAssertTrue(waitUntilDisabled(panRight))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            frame.midX > centeredFrame.midX + movementTolerance
+        })
         XCTAssertTrue(waitUntilEnabled(panLeft))
         panLeft.tap()
-        XCTAssertTrue(waitUntilEnabled(panRight))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            abs(frame.midX - centeredFrame.midX) <= movementTolerance
+        })
 
         panUp.tap()
-        XCTAssertTrue(waitUntilDisabled(panUp))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            frame.midY < centeredFrame.midY - movementTolerance
+        })
         XCTAssertTrue(waitUntilEnabled(panDown))
         panDown.tap()
-        XCTAssertTrue(waitUntilEnabled(panUp))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            abs(frame.midY - centeredFrame.midY) <= movementTolerance
+        })
         panDown.tap()
-        XCTAssertTrue(waitUntilDisabled(panDown))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            frame.midY > centeredFrame.midY + movementTolerance
+        })
         XCTAssertTrue(waitUntilEnabled(panUp))
         panUp.tap()
-        XCTAssertTrue(waitUntilEnabled(panDown))
+        XCTAssertTrue(waitForFrame(of: pageImage) { frame in
+            abs(frame.midY - centeredFrame.midY) <= movementTolerance
+        })
         XCTAssertTrue(valueRemains("2/5", of: currentPage(in: app)))
 
         XCTAssertTrue(waitUntilEnabled(zoomOut))
@@ -418,6 +445,36 @@ final class ReaderFlowUITests: XCTestCase {
             predicate: NSPredicate(
                 format: "exists == true AND enabled == false"
             ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func waitForFrame(
+        of element: XCUIElement,
+        timeout: TimeInterval = 5,
+        satisfying condition: @escaping (CGRect) -> Bool
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let element = object as? XCUIElement,
+                      element.exists else {
+                    return false
+                }
+
+                let frame = element.frame
+                guard frame.origin.x.isFinite,
+                      frame.origin.y.isFinite,
+                      frame.width.isFinite,
+                      frame.height.isFinite,
+                      frame.width > 0,
+                      frame.height > 0 else {
+                    return false
+                }
+
+                return condition(frame)
+            },
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)
