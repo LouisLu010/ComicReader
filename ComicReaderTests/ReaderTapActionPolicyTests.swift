@@ -69,6 +69,82 @@ final class ReaderTapActionPolicyTests: XCTestCase {
         )
     }
 
+    func testExplicitSideActionsDoNotMirrorWithReadingDirection() {
+        let tapAreas = ReaderTapAreaPreferences(
+            leftAction: .nextPage,
+            rightAction: .previousPage
+        )
+
+        XCTAssertEqual(
+            ReaderTapActionPolicy.action(
+                horizontalFraction: 0,
+                readingMode: .singlePage,
+                readingDirection: .rightToLeft,
+                tapAreas: tapAreas,
+                isZoomed: false,
+                isInteractionBlocked: false
+            ),
+            .movePage(.forward)
+        )
+        XCTAssertEqual(
+            ReaderTapActionPolicy.action(
+                horizontalFraction: 1,
+                readingMode: .singlePage,
+                readingDirection: .rightToLeft,
+                tapAreas: tapAreas,
+                isZoomed: false,
+                isInteractionBlocked: false
+            ),
+            .movePage(.backward)
+        )
+    }
+
+    func testDisabledSideActionIgnoresOnlyItsPhysicalRegion() {
+        let tapAreas = ReaderTapAreaPreferences(
+            leftAction: .disabled,
+            rightAction: .automatic
+        )
+
+        XCTAssertEqual(
+            ReaderTapActionPolicy.action(
+                horizontalFraction: 0,
+                readingMode: .singlePage,
+                readingDirection: .leftToRight,
+                tapAreas: tapAreas,
+                isZoomed: false,
+                isInteractionBlocked: false
+            ),
+            .ignore
+        )
+        XCTAssertEqual(
+            ReaderTapActionPolicy.action(
+                horizontalFraction: 1,
+                readingMode: .singlePage,
+                readingDirection: .leftToRight,
+                tapAreas: tapAreas,
+                isZoomed: false,
+                isInteractionBlocked: false
+            ),
+            .movePage(.forward)
+        )
+    }
+
+    func testSideCanBeConfiguredToToggleControlsInContinuousMode() {
+        let action = ReaderTapActionPolicy.action(
+            horizontalFraction: 0,
+            readingMode: .continuous,
+            readingDirection: .leftToRight,
+            tapAreas: ReaderTapAreaPreferences(
+                leftAction: .toggleControls,
+                rightAction: .automatic
+            ),
+            isZoomed: false,
+            isInteractionBlocked: false
+        )
+
+        XCTAssertEqual(action, .toggleControls)
+    }
+
     func testCenterRegionTogglesControlsAtItsLowerBoundary() {
         XCTAssertEqual(
             action(horizontalFraction: 1.0 / 3.0),

@@ -35,6 +35,7 @@ enum ReaderTapActionPolicy {
         horizontalFraction: Double,
         readingMode: ReadingMode,
         readingDirection: ReadingDirection,
+        tapAreas: ReaderTapAreaPreferences = .default,
         isZoomed: Bool,
         isInteractionBlocked: Bool
     ) -> ReaderTapAction {
@@ -47,27 +48,60 @@ enum ReaderTapActionPolicy {
 
         let leadingBoundary = 1.0 / 3.0
         let trailingBoundary = 2.0 / 3.0
-        let arrow: ReaderKeyboardArrow
-
         switch horizontalFraction {
         case ..<leadingBoundary:
-            arrow = .left
+            return action(
+                for: tapAreas.leftAction,
+                arrow: .left,
+                readingMode: readingMode,
+                readingDirection: readingDirection
+            )
         case ..<trailingBoundary:
             return .toggleControls
         default:
-            arrow = .right
+            return action(
+                for: tapAreas.rightAction,
+                arrow: .right,
+                readingMode: readingMode,
+                readingDirection: readingDirection
+            )
+        }
+    }
+
+    private static func action(
+        for tapAction: ReaderTapZoneAction,
+        arrow: ReaderKeyboardArrow,
+        readingMode: ReadingMode,
+        readingDirection: ReadingDirection
+    ) -> ReaderTapAction {
+        switch tapAction {
+        case .toggleControls:
+            return .toggleControls
+        case .disabled:
+            return .ignore
+        case .automatic, .previousPage, .nextPage:
+            break
         }
 
         guard readingMode != .continuous else {
             return .ignore
         }
 
-        return .movePage(
-            ReaderKeyboardNavigationPolicy.logicalStep(
-                for: arrow,
-                readingDirection: readingDirection
+        switch tapAction {
+        case .automatic:
+            return .movePage(
+                ReaderKeyboardNavigationPolicy.logicalStep(
+                    for: arrow,
+                    readingDirection: readingDirection
+                )
             )
-        )
+        case .previousPage:
+            return .movePage(.backward)
+        case .nextPage:
+            return .movePage(.forward)
+        case .toggleControls, .disabled:
+            return .ignore
+        }
     }
 }
 
