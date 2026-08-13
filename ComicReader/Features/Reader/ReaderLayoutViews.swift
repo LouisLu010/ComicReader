@@ -82,41 +82,40 @@ struct ReaderContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            readerContent
-                .contentShape(Rectangle())
-                .simultaneousGesture(magnificationGesture)
-                .simultaneousGesture(panGesture)
-                .simultaneousGesture(
-                    tapGesture,
-                    including: contentTapGestureMask
-                )
+        readerContent
+            .contentShape(Rectangle())
+            .simultaneousGesture(magnificationGesture)
+            .simultaneousGesture(panGesture)
+            .simultaneousGesture(
+                tapGesture,
+                including: contentTapGestureMask
+            )
+            .overlay(alignment: .topLeading) {
+                if controlsAreVisible, activeZoomPresentationID != nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ReaderZoomControls(
+                            value: zoomAccessibilityValue,
+                            canZoomOut: canZoomOut,
+                            canZoomIn: canZoomIn,
+                            onZoomOut: { adjustZoom(by: -0.5) },
+                            onZoomIn: { adjustZoom(by: 0.5) }
+                        )
 
-            if controlsAreVisible, activeZoomPresentationID != nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    ReaderZoomControls(
-                        value: zoomAccessibilityValue,
-                        canZoomOut: canZoomOut,
-                        canZoomIn: canZoomIn,
-                        onZoomOut: { adjustZoom(by: -0.5) },
-                        onZoomIn: { adjustZoom(by: 0.5) }
-                    )
-
-                    ReaderPanControls(
-                        canMoveLeft: canPan(by: panLeftTranslation),
-                        canMoveRight: canPan(by: panRightTranslation),
-                        canMoveUp: canPan(by: panUpTranslation),
-                        canMoveDown: canPan(by: panDownTranslation),
-                        onMoveLeft: { pan(by: panLeftTranslation) },
-                        onMoveRight: { pan(by: panRightTranslation) },
-                        onMoveUp: { pan(by: panUpTranslation) },
-                        onMoveDown: { pan(by: panDownTranslation) }
-                    )
+                        ReaderPanControls(
+                            canMoveLeft: canPan(by: panLeftTranslation),
+                            canMoveRight: canPan(by: panRightTranslation),
+                            canMoveUp: canPan(by: panUpTranslation),
+                            canMoveDown: canPan(by: panDownTranslation),
+                            onMoveLeft: { pan(by: panLeftTranslation) },
+                            onMoveRight: { pan(by: panRightTranslation) },
+                            onMoveUp: { pan(by: panUpTranslation) },
+                            onMoveDown: { pan(by: panDownTranslation) }
+                        )
+                    }
+                    .padding()
+                    .contentShape(Rectangle())
                 }
-                .padding()
-                .zIndex(2)
             }
-        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: viewportSize, initial: true) { _, size in
             zoomState.updateGeometry(
