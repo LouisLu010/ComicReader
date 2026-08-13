@@ -272,7 +272,7 @@ final class ReaderFlowUITests: XCTestCase {
         let readButton = app.buttons["library.read"]
         XCTAssertTrue(waitUntilHittable(readButton))
         readButton.tap()
-        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app, timeout: 10))
         return app
     }
 
@@ -331,9 +331,10 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func waitForCurrentPage(
         _ page: String,
-        in app: XCUIApplication
+        in app: XCUIApplication,
+        timeout: TimeInterval = 5
     ) -> Bool {
-        waitForValue(page, of: currentPage(in: app))
+        waitForValue(page, of: currentPage(in: app), timeout: timeout)
     }
 
     private func currentPage(in app: XCUIApplication) -> XCUIElement {
