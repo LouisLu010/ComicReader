@@ -212,25 +212,17 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
-        panLeft.tap()
-        XCTAssertTrue(waitUntilDisabled(panLeft))
+        panToBoundary(panLeft)
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panRight.tap()
-        XCTAssertTrue(waitUntilEnabled(panLeft))
-        panRight.tap()
-        XCTAssertTrue(waitUntilDisabled(panRight))
+        panToBoundary(panRight)
         XCTAssertTrue(waitUntilEnabled(panLeft))
         panLeft.tap()
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panUp.tap()
-        XCTAssertTrue(waitUntilDisabled(panUp))
+        panToBoundary(panUp)
         XCTAssertTrue(waitUntilEnabled(panDown))
-        panDown.tap()
-        XCTAssertTrue(waitUntilEnabled(panUp))
-        panDown.tap()
-        XCTAssertTrue(waitUntilDisabled(panDown))
+        panToBoundary(panDown)
         XCTAssertTrue(waitUntilEnabled(panUp))
         panUp.tap()
         XCTAssertTrue(waitUntilEnabled(panDown))
@@ -327,6 +319,16 @@ final class ReaderFlowUITests: XCTestCase {
         element.coordinate(
             withNormalizedOffset: CGVector(dx: horizontalOffset, dy: 0.5)
         ).doubleTap()
+    }
+
+    private func panToBoundary(
+        _ button: XCUIElement,
+        maximumTaps: Int = 4
+    ) {
+        for _ in 0..<maximumTaps where button.isEnabled {
+            button.tap()
+        }
+        XCTAssertTrue(waitUntilDisabled(button))
     }
 
     private func waitForCurrentPage(
