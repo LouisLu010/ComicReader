@@ -212,17 +212,17 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
-        panToBoundary(panLeft)
+        panToBoundary(panLeft, requiredTaps: 1)
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panToBoundary(panRight)
+        panToBoundary(panRight, requiredTaps: 2)
         XCTAssertTrue(waitUntilEnabled(panLeft))
         panLeft.tap()
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panToBoundary(panUp)
+        panToBoundary(panUp, requiredTaps: 1)
         XCTAssertTrue(waitUntilEnabled(panDown))
-        panToBoundary(panDown)
+        panToBoundary(panDown, requiredTaps: 2)
         XCTAssertTrue(waitUntilEnabled(panUp))
         panUp.tap()
         XCTAssertTrue(waitUntilEnabled(panDown))
@@ -323,9 +323,10 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func panToBoundary(
         _ button: XCUIElement,
-        maximumTaps: Int = 4
+        requiredTaps: Int
     ) {
-        for _ in 0..<maximumTaps where button.isEnabled {
+        for _ in 0..<requiredTaps {
+            XCTAssertTrue(waitUntilEnabled(button))
             button.tap()
         }
         XCTAssertTrue(waitUntilDisabled(button))
