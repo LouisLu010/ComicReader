@@ -229,8 +229,16 @@ final class ReaderFlowUITests: XCTestCase {
                 + "\(elementValue(of: zoomValue))"
         )
         XCTAssertTrue(
-            elementValue(of: panDiagnostics).contains(";count=1;"),
-            "Pan action state was not retained: initial="
+            elementValue(of: panDiagnostics).contains(
+                ";referenceCount=1;"
+            ),
+            "Pan button action was not delivered: initial="
+                + "\(initialPanDiagnostics); current="
+                + "\(elementValue(of: panDiagnostics))"
+        )
+        XCTAssertTrue(
+            elementValue(of: panDiagnostics).contains(";stateCount=1;"),
+            "Pan action local state was not retained: initial="
                 + "\(initialPanDiagnostics); current="
                 + "\(elementValue(of: panDiagnostics))"
         )

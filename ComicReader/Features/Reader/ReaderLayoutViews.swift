@@ -23,7 +23,7 @@ struct ReaderContentView: View {
     @State private var continuousRestoreGeneration = 0
     @State private var zoomState: ReaderZoomInteractionState
 #if DEBUG
-    @State private var panActionCount = 0
+    @State private var panDiagnosticsStateCount = 0
     @State private var diagnosticsIdentity = UUID()
 #endif
     @GestureState private var gestureMagnification = 1.0
@@ -619,7 +619,8 @@ struct ReaderContentView: View {
     private func pan(by translation: CGSize) {
 #if DEBUG
         if panDiagnosticsValue != nil {
-            panActionCount += 1
+            sessionController.recordPanDiagnosticsAction()
+            panDiagnosticsStateCount += 1
         }
 #endif
         guard activeZoomPresentationID != nil, isZoomed else {
@@ -643,7 +644,9 @@ struct ReaderContentView: View {
         let offset = zoomState.offset
         let position = sessionController.session.position
         return "generation=\(diagnosticsIdentity.uuidString)"
-            + ";count=\(panActionCount)"
+            + ";referenceCount="
+            + "\(sessionController.panDiagnosticsActionCount)"
+            + ";stateCount=\(panDiagnosticsStateCount)"
             + ";offset=\(offset.x),\(offset.y)"
             + ";scale=\(zoomState.committedScale)"
             + ";location=\(String(describing: position.location))"
@@ -806,39 +809,55 @@ private struct ReaderPanControls: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button(action: onMoveLeft) {
-                Label("reader.pan.left", systemImage: "arrow.left")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(!canMoveLeft)
-            .accessibilityIdentifier("reader.pan.left")
-
-            Button(action: onMoveRight) {
-                Label("reader.pan.right", systemImage: "arrow.right")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(!canMoveRight)
-            .accessibilityIdentifier("reader.pan.right")
-
-            Button(action: onMoveUp) {
-                Label("reader.pan.up", systemImage: "arrow.up")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(!canMoveUp)
-            .accessibilityIdentifier("reader.pan.up")
-
-            Button(action: onMoveDown) {
-                Label("reader.pan.down", systemImage: "arrow.down")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(!canMoveDown)
-            .accessibilityIdentifier("reader.pan.down")
+            panButton(
+                "reader.pan.left",
+                identifier: "reader.pan.left",
+                systemImage: "arrow.left",
+                isEnabled: canMoveLeft,
+                action: onMoveLeft
+            )
+            panButton(
+                "reader.pan.right",
+                identifier: "reader.pan.right",
+                systemImage: "arrow.right",
+                isEnabled: canMoveRight,
+                action: onMoveRight
+            )
+            panButton(
+                "reader.pan.up",
+                identifier: "reader.pan.up",
+                systemImage: "arrow.up",
+                isEnabled: canMoveUp,
+                action: onMoveUp
+            )
+            panButton(
+                "reader.pan.down",
+                identifier: "reader.pan.down",
+                systemImage: "arrow.down",
+                isEnabled: canMoveDown,
+                action: onMoveDown
+            )
         }
         .buttonStyle(.bordered)
         .padding(8)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
         .accessibilityElement(children: .contain)
+    }
+
+    private func panButton(
+        _ title: LocalizedStringKey,
+        identifier: String,
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+        }
+        .disabled(!isEnabled)
+        .accessibilityIdentifier(identifier)
     }
 }
 
