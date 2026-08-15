@@ -39,7 +39,7 @@ final class ReaderSessionController {
     private(set) var session: ReaderSession
     private(set) var progressPersistenceState: ReaderProgressPersistenceState
 #if DEBUG
-    private(set) var panDiagnosticsActionCount = 0
+    @ObservationIgnored private(set) var panDiagnosticsActionCount = 0
 #endif
 
     @ObservationIgnored private let recorder: (any ReaderProgressRecording)?

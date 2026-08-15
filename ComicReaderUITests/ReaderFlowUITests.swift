@@ -217,6 +217,9 @@ final class ReaderFlowUITests: XCTestCase {
         let initialPanDiagnostics = elementValue(of: panDiagnostics)
         XCTAssertFalse(initialPanDiagnostics.isEmpty)
         panLeft.tap()
+
+        zoomIn.tap()
+        XCTAssertTrue(waitForValue("200%", of: zoomValue))
         XCTAssertTrue(
             waitForValueChange(
                 from: initialPanDiagnostics,
@@ -242,6 +245,9 @@ final class ReaderFlowUITests: XCTestCase {
                 + "\(initialPanDiagnostics); current="
                 + "\(elementValue(of: panDiagnostics))"
         )
+
+        zoomOut.tap()
+        XCTAssertTrue(waitForValue("150%", of: zoomValue))
         XCTAssertTrue(
             waitUntilDisabled(panLeft),
             "Pan offset did not reach its boundary: "
