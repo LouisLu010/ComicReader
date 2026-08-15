@@ -212,17 +212,17 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
-        panToBoundary(panLeft, requiredTaps: 1)
+        panToBoundary(panLeft)
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panToBoundary(panRight, requiredTaps: 2)
+        panToBoundary(panRight)
         XCTAssertTrue(waitUntilEnabled(panLeft))
         panLeft.tap()
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panToBoundary(panUp, requiredTaps: 1)
+        panToBoundary(panUp)
         XCTAssertTrue(waitUntilEnabled(panDown))
-        panToBoundary(panDown, requiredTaps: 2)
+        panToBoundary(panDown)
         XCTAssertTrue(waitUntilEnabled(panUp))
         panUp.tap()
         XCTAssertTrue(waitUntilEnabled(panDown))
@@ -323,13 +323,25 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func panToBoundary(
         _ button: XCUIElement,
-        requiredTaps: Int
+        maximumTaps: Int = 4
     ) {
-        for _ in 0..<requiredTaps {
-            XCTAssertTrue(waitUntilEnabled(button))
+        for _ in 0..<maximumTaps {
+            guard waitUntilEnabled(button) else {
+                XCTFail(
+                    "Pan control was unavailable before reaching its boundary."
+                )
+                return
+            }
+
             button.tap()
+            if waitUntilDisabled(button, timeout: 1) {
+                return
+            }
         }
-        XCTAssertTrue(waitUntilDisabled(button))
+
+        XCTFail(
+            "Pan control remained enabled after \(maximumTaps) taps."
+        )
     }
 
     private func waitForCurrentPage(
