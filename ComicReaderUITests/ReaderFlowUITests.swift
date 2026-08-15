@@ -212,7 +212,33 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
-        panToBoundary(panLeft)
+        let panDiagnostics = element("reader.pan.diagnostics", in: app)
+        XCTAssertTrue(panDiagnostics.waitForExistence(timeout: 5))
+        let initialPanDiagnostics = elementValue(of: panDiagnostics)
+        XCTAssertFalse(initialPanDiagnostics.isEmpty)
+        panLeft.tap()
+        XCTAssertTrue(
+            waitForValueChange(
+                from: initialPanDiagnostics,
+                of: panDiagnostics,
+                timeout: 2
+            ),
+            "Pan diagnostics did not change: initial="
+                + "\(initialPanDiagnostics); current="
+                + "\(elementValue(of: panDiagnostics)); zoom="
+                + "\(elementValue(of: zoomValue))"
+        )
+        XCTAssertTrue(
+            elementValue(of: panDiagnostics).contains(";count=1;"),
+            "Pan action state was not retained: initial="
+                + "\(initialPanDiagnostics); current="
+                + "\(elementValue(of: panDiagnostics))"
+        )
+        XCTAssertTrue(
+            waitUntilDisabled(panLeft),
+            "Pan offset did not reach its boundary: "
+                + elementValue(of: panDiagnostics)
+        )
         XCTAssertTrue(waitUntilEnabled(panRight))
 
         panToBoundary(panRight)
@@ -389,6 +415,26 @@ final class ReaderFlowUITests: XCTestCase {
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)
             == .completed
+    }
+
+    private func waitForValueChange(
+        from value: String,
+        of element: XCUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND value != %@",
+                value
+            ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func elementValue(of element: XCUIElement) -> String {
+        String(describing: element.value ?? "")
     }
 
     private func waitUntilHittable(

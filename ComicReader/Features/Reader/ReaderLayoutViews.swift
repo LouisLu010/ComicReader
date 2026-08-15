@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -21,6 +22,10 @@ struct ReaderContentView: View {
     @State private var continuousRestoreRequest: ReaderContinuousRestoreRequest?
     @State private var continuousRestoreGeneration = 0
     @State private var zoomState: ReaderZoomInteractionState
+#if DEBUG
+    @State private var panActionCount = 0
+    @State private var diagnosticsIdentity = UUID()
+#endif
     @GestureState private var gestureMagnification = 1.0
     @GestureState private var gestureTranslation: CGSize = .zero
     @GestureState private var isMagnifying = false
@@ -114,6 +119,13 @@ struct ReaderContentView: View {
                     }
                     .padding()
                     .contentShape(Rectangle())
+                    .overlay(alignment: .bottomLeading) {
+                        if let panDiagnosticsValue {
+                            ReaderPanDiagnosticsView(
+                                value: panDiagnosticsValue
+                            )
+                        }
+                    }
                 }
             }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -605,6 +617,11 @@ struct ReaderContentView: View {
     }
 
     private func pan(by translation: CGSize) {
+#if DEBUG
+        if panDiagnosticsValue != nil {
+            panActionCount += 1
+        }
+#endif
         guard activeZoomPresentationID != nil, isZoomed else {
             return
         }
@@ -614,6 +631,29 @@ struct ReaderContentView: View {
             return
         }
         zoomState = updatedState
+    }
+
+    private var panDiagnosticsValue: String? {
+#if DEBUG
+        guard UITestFixtureBootstrap.requestedFixture()?.rawValue
+                == "reader-navigation" else {
+            return nil
+        }
+
+        let offset = zoomState.offset
+        let position = sessionController.session.position
+        return "generation=\(diagnosticsIdentity.uuidString)"
+            + ";count=\(panActionCount)"
+            + ";offset=\(offset.x),\(offset.y)"
+            + ";scale=\(zoomState.committedScale)"
+            + ";location=\(String(describing: position.location))"
+            + ";viewport=\(zoomState.viewportSize.width),"
+            + "\(zoomState.viewportSize.height)"
+            + ";content=\(zoomState.contentSize.width),"
+            + "\(zoomState.contentSize.height)"
+#else
+        return nil
+#endif
     }
 
     private func handleSingleTap(at location: CGPoint) {
@@ -815,6 +855,22 @@ private struct ReaderPanControls: View {
         }
         .disabled(!isEnabled)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct ReaderPanDiagnosticsView: View {
+    let value: String
+
+    var body: some View {
+        Text(verbatim: "Pan diagnostics")
+            .font(.system(size: 1))
+            .foregroundStyle(.clear)
+            .frame(width: 1, height: 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "reader.pan.diagnostics"))
+            .accessibilityValue(Text(verbatim: value))
+            .accessibilityIdentifier("reader.pan.diagnostics")
+            .allowsHitTesting(false)
     }
 }
 
