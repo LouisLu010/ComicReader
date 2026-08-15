@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -21,6 +22,10 @@ struct ReaderContentView: View {
     @State private var continuousRestoreRequest: ReaderContinuousRestoreRequest?
     @State private var continuousRestoreGeneration = 0
     @State private var zoomState: ReaderZoomInteractionState
+#if DEBUG
+    @State private var panDiagnosticsStateCount = 0
+    @State private var diagnosticsIdentity = UUID()
+#endif
     @GestureState private var gestureMagnification = 1.0
     @GestureState private var gestureTranslation: CGSize = .zero
     @GestureState private var isMagnifying = false
@@ -82,41 +87,47 @@ struct ReaderContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            readerContent
-                .contentShape(Rectangle())
-                .simultaneousGesture(magnificationGesture)
-                .simultaneousGesture(panGesture)
-                .simultaneousGesture(
-                    tapGesture,
-                    including: contentTapGestureMask
-                )
+        readerContent
+            .contentShape(Rectangle())
+            .simultaneousGesture(magnificationGesture)
+            .simultaneousGesture(panGesture)
+            .simultaneousGesture(
+                tapGesture,
+                including: contentTapGestureMask
+            )
+            .overlay(alignment: .topLeading) {
+                if controlsAreVisible, activeZoomPresentationID != nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ReaderZoomControls(
+                            value: zoomAccessibilityValue,
+                            canZoomOut: canZoomOut,
+                            canZoomIn: canZoomIn,
+                            onZoomOut: { adjustZoom(by: -0.5) },
+                            onZoomIn: { adjustZoom(by: 0.5) }
+                        )
 
-            if controlsAreVisible, activeZoomPresentationID != nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    ReaderZoomControls(
-                        value: zoomAccessibilityValue,
-                        canZoomOut: canZoomOut,
-                        canZoomIn: canZoomIn,
-                        onZoomOut: { adjustZoom(by: -0.5) },
-                        onZoomIn: { adjustZoom(by: 0.5) }
-                    )
-
-                    ReaderPanControls(
-                        canMoveLeft: canPan(by: panLeftTranslation),
-                        canMoveRight: canPan(by: panRightTranslation),
-                        canMoveUp: canPan(by: panUpTranslation),
-                        canMoveDown: canPan(by: panDownTranslation),
-                        onMoveLeft: { pan(by: panLeftTranslation) },
-                        onMoveRight: { pan(by: panRightTranslation) },
-                        onMoveUp: { pan(by: panUpTranslation) },
-                        onMoveDown: { pan(by: panDownTranslation) }
-                    )
+                        ReaderPanControls(
+                            canMoveLeft: canPan(by: panLeftTranslation),
+                            canMoveRight: canPan(by: panRightTranslation),
+                            canMoveUp: canPan(by: panUpTranslation),
+                            canMoveDown: canPan(by: panDownTranslation),
+                            onMoveLeft: { pan(by: panLeftTranslation) },
+                            onMoveRight: { pan(by: panRightTranslation) },
+                            onMoveUp: { pan(by: panUpTranslation) },
+                            onMoveDown: { pan(by: panDownTranslation) }
+                        )
+                    }
+                    .padding()
+                    .contentShape(Rectangle())
+                    .overlay(alignment: .bottomLeading) {
+                        if let panDiagnosticsValue {
+                            ReaderPanDiagnosticsView(
+                                value: panDiagnosticsValue
+                            )
+                        }
+                    }
                 }
-                .padding()
-                .zIndex(2)
             }
-        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: viewportSize, initial: true) { _, size in
             zoomState.updateGeometry(
@@ -606,11 +617,46 @@ struct ReaderContentView: View {
     }
 
     private func pan(by translation: CGSize) {
+#if DEBUG
+        if panDiagnosticsValue != nil {
+            sessionController.recordPanDiagnosticsAction()
+            panDiagnosticsStateCount += 1
+        }
+#endif
         guard activeZoomPresentationID != nil, isZoomed else {
             return
         }
 
-        zoomState.translate(by: translation)
+        var updatedState = zoomState
+        guard updatedState.translate(by: translation) else {
+            return
+        }
+        zoomState = updatedState
+    }
+
+    private var panDiagnosticsValue: String? {
+#if DEBUG
+        guard UITestFixtureBootstrap.requestedFixture()?.rawValue
+                == "reader-navigation" else {
+            return nil
+        }
+
+        let offset = zoomState.offset
+        let position = sessionController.session.position
+        return "generation=\(diagnosticsIdentity.uuidString)"
+            + ";referenceCount="
+            + "\(sessionController.panDiagnosticsActionCount)"
+            + ";stateCount=\(panDiagnosticsStateCount)"
+            + ";offset=\(offset.x),\(offset.y)"
+            + ";scale=\(zoomState.committedScale)"
+            + ";location=\(String(describing: position.location))"
+            + ";viewport=\(zoomState.viewportSize.width),"
+            + "\(zoomState.viewportSize.height)"
+            + ";content=\(zoomState.contentSize.width),"
+            + "\(zoomState.contentSize.height)"
+#else
+        return nil
+#endif
     }
 
     private func handleSingleTap(at location: CGPoint) {
@@ -812,6 +858,22 @@ private struct ReaderPanControls: View {
         }
         .disabled(!isEnabled)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct ReaderPanDiagnosticsView: View {
+    let value: String
+
+    var body: some View {
+        Text(verbatim: "Pan diagnostics")
+            .font(.system(size: 1))
+            .foregroundStyle(.clear)
+            .frame(width: 1, height: 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "reader.pan.diagnostics"))
+            .accessibilityValue(Text(verbatim: value))
+            .accessibilityIdentifier("reader.pan.diagnostics")
+            .allowsHitTesting(false)
     }
 }
 

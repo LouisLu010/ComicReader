@@ -38,6 +38,9 @@ enum ReaderProgressPersistenceState: Equatable, Sendable {
 final class ReaderSessionController {
     private(set) var session: ReaderSession
     private(set) var progressPersistenceState: ReaderProgressPersistenceState
+#if DEBUG
+    @ObservationIgnored private(set) var panDiagnosticsActionCount = 0
+#endif
 
     @ObservationIgnored private let recorder: (any ReaderProgressRecording)?
     @ObservationIgnored private let now: @Sendable () -> Date
@@ -122,6 +125,12 @@ final class ReaderSessionController {
     func toggleControls() {
         session.toggleControls()
     }
+
+#if DEBUG
+    func recordPanDiagnosticsAction() {
+        panDiagnosticsActionCount &+= 1
+    }
+#endif
 
     @discardableResult
     func setZoomScale(_ zoomScale: Double) -> Bool {

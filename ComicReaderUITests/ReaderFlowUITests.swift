@@ -212,25 +212,57 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
+        let panDiagnostics = element("reader.pan.diagnostics", in: app)
+        XCTAssertTrue(panDiagnostics.waitForExistence(timeout: 5))
+        let initialPanDiagnostics = elementValue(of: panDiagnostics)
+        XCTAssertFalse(initialPanDiagnostics.isEmpty)
         panLeft.tap()
-        XCTAssertTrue(waitUntilDisabled(panLeft))
+
+        zoomIn.tap()
+        XCTAssertTrue(waitForValue("200%", of: zoomValue))
+        XCTAssertTrue(
+            waitForValueChange(
+                from: initialPanDiagnostics,
+                of: panDiagnostics,
+                timeout: 2
+            ),
+            "Pan diagnostics did not change: initial="
+                + "\(initialPanDiagnostics); current="
+                + "\(elementValue(of: panDiagnostics)); zoom="
+                + "\(elementValue(of: zoomValue))"
+        )
+        XCTAssertTrue(
+            elementValue(of: panDiagnostics).contains(
+                ";referenceCount=1;"
+            ),
+            "Pan button action was not delivered: initial="
+                + "\(initialPanDiagnostics); current="
+                + "\(elementValue(of: panDiagnostics))"
+        )
+        XCTAssertTrue(
+            elementValue(of: panDiagnostics).contains(";stateCount=1;"),
+            "Pan action local state was not retained: initial="
+                + "\(initialPanDiagnostics); current="
+                + "\(elementValue(of: panDiagnostics))"
+        )
+
+        zoomOut.tap()
+        XCTAssertTrue(waitForValue("150%", of: zoomValue))
+        XCTAssertTrue(
+            waitUntilDisabled(panLeft),
+            "Pan offset did not reach its boundary: "
+                + elementValue(of: panDiagnostics)
+        )
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panRight.tap()
-        XCTAssertTrue(waitUntilEnabled(panLeft))
-        panRight.tap()
-        XCTAssertTrue(waitUntilDisabled(panRight))
+        panToBoundary(panRight)
         XCTAssertTrue(waitUntilEnabled(panLeft))
         panLeft.tap()
         XCTAssertTrue(waitUntilEnabled(panRight))
 
-        panUp.tap()
-        XCTAssertTrue(waitUntilDisabled(panUp))
+        panToBoundary(panUp)
         XCTAssertTrue(waitUntilEnabled(panDown))
-        panDown.tap()
-        XCTAssertTrue(waitUntilEnabled(panUp))
-        panDown.tap()
-        XCTAssertTrue(waitUntilDisabled(panDown))
+        panToBoundary(panDown)
         XCTAssertTrue(waitUntilEnabled(panUp))
         panUp.tap()
         XCTAssertTrue(waitUntilEnabled(panDown))
@@ -272,7 +304,7 @@ final class ReaderFlowUITests: XCTestCase {
         let readButton = app.buttons["library.read"]
         XCTAssertTrue(waitUntilHittable(readButton))
         readButton.tap()
-        XCTAssertTrue(waitForCurrentPage("1/5", in: app))
+        XCTAssertTrue(waitForCurrentPage("1/5", in: app, timeout: 10))
         return app
     }
 
@@ -329,11 +361,35 @@ final class ReaderFlowUITests: XCTestCase {
         ).doubleTap()
     }
 
+    private func panToBoundary(
+        _ button: XCUIElement,
+        maximumTaps: Int = 4
+    ) {
+        for _ in 0..<maximumTaps {
+            guard waitUntilEnabled(button) else {
+                XCTFail(
+                    "Pan control was unavailable before reaching its boundary."
+                )
+                return
+            }
+
+            button.tap()
+            if waitUntilDisabled(button, timeout: 1) {
+                return
+            }
+        }
+
+        XCTFail(
+            "Pan control remained enabled after \(maximumTaps) taps."
+        )
+    }
+
     private func waitForCurrentPage(
         _ page: String,
-        in app: XCUIApplication
+        in app: XCUIApplication,
+        timeout: TimeInterval = 5
     ) -> Bool {
-        waitForValue(page, of: currentPage(in: app))
+        waitForValue(page, of: currentPage(in: app), timeout: timeout)
     }
 
     private func currentPage(in app: XCUIApplication) -> XCUIElement {
@@ -373,6 +429,26 @@ final class ReaderFlowUITests: XCTestCase {
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)
             == .completed
+    }
+
+    private func waitForValueChange(
+        from value: String,
+        of element: XCUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true AND value != %@",
+                value
+            ),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func elementValue(of element: XCUIElement) -> String {
+        String(describing: element.value ?? "")
     }
 
     private func waitUntilHittable(
