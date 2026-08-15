@@ -806,55 +806,39 @@ private struct ReaderPanControls: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            panButton(
-                "reader.pan.left",
-                identifier: "reader.pan.left",
-                systemImage: "arrow.left",
-                isEnabled: canMoveLeft,
-                action: onMoveLeft
-            )
-            panButton(
-                "reader.pan.right",
-                identifier: "reader.pan.right",
-                systemImage: "arrow.right",
-                isEnabled: canMoveRight,
-                action: onMoveRight
-            )
-            panButton(
-                "reader.pan.up",
-                identifier: "reader.pan.up",
-                systemImage: "arrow.up",
-                isEnabled: canMoveUp,
-                action: onMoveUp
-            )
-            panButton(
-                "reader.pan.down",
-                identifier: "reader.pan.down",
-                systemImage: "arrow.down",
-                isEnabled: canMoveDown,
-                action: onMoveDown
-            )
+            Button(action: onMoveLeft) {
+                Label("reader.pan.left", systemImage: "arrow.left")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(!canMoveLeft)
+            .accessibilityIdentifier("reader.pan.left")
+
+            Button(action: onMoveRight) {
+                Label("reader.pan.right", systemImage: "arrow.right")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(!canMoveRight)
+            .accessibilityIdentifier("reader.pan.right")
+
+            Button(action: onMoveUp) {
+                Label("reader.pan.up", systemImage: "arrow.up")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(!canMoveUp)
+            .accessibilityIdentifier("reader.pan.up")
+
+            Button(action: onMoveDown) {
+                Label("reader.pan.down", systemImage: "arrow.down")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(!canMoveDown)
+            .accessibilityIdentifier("reader.pan.down")
         }
         .buttonStyle(.bordered)
         .padding(8)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
         .accessibilityElement(children: .contain)
-    }
-
-    private func panButton(
-        _ title: LocalizedStringKey,
-        identifier: String,
-        systemImage: String,
-        isEnabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .labelStyle(.iconOnly)
-        }
-        .disabled(!isEnabled)
-        .accessibilityIdentifier(identifier)
     }
 }
 
