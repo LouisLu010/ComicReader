@@ -72,10 +72,13 @@ struct ReaderScreen: View {
             }
             .overlay(alignment: .topLeading) {
                 if controlsAreVisible, viewportControlState.isAvailable {
-                    ReaderViewportControls(
-                        state: viewportControlState,
-                        onAction: requestViewportControl
-                    )
+                    VStack(alignment: .leading, spacing: 0) {
+                        ReaderViewportControls(
+                            state: viewportControlState,
+                            onAction: requestViewportControl
+                        )
+                        viewportControlDiagnostics
+                    }
                     .padding()
                 }
             }
@@ -293,6 +296,39 @@ struct ReaderScreen: View {
             generation: viewportControlGeneration,
             action: action
         )
+    }
+
+    @ViewBuilder
+    private var viewportControlDiagnostics: some View {
+#if DEBUG
+        if ProcessInfo.processInfo.environment[
+            "COMICREADER_UI_TEST_FIXTURE"
+        ] == "reader-navigation" {
+            Text(verbatim: "viewport-control-diagnostics")
+                .font(.system(size: 1))
+                .frame(width: 1, height: 1)
+                .clipped()
+                .allowsHitTesting(false)
+                .accessibilityLabel(
+                    Text(verbatim: "Viewport control diagnostics")
+                )
+                .accessibilityValue(
+                    Text(
+                        verbatim: viewportControlDiagnosticValue
+                    )
+                )
+                .accessibilityIdentifier(
+                    "reader.viewportControls.diagnostics"
+                )
+        }
+#endif
+    }
+
+    private var viewportControlDiagnosticValue: String {
+        let handledGeneration = (
+            viewportControlState.handledGeneration ?? 0
+        )
+        return "\(viewportControlGeneration):\(handledGeneration)"
     }
 
     private func flushProgress() {

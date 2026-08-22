@@ -171,6 +171,9 @@ final class ReaderFlowUITests: XCTestCase {
         let zoomIn = app.buttons["reader.zoom.in"]
         let zoomOut = app.buttons["reader.zoom.out"]
         let zoomValue = app.staticTexts["reader.zoom.value"]
+        let viewportControlDiagnostics = app.staticTexts[
+            "reader.viewportControls.diagnostics"
+        ]
         let panLeft = app.buttons["reader.pan.left"]
         let panRight = app.buttons["reader.pan.right"]
         let panUp = app.buttons["reader.pan.up"]
@@ -178,6 +181,9 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(zoomIn))
         XCTAssertTrue(zoomOut.waitForExistence(timeout: 5))
         XCTAssertTrue(zoomValue.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            viewportControlDiagnostics.waitForExistence(timeout: 5)
+        )
         XCTAssertEqual(
             app.staticTexts.matching(identifier: "reader.zoom.value").count,
             1
@@ -214,9 +220,35 @@ final class ReaderFlowUITests: XCTestCase {
 
         zoomIn.tap()
         XCTAssertTrue(waitForValue("200%", of: zoomValue))
+        XCTAssertTrue(
+            waitForSynchronizedViewportControlGenerations(
+                viewportControlDiagnostics
+            )
+        )
+        guard let baselineGenerations = viewportControlGenerations(
+            of: viewportControlDiagnostics
+        ) else {
+            XCTFail("Missing viewport control diagnostics")
+            return
+        }
+
         panLeft.tap()
+        let firstPanGeneration = baselineGenerations.issued + 1
+        XCTAssertTrue(
+            waitForValue(
+                "\(firstPanGeneration):\(firstPanGeneration)",
+                of: viewportControlDiagnostics
+            )
+        )
         XCTAssertTrue(enabledRemains(panLeft))
         panLeft.tap()
+        let secondPanGeneration = firstPanGeneration + 1
+        XCTAssertTrue(
+            waitForValue(
+                "\(secondPanGeneration):\(secondPanGeneration)",
+                of: viewportControlDiagnostics
+            )
+        )
         XCTAssertTrue(waitUntilDisabled(panLeft))
         panRight.tap()
         XCTAssertTrue(waitUntilEnabled(panLeft))
@@ -414,6 +446,50 @@ final class ReaderFlowUITests: XCTestCase {
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)
             == .completed
+    }
+
+    private func waitForSynchronizedViewportControlGenerations(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let predicate = NSPredicate { object, _ in
+            guard let element = object as? XCUIElement,
+                  let generations = self.viewportControlGenerations(
+                    of: element
+                  ) else {
+                return false
+            }
+
+            return generations.issued > 0
+                && generations.issued == generations.handled
+        }
+        let expectation = XCTNSPredicateExpectation(
+            predicate: predicate,
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func viewportControlGenerations(
+        of element: XCUIElement
+    ) -> (issued: UInt64, handled: UInt64)? {
+        guard element.exists,
+              let value = element.value as? String else {
+            return nil
+        }
+
+        let components = value.split(
+            separator: ":",
+            omittingEmptySubsequences: false
+        )
+        guard components.count == 2,
+              let issued = UInt64(components[0]),
+              let handled = UInt64(components[1]) else {
+            return nil
+        }
+
+        return (issued, handled)
     }
 
     private func waitUntilEnabled(

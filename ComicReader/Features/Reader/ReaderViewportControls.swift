@@ -17,6 +17,7 @@ struct ReaderViewportControlRequest: Equatable, Sendable {
 struct ReaderViewportControlState: Equatable, Sendable {
     let isAvailable: Bool
     let zoomPercentage: Int
+    let handledGeneration: UInt64?
     let canZoomOut: Bool
     let canZoomIn: Bool
     let canPanLeft: Bool
@@ -27,6 +28,7 @@ struct ReaderViewportControlState: Equatable, Sendable {
     static let unavailable = ReaderViewportControlState(
         isAvailable: false,
         zoomPercentage: 100,
+        handledGeneration: nil,
         canZoomOut: false,
         canZoomIn: false,
         canPanLeft: false,
@@ -37,10 +39,6 @@ struct ReaderViewportControlState: Equatable, Sendable {
 
     var zoomAccessibilityValue: String {
         "\(zoomPercentage)%"
-    }
-
-    var hasAvailablePanAction: Bool {
-        canPanLeft || canPanRight || canPanUp || canPanDown
     }
 }
 
@@ -68,7 +66,6 @@ struct ReaderViewportControls: View {
                 onMoveUp: { onAction(.panUp) },
                 onMoveDown: { onAction(.panDown) }
             )
-            .id(state.hasAvailablePanAction)
         }
     }
 }
@@ -156,7 +153,6 @@ private struct ReaderPanControls: View {
         .padding(8)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
-        .accessibilityElement(children: .contain)
     }
 
     private func panButton(

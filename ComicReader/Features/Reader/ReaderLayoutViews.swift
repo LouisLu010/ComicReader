@@ -22,6 +22,7 @@ struct ReaderContentView: View {
     @State private var continuousRestoreRequest: ReaderContinuousRestoreRequest?
     @State private var continuousRestoreGeneration = 0
     @State private var zoomState: ReaderZoomInteractionState
+    @State private var handledViewportControlGeneration: UInt64?
     @GestureState private var gestureMagnification = 1.0
     @GestureState private var gestureTranslation: CGSize = .zero
     @GestureState private var isMagnifying = false
@@ -69,6 +70,7 @@ struct ReaderContentView: View {
                 contentSize: viewportSize
             )
         )
+        _handledViewportControlGeneration = State(initialValue: nil)
         let initialPresentationID = layout.presentationID(
             for: restoredPosition.location
         ) ?? layout.presentations.first?.id
@@ -292,6 +294,7 @@ struct ReaderContentView: View {
         return ReaderViewportControlState(
             isAvailable: true,
             zoomPercentage: Int((zoomState.committedScale * 100).rounded()),
+            handledGeneration: handledViewportControlGeneration,
             canZoomOut: canZoomOut,
             canZoomIn: canZoomIn,
             canPanLeft: canPan(by: panLeftTranslation),
@@ -597,6 +600,10 @@ struct ReaderContentView: View {
     ) {
         guard let request else {
             return
+        }
+
+        defer {
+            handledViewportControlGeneration = request.generation
         }
 
         switch request.action {

@@ -229,6 +229,23 @@ final class ReaderZoomInteractionStateTests: XCTestCase {
         XCTAssertEqual(state.offset, boundaryOffset)
     }
 
+    func testTwoQuarterViewportTranslationsReachBoundaryAtDoubleScale() {
+        let viewportWidth: CGFloat = 1_032
+        var state = ReaderZoomInteractionState(
+            committedScale: 2,
+            viewportSize: CGSize(width: viewportWidth, height: 1_010.5),
+            contentSize: CGSize(width: viewportWidth, height: 1_010.5)
+        )
+        let translation = CGSize(width: -viewportWidth / 4, height: 0)
+
+        XCTAssertTrue(state.translate(by: translation))
+        XCTAssertTrue(state.translate(by: translation))
+        let boundaryOffset = state.offset
+
+        XCTAssertFalse(state.translate(by: translation))
+        XCTAssertEqual(state.offset, boundaryOffset)
+    }
+
     func testSubpointTranslationBelowToleranceIsNoMovement() {
         var state = makeState(scale: 1.5)
 
