@@ -17,6 +17,9 @@ struct ReaderScreen: View {
     @State private var readerOverridesDraft: ComicReaderOverrides
     @State private var isSavingReaderPreference = false
     @State private var readerPreferenceSaveFailed = false
+    @State private var viewportControlState = ReaderViewportControlState.unavailable
+    @State private var viewportControlRequest: ReaderViewportControlRequest?
+    @State private var viewportControlGeneration: UInt64 = 0
     @Environment(\.scenePhase) private var scenePhase
     private let preferencesWriter: (any ReaderPreferenceWriting)?
 
@@ -64,7 +67,16 @@ struct ReaderScreen: View {
                             alignment: .bottomTrailing
                         )
                         .padding()
-                        .zIndex(2)
+                    .zIndex(2)
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if controlsAreVisible, viewportControlState.isAvailable {
+                    ReaderViewportControls(
+                        state: viewportControlState,
+                        onAction: requestViewportControl
+                    )
+                    .padding()
                 }
             }
             .onChange(of: proxy.size, initial: true) { _, size in
@@ -102,6 +114,8 @@ struct ReaderScreen: View {
 
             visibleAssetSnapshot = .empty
             presentedSheet = nil
+            viewportControlState = .unavailable
+            viewportControlRequest = nil
         }
         .onChange(
             of: resolvedReaderPreferences,
@@ -119,6 +133,8 @@ struct ReaderScreen: View {
         .onDisappear {
             visibleAssetSnapshot = .empty
             presentedSheet = nil
+            viewportControlState = .unavailable
+            viewportControlRequest = nil
             flushProgress()
         }
         .toolbar {
@@ -228,17 +244,18 @@ struct ReaderScreen: View {
                     sessionController: sessionController,
                     viewportSize: viewportSize,
                     navigationRequest: controller.navigationRequest,
+                    viewportControlRequest: viewportControlRequest,
                     onVisiblePresentationChanged: {
                         controller.setVisiblePresentationID($0)
                     },
                     tapAreas: controller.resolvedReaderPreferences.tapAreas,
-                    controlsAreVisible: controlsAreVisible,
                     isTapInteractionBlocked: presentedSheet != nil,
                     onTapAction: handleTapAction,
                     onContinueChapterBoundary: { chapterID in
                         _ = controller.jumpToChapter(chapterID)
                     },
-                    visibleAssetSnapshot: $visibleAssetSnapshot
+                    visibleAssetSnapshot: $visibleAssetSnapshot,
+                    viewportControlState: $viewportControlState
                 )
                 .id(
                     ReaderContentIdentity(
@@ -262,6 +279,20 @@ struct ReaderScreen: View {
                 }
             }
         }
+    }
+
+    private func requestViewportControl(
+        _ action: ReaderViewportControlAction
+    ) {
+        guard viewportControlState.isAvailable else {
+            return
+        }
+
+        viewportControlGeneration &+= 1
+        viewportControlRequest = ReaderViewportControlRequest(
+            generation: viewportControlGeneration,
+            action: action
+        )
     }
 
     private func flushProgress() {

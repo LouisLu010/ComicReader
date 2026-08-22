@@ -212,6 +212,21 @@ final class ReaderFlowUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(panUp))
         XCTAssertTrue(waitUntilEnabled(panDown))
 
+        zoomIn.tap()
+        XCTAssertTrue(waitForValue("200%", of: zoomValue))
+        panLeft.tap()
+        XCTAssertTrue(enabledRemains(panLeft))
+        panLeft.tap()
+        XCTAssertTrue(waitUntilDisabled(panLeft))
+        panRight.tap()
+        XCTAssertTrue(waitUntilEnabled(panLeft))
+        zoomOut.tap()
+        XCTAssertTrue(waitForValue("150%", of: zoomValue))
+        XCTAssertTrue(waitUntilDisabled(panLeft))
+        panRight.tap()
+        XCTAssertTrue(waitUntilEnabled(panLeft))
+        XCTAssertTrue(waitUntilEnabled(panRight))
+
         panLeft.tap()
         XCTAssertTrue(waitUntilDisabled(panLeft))
         XCTAssertTrue(waitUntilEnabled(panRight))
@@ -427,6 +442,25 @@ final class ReaderFlowUITests: XCTestCase {
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
+    private func enabledRemains(
+        _ element: XCUIElement,
+        duration: TimeInterval = 0.75
+    ) -> Bool {
+        guard element.exists, element.isEnabled else {
+            return false
+        }
+
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == false OR enabled == false"
+            ),
+            object: element
+        )
+        expectation.isInverted = true
+        return XCTWaiter.wait(for: [expectation], timeout: duration)
             == .completed
     }
 
