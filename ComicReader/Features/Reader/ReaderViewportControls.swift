@@ -170,6 +170,8 @@ private struct ReaderPanControls: View {
             action: action
         )
         .frame(width: 44, height: 44)
+        // 同步 SwiftUI 与 UIKit 的禁用语义。
+        .disabled(!isEnabled)
     }
 }
 

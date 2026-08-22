@@ -201,7 +201,7 @@ final class ReaderFlowUITests: XCTestCase {
                 app.buttons.matching(identifier: identifier).count,
                 1
             )
-            XCTAssertFalse(panButton.isEnabled)
+            XCTAssertTrue(waitUntilDisabled(panButton))
         }
 
         zoomIn.tap()
