@@ -610,7 +610,12 @@ struct ReaderContentView: View {
             return
         }
 
-        zoomState.translate(by: translation)
+        var candidate = zoomState
+        guard candidate.translate(by: translation) else {
+            return
+        }
+
+        zoomState = candidate
     }
 
     private func handleSingleTap(at location: CGPoint) {
