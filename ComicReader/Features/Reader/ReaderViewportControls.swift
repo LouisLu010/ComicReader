@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum ReaderViewportControlAction: Equatable, Sendable {
     case zoomOut
@@ -121,52 +122,113 @@ private struct ReaderPanControls: View {
     var body: some View {
         HStack(spacing: 8) {
             panButton(
-                "reader.pan.left",
+                String(localized: "reader.pan.left"),
                 identifier: "reader.pan.left",
                 systemImage: "arrow.left",
                 isEnabled: canMoveLeft,
                 action: onMoveLeft
             )
             panButton(
-                "reader.pan.right",
+                String(localized: "reader.pan.right"),
                 identifier: "reader.pan.right",
                 systemImage: "arrow.right",
                 isEnabled: canMoveRight,
                 action: onMoveRight
             )
             panButton(
-                "reader.pan.up",
+                String(localized: "reader.pan.up"),
                 identifier: "reader.pan.up",
                 systemImage: "arrow.up",
                 isEnabled: canMoveUp,
                 action: onMoveUp
             )
             panButton(
-                "reader.pan.down",
+                String(localized: "reader.pan.down"),
                 identifier: "reader.pan.down",
                 systemImage: "arrow.down",
                 isEnabled: canMoveDown,
                 action: onMoveDown
             )
         }
-        .buttonStyle(.bordered)
         .padding(8)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
     }
 
     private func panButton(
-        _ title: LocalizedStringKey,
+        _ accessibilityLabel: String,
         identifier: String,
         systemImage: String,
         isEnabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .labelStyle(.iconOnly)
+        ReaderUIKitPanButton(
+            accessibilityLabel: accessibilityLabel,
+            accessibilityIdentifier: identifier,
+            systemImage: systemImage,
+            isEnabled: isEnabled,
+            action: action
+        )
+        .frame(width: 44, height: 44)
+    }
+}
+
+@MainActor
+private struct ReaderUIKitPanButton: UIViewRepresentable {
+    let accessibilityLabel: String
+    let accessibilityIdentifier: String
+    let systemImage: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.performPrimaryAction),
+            for: .primaryActionTriggered
+        )
+        return button
+    }
+
+    func updateUIView(_ uiView: UIButton, context: Context) {
+        context.coordinator.action = action
+
+        var configuration = UIButton.Configuration.bordered()
+        configuration.image = UIImage(systemName: systemImage)
+        configuration.baseForegroundColor = .white
+        uiView.configuration = configuration
+        uiView.isEnabled = isEnabled
+        uiView.isPointerInteractionEnabled = true
+        uiView.accessibilityLabel = accessibilityLabel
+        uiView.accessibilityIdentifier = accessibilityIdentifier
+    }
+
+    static func dismantleUIView(
+        _ uiView: UIButton,
+        coordinator: Coordinator
+    ) {
+        uiView.removeTarget(
+            coordinator,
+            action: #selector(Coordinator.performPrimaryAction),
+            for: .primaryActionTriggered
+        )
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
         }
-        .disabled(!isEnabled)
-        .accessibilityIdentifier(identifier)
+
+        @objc func performPrimaryAction() {
+            action()
+        }
     }
 }

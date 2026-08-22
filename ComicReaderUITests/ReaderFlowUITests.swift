@@ -235,8 +235,16 @@ final class ReaderFlowUITests: XCTestCase {
         panLeft.tap()
         let firstPanGeneration = baselineGenerations.issued + 1
         XCTAssertTrue(
-            waitForValue(
-                "\(firstPanGeneration):\(firstPanGeneration)",
+            waitForViewportControlGeneration(
+                firstPanGeneration,
+                component: .issued,
+                of: viewportControlDiagnostics
+            )
+        )
+        XCTAssertTrue(
+            waitForViewportControlGeneration(
+                firstPanGeneration,
+                component: .handled,
                 of: viewportControlDiagnostics
             )
         )
@@ -244,8 +252,16 @@ final class ReaderFlowUITests: XCTestCase {
         panLeft.tap()
         let secondPanGeneration = firstPanGeneration + 1
         XCTAssertTrue(
-            waitForValue(
-                "\(secondPanGeneration):\(secondPanGeneration)",
+            waitForViewportControlGeneration(
+                secondPanGeneration,
+                component: .issued,
+                of: viewportControlDiagnostics
+            )
+        )
+        XCTAssertTrue(
+            waitForViewportControlGeneration(
+                secondPanGeneration,
+                component: .handled,
                 of: viewportControlDiagnostics
             )
         )
@@ -471,6 +487,37 @@ final class ReaderFlowUITests: XCTestCase {
             == .completed
     }
 
+    private func waitForViewportControlGeneration(
+        _ expectedGeneration: UInt64,
+        component: ViewportControlGenerationComponent,
+        of element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let predicate = NSPredicate { object, _ in
+            guard let element = object as? XCUIElement,
+                  let generations = self.viewportControlGenerations(
+                    of: element
+                  ) else {
+                return false
+            }
+
+            let generation: UInt64
+            switch component {
+            case .issued:
+                generation = generations.issued
+            case .handled:
+                generation = generations.handled
+            }
+            return generation == expectedGeneration
+        }
+        let expectation = XCTNSPredicateExpectation(
+            predicate: predicate,
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+            == .completed
+    }
+
     private func viewportControlGenerations(
         of element: XCUIElement
     ) -> (issued: UInt64, handled: UInt64)? {
@@ -490,6 +537,11 @@ final class ReaderFlowUITests: XCTestCase {
         }
 
         return (issued, handled)
+    }
+
+    private enum ViewportControlGenerationComponent {
+        case issued
+        case handled
     }
 
     private func waitUntilEnabled(
