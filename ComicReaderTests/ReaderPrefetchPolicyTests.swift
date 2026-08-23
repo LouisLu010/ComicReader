@@ -467,11 +467,13 @@ final class ReaderPrefetchPolicyTests: XCTestCase {
         let page5 = try pagePresentation("page-5", in: layout)
         var tracker = ReaderPrefetchMotionTracker()
 
+        XCTAssertFalse(tracker.hasSample)
         _ = tracker.observe(
             presentationIDs: [page2, page3],
             at: 10,
             in: layout
         )
+        XCTAssertTrue(tracker.hasSample)
         XCTAssertEqual(
             tracker.observe(
                 presentationIDs: [page3, page4],
@@ -490,6 +492,7 @@ final class ReaderPrefetchPolicyTests: XCTestCase {
         )
 
         tracker.reset()
+        XCTAssertFalse(tracker.hasSample)
 
         XCTAssertEqual(
             tracker.observe(
@@ -499,6 +502,7 @@ final class ReaderPrefetchPolicyTests: XCTestCase {
             ),
             .stationary
         )
+        XCTAssertTrue(tracker.hasSample)
     }
 
     func testMotionFallsBackToStationaryForUnknownOrOpposingFrontiers()

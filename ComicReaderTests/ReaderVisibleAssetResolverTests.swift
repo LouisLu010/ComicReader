@@ -178,6 +178,48 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         XCTAssertEqual(snapshot.assetIdentities.count, 2)
     }
 
+    func testContinuousResolveReevaluatesStoredGeometryForTallerViewport() {
+        let fixture = makeFixture(mode: .continuous)
+        let geometries = [
+            geometry(
+                index: 0,
+                location: location(
+                    for: fixture.pageIDs[0],
+                    chapterID: fixture.chapterID
+                ),
+                minY: 0,
+                height: 400
+            ),
+            geometry(
+                index: 1,
+                location: location(
+                    for: fixture.pageIDs[1],
+                    chapterID: fixture.chapterID
+                ),
+                minY: 500,
+                height: 400
+            ),
+        ]
+
+        let shortViewport = ReaderVisibleAssetResolver.resolveContinuous(
+            geometries: geometries,
+            viewportHeight: 450,
+            layout: fixture.layout,
+            assetResolver: fixture.assetResolver
+        )
+        let tallViewport = ReaderVisibleAssetResolver.resolveContinuous(
+            geometries: geometries,
+            viewportHeight: 600,
+            layout: fixture.layout,
+            assetResolver: fixture.assetResolver
+        )
+
+        XCTAssertEqual(shortViewport.pageIDs, [fixture.pageIDs[0]])
+        XCTAssertEqual(tallViewport.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(shortViewport.presentationIDs.count, 1)
+        XCTAssertEqual(tallViewport.presentationIDs.count, 2)
+    }
+
     func testContinuousResolveMapsVisibleSpreadToBothPages() throws {
         let fixture = makeFixture(mode: .spread)
         let spread = try XCTUnwrap(

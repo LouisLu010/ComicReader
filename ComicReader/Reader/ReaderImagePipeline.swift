@@ -1,50 +1,5 @@
 import Foundation
 
-enum ReaderPagePrefetchPlanner {
-    static func adjacentLocations(
-        in layout: ReaderLayout,
-        around location: ReaderPageLocation,
-        distance: Int = 1
-    ) -> [ReaderPageLocation] {
-        guard distance > 0,
-              let presentationIndex = layout.presentationIndex(
-                for: location
-              ) else {
-            return []
-        }
-
-        let visibleLocations = Set(
-            layout.presentations[presentationIndex].locations
-        )
-        let orderedLocations = layout.presentations.flatMap(\.locations)
-        let visibleIndices = orderedLocations.indices.filter {
-            visibleLocations.contains(orderedLocations[$0])
-        }
-
-        guard let firstVisibleIndex = visibleIndices.first,
-              let lastVisibleIndex = visibleIndices.last else {
-            return []
-        }
-
-        let boundedDistance = min(distance, orderedLocations.count)
-        var result: [ReaderPageLocation] = []
-
-        for offset in 1...boundedDistance {
-            let nextIndex = lastVisibleIndex + offset
-            if orderedLocations.indices.contains(nextIndex) {
-                result.append(orderedLocations[nextIndex])
-            }
-
-            let previousIndex = firstVisibleIndex - offset
-            if orderedLocations.indices.contains(previousIndex) {
-                result.append(orderedLocations[previousIndex])
-            }
-        }
-
-        return result
-    }
-}
-
 actor ReaderImagePipeline {
     static let defaultCacheCostLimit = 96 * 1_024 * 1_024
     static let defaultMaximumConcurrentDecodes = 2
@@ -95,6 +50,7 @@ actor ReaderImagePipeline {
     private var jobs: [CacheKey: DecodeJob] = [:]
     private var queuedKeys: [CacheKey] = []
     private var runningDecodes: [UUID: RunningDecode] = [:]
+    private var isPrefetchEnabled = true
 
     init(
         decoder: any ReaderImageDecoding = ImageIOReaderImageDecoder(),
@@ -161,14 +117,14 @@ actor ReaderImagePipeline {
         _ assets: [ReaderPageAsset],
         target: ReaderImageTarget
     ) async {
+        guard isPrefetchEnabled, !Task.isCancelled else {
+            return
+        }
+
         await withTaskGroup(of: Void.self) { group in
             for asset in assets where !Task.isCancelled {
                 group.addTask {
-                    _ = try? await self.image(
-                        for: asset,
-                        target: target,
-                        priority: .utility
-                    )
+                    await self.prefetchImage(asset, target: target)
                 }
             }
         }
@@ -185,6 +141,7 @@ actor ReaderImagePipeline {
     func handleMemoryWarning(
         keepingVisibleAssets visibleAssets: Set<ReaderPageAssetIdentity>
     ) {
+        isPrefetchEnabled = false
         cacheGeneration &+= 1
 
         for key in Array(cache.keys)
@@ -213,6 +170,21 @@ actor ReaderImagePipeline {
         }
 
         startQueuedJobsIfPossible()
+    }
+
+    private func prefetchImage(
+        _ asset: ReaderPageAsset,
+        target: ReaderImageTarget
+    ) async {
+        guard isPrefetchEnabled, !Task.isCancelled else {
+            return
+        }
+
+        _ = try? await image(
+            for: asset,
+            target: target,
+            priority: .utility
+        )
     }
 
     private func enqueue(

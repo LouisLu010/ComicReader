@@ -31,6 +31,10 @@ struct ReaderPrefetchMotionTracker: Equatable, Sendable {
         sample = nil
     }
 
+    var hasSample: Bool {
+        sample != nil
+    }
+
     mutating func reset() {
         sample = nil
         motion = .stationary

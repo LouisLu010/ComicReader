@@ -542,6 +542,33 @@ final class ReaderImagePipelineTests: XCTestCase {
         XCTAssertEqual(image.estimatedByteCount, 40)
     }
 
+    func testMemoryWarningDisablesPrefetchButKeepsDemandLoadingAvailable()
+        async throws {
+        let decoder = GatedReaderImageDecoder()
+        let pipeline = ReaderImagePipeline(
+            decoder: decoder,
+            maximumConcurrentDecodes: 1
+        )
+        let target = try makeTarget(1_024)
+        let asset = makeAsset(pageID: "memory-warning-prefetch")
+
+        await pipeline.handleMemoryWarning(keepingVisibleAssets: [])
+        await pipeline.prefetch([asset], target: target)
+        await drainScheduler()
+
+        let callCountAfterPrefetch = await decoder.callCount
+        XCTAssertEqual(callCountAfterPrefetch, 0)
+
+        let demandTask = Task {
+            try await pipeline.image(for: asset, target: target)
+        }
+        await waitForCallCount(1, decoder: decoder)
+        await resumeSuccessfully(call: 0, cost: 40, decoder: decoder)
+
+        let image = try await demandTask.value
+        XCTAssertEqual(image.estimatedByteCount, 40)
+    }
+
     func testPrefetchIsolatesFailuresAndCachesSuccessfulImages() async throws {
         let decoder = GatedReaderImageDecoder()
         let pipeline = ReaderImagePipeline(
@@ -594,93 +621,6 @@ final class ReaderImagePipelineTests: XCTestCase {
         )
         let finalCallCount = await decoder.callCount
         XCTAssertEqual(finalCallCount, 3)
-    }
-
-    func testPrefetchPlannerIncludesCoverAndSkipsChapterBoundary() throws {
-        let cover = makePage("cover", isCover: true)
-        let firstPage = makePage("chapter-1-page")
-        let secondPage = makePage("chapter-2-page")
-        let firstChapterID = makeChapterID("chapter-1")
-        let secondChapterID = makeChapterID("chapter-2")
-        let layout = ReaderLayout(
-            comic: makeComic(
-                cover: cover,
-                chapters: [
-                    makeChapter(firstChapterID, pages: [firstPage]),
-                    makeChapter(secondChapterID, pages: [secondPage]),
-                ]
-            ),
-            requestedMode: .singlePage,
-            direction: .leftToRight,
-            capability: .spreadCapable
-        )
-
-        XCTAssertTrue(layout.presentations.contains { presentation in
-            if case .chapterBoundary = presentation.content {
-                return true
-            }
-            return false
-        })
-        XCTAssertEqual(
-            ReaderPagePrefetchPlanner.adjacentLocations(
-                in: layout,
-                around: .chapter(firstChapterID, firstPage.id)
-            ),
-            [
-                .chapter(secondChapterID, secondPage.id),
-                .cover(cover.id),
-            ]
-        )
-        XCTAssertEqual(
-            ReaderPagePrefetchPlanner.adjacentLocations(
-                in: layout,
-                around: .cover(cover.id)
-            ),
-            [.chapter(firstChapterID, firstPage.id)]
-        )
-    }
-
-    func testPrefetchPlannerExcludesVisibleSpreadAndIgnoresPhysicalRTLSlots() {
-        let chapterID = makeChapterID("chapter-1")
-        let pages = (1...6).map { makePage("spread-page-\($0)") }
-        let comic = makeComic(
-            chapters: [makeChapter(chapterID, pages: pages)]
-        )
-        let leftToRight = ReaderLayout(
-            comic: comic,
-            requestedMode: .spread,
-            direction: .leftToRight,
-            capability: .spreadCapable
-        )
-        let rightToLeft = ReaderLayout(
-            comic: comic,
-            requestedMode: .spread,
-            direction: .rightToLeft,
-            capability: .spreadCapable
-        )
-        let currentLocation = ReaderPageLocation.chapter(
-            chapterID,
-            pages[2].id
-        )
-        let expectedLocations: [ReaderPageLocation] = [
-            .chapter(chapterID, pages[4].id),
-            .chapter(chapterID, pages[1].id),
-        ]
-
-        XCTAssertEqual(
-            ReaderPagePrefetchPlanner.adjacentLocations(
-                in: leftToRight,
-                around: currentLocation
-            ),
-            expectedLocations
-        )
-        XCTAssertEqual(
-            ReaderPagePrefetchPlanner.adjacentLocations(
-                in: rightToLeft,
-                around: currentLocation
-            ),
-            expectedLocations
-        )
     }
 
     private func completeCacheMiss(
@@ -852,46 +792,6 @@ final class ReaderImagePipelineTests: XCTestCase {
         )
     }
 
-    private func makeChapterID(
-        _ rawValue: String
-    ) -> ImportChapterCandidate.ID {
-        ImportChapterCandidate.ID(rawValue: rawValue)
-    }
-
-    private func makePage(
-        _ rawValue: String,
-        isCover: Bool = false
-    ) -> ReaderPage {
-        ReaderPage(
-            id: ImportPageCandidate.ID(rawValue: rawValue),
-            originalFileName: "\(rawValue).png",
-            displayPixelSize: ImportPixelSize(width: 1_200, height: 1_800),
-            isCover: isCover
-        )
-    }
-
-    private func makeChapter(
-        _ id: ImportChapterCandidate.ID,
-        pages: [ReaderPage]
-    ) -> ReaderChapter {
-        ReaderChapter(
-            id: id,
-            displayName: id.rawValue,
-            pages: pages
-        )
-    }
-
-    private func makeComic(
-        cover: ReaderPage? = nil,
-        chapters: [ReaderChapter]
-    ) -> ReaderComic {
-        ReaderComic(
-            id: makeComicID(),
-            displayName: "Pipeline Test Comic",
-            cover: cover,
-            chapters: chapters
-        )
-    }
 }
 
 private enum StubDecodeError: Error, Equatable, Sendable {

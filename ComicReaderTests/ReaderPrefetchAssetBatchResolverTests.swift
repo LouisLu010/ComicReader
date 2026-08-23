@@ -250,6 +250,125 @@ final class ReaderPrefetchAssetBatchResolverTests: XCTestCase {
         )
     }
 
+    func testRequestResolverComposesSnapshotPlanTargetsAndBatches() throws {
+        let cover = makePage("cover", isCover: true)
+        let firstPage = makePage("page-1")
+        let secondPage = makePage("page-2")
+        let widePage = makePage(
+            "wide-page",
+            displayPixelSize: ImportPixelSize(width: 1_500, height: 1_000)
+        )
+        let layout = makeLayout(
+            cover: cover,
+            pages: [firstPage, secondPage, widePage],
+            mode: .spread
+        )
+        let coverPresentationID = try presentationID(
+            for: cover.id,
+            in: layout
+        )
+        let spreadPresentation = try XCTUnwrap(
+            layout.presentations.first { presentation in
+                if case .spread = presentation.content {
+                    return true
+                }
+                return false
+            }
+        )
+        let widePagePresentationID = try presentationID(
+            for: widePage.id,
+            in: layout
+        )
+        let assetResolver = StubPrefetchPageAssetResolver()
+        let snapshot = ReaderVisibleAssetResolver.resolve(
+            presentationIDs: [coverPresentationID],
+            layout: layout,
+            assetResolver: assetResolver
+        )
+
+        let request = ReaderPrefetchRequestResolver.resolve(
+            snapshot: snapshot,
+            layout: layout,
+            motion: .forward(.rapid),
+            windowCapability: .spreadCapable,
+            memoryState: .normal,
+            viewportSize: CGSize(width: 1_366, height: 1_024),
+            displayScale: 2
+        )
+
+        XCTAssertEqual(
+            request.plan.presentationIDs,
+            [spreadPresentation.id, widePagePresentationID]
+        )
+        XCTAssertEqual(request.targets.fullPage?.maximumPixelSize, 2_816)
+        XCTAssertEqual(request.targets.spreadPage?.maximumPixelSize, 2_048)
+
+        let batches = ReaderPrefetchAssetBatchResolver.resolve(
+            plan: request.plan,
+            layout: layout,
+            assetResolver: assetResolver,
+            targets: request.targets
+        )
+        XCTAssertEqual(
+            batches.map(\.target.maximumPixelSize),
+            [2_048, 2_816]
+        )
+        XCTAssertEqual(
+            batches.map { batch in
+                batch.assets.map(\.identity.pageID)
+            },
+            [
+                [firstPage.id, secondPage.id],
+                [widePage.id],
+            ]
+        )
+    }
+
+    func testRequestResolverReturnsStableEmptyRequestWhenConstrained() throws {
+        let pages = (1...3).map { makePage("page-\($0)") }
+        let layout = makeLayout(pages: pages, mode: .singlePage)
+        let assetResolver = StubPrefetchPageAssetResolver()
+        let snapshot = ReaderVisibleAssetResolver.resolve(
+            presentationIDs: [
+                try presentationID(for: pages[0].id, in: layout),
+            ],
+            layout: layout,
+            assetResolver: assetResolver
+        )
+
+        let normalRequest = ReaderPrefetchRequestResolver.resolve(
+            snapshot: snapshot,
+            layout: layout,
+            motion: .forward(.rapid),
+            windowCapability: .spreadCapable,
+            memoryState: .normal,
+            viewportSize: CGSize(width: 1_366, height: 1_024),
+            displayScale: 2
+        )
+        let constrainedRequest = ReaderPrefetchRequestResolver.resolve(
+            snapshot: snapshot,
+            layout: layout,
+            motion: .forward(.rapid),
+            windowCapability: .spreadCapable,
+            memoryState: .constrained,
+            viewportSize: CGSize(width: 1_366, height: 1_024),
+            displayScale: 2
+        )
+        let invalidTargetRequest = ReaderPrefetchRequestResolver.resolve(
+            snapshot: snapshot,
+            layout: layout,
+            motion: .forward(.rapid),
+            windowCapability: .spreadCapable,
+            memoryState: .normal,
+            viewportSize: .zero,
+            displayScale: 2
+        )
+
+        XCTAssertNotEqual(normalRequest, .empty)
+        XCTAssertEqual(constrainedRequest, .empty)
+        XCTAssertEqual(invalidTargetRequest, .empty)
+    }
+
     func testPrefetchTargetsUseBaseViewportScale() {
         let targets = ReaderPrefetchTargetPolicy.targets(
             viewportSize: CGSize(width: 1_366, height: 1_024),

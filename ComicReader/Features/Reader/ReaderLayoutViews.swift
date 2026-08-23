@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -7,6 +8,8 @@ struct ReaderContentView: View {
     let imagePipeline: ReaderImagePipeline
     let sessionController: ReaderSessionController
     let viewportSize: CGSize
+    let windowCapability: ReaderLayoutCapability
+    let prefetchMemoryState: ReaderPrefetchMemoryState
     let navigationRequest: ReaderNavigationRequest?
     let viewportControlRequest: ReaderViewportControlRequest?
     let onVisiblePresentationChanged: (ReaderPresentationID?) -> Void
@@ -21,8 +24,13 @@ struct ReaderContentView: View {
     @State private var visiblePresentationID: ReaderPresentationID?
     @State private var continuousRestoreRequest: ReaderContinuousRestoreRequest?
     @State private var continuousRestoreGeneration = 0
+    @State private var prefetchRestoreTargetID: ReaderPresentationID?
+    @State private var latestContinuousGeometries: [
+        ReaderContinuousPageGeometry
+    ] = []
     @State private var zoomState: ReaderZoomInteractionState
     @State private var handledViewportControlGeneration: UInt64?
+    @State private var prefetchMotionTracker = ReaderPrefetchMotionTracker()
     @GestureState private var gestureMagnification = 1.0
     @GestureState private var gestureTranslation: CGSize = .zero
     @GestureState private var isMagnifying = false
@@ -33,6 +41,8 @@ struct ReaderContentView: View {
         imagePipeline: ReaderImagePipeline,
         sessionController: ReaderSessionController,
         viewportSize: CGSize,
+        windowCapability: ReaderLayoutCapability,
+        prefetchMemoryState: ReaderPrefetchMemoryState,
         navigationRequest: ReaderNavigationRequest?,
         viewportControlRequest: ReaderViewportControlRequest?,
         onVisiblePresentationChanged: @escaping (
@@ -52,6 +62,8 @@ struct ReaderContentView: View {
         self.imagePipeline = imagePipeline
         self.sessionController = sessionController
         self.viewportSize = viewportSize
+        self.windowCapability = windowCapability
+        self.prefetchMemoryState = prefetchMemoryState
         self.navigationRequest = navigationRequest
         self.viewportControlRequest = viewportControlRequest
         self.onVisiblePresentationChanged = onVisiblePresentationChanged
@@ -71,6 +83,7 @@ struct ReaderContentView: View {
             )
         )
         _handledViewportControlGeneration = State(initialValue: nil)
+        _prefetchRestoreTargetID = State(initialValue: nil)
         let initialPresentationID = layout.presentationID(
             for: restoredPosition.location
         ) ?? layout.presentations.first?.id
@@ -109,7 +122,40 @@ struct ReaderContentView: View {
                     resetsOffset: oldPosition.location != newPosition.location
                 )
             }
-            .onChange(of: displayIdentity, initial: true) { _, _ in
+            .onChange(of: displayIdentity, initial: true) {
+                oldIdentity, newIdentity in
+                let isInitialDisplay = continuousRestoreGeneration == 0
+                let didChangeLayout = (
+                    oldIdentity.layout != newIdentity.layout
+                )
+                let didChangeViewportWidth = (
+                    oldIdentity.viewportWidth != newIdentity.viewportWidth
+                )
+                let shouldClearContinuousSnapshot = (
+                    layout.effectiveMode == .continuous
+                    && (isInitialDisplay || didChangeLayout)
+                )
+                let shouldRecomputeContinuousSnapshot = (
+                    layout.effectiveMode == .continuous
+                    && !shouldClearContinuousSnapshot
+                    && !didChangeViewportWidth
+                    && oldIdentity.viewportHeight != newIdentity.viewportHeight
+                    && !latestContinuousGeometries.isEmpty
+                )
+                if layout.effectiveMode == .continuous,
+                   didChangeViewportWidth {
+                    latestContinuousGeometries = []
+                }
+                resetPrefetchTracking(
+                    clearingVisibleSnapshot: shouldClearContinuousSnapshot
+                )
+                if shouldRecomputeContinuousSnapshot {
+                    publishVisibleAssetSnapshot(
+                        resolveContinuousVisibleAssets(
+                            latestContinuousGeometries
+                        )
+                    )
+                }
                 synchronizeVisiblePresentation()
                 scheduleContinuousRestore()
             }
@@ -135,11 +181,8 @@ struct ReaderContentView: View {
                 synchronizePagedVisibleAssets(presentationID)
                 handleVisiblePresentation(presentationID)
             }
-            .onDisappear {
-                visibleAssetSnapshot = .empty
-            }
-            .task(id: prefetchRequestID) {
-                await prefetchAdjacentPages()
+            .task(id: prefetchRequest) { [request = prefetchRequest] in
+                await prefetch(request)
             }
     }
 
@@ -225,25 +268,6 @@ struct ReaderContentView: View {
         )
     }
 
-    private var fullPagePrefetchTarget: ReaderImageTarget? {
-        ReaderImageTargetPolicy.target(
-            displaySize: viewportSize,
-            displayScale: displayScale,
-            imageScale: CGFloat(committedImageRequestScale)
-        )
-    }
-
-    private var spreadPagePrefetchTarget: ReaderImageTarget? {
-        ReaderImageTargetPolicy.target(
-            displaySize: CGSize(
-                width: viewportSize.width / 2,
-                height: viewportSize.height
-            ),
-            displayScale: displayScale,
-            imageScale: CGFloat(committedImageRequestScale)
-        )
-    }
-
     private var renderedZoomState: ReaderZoomInteractionState {
         var state = zoomState
         state.updateMagnification(gestureMagnification)
@@ -304,11 +328,15 @@ struct ReaderContentView: View {
         )
     }
 
-    private var prefetchRequestID: ReaderPrefetchRequestID {
-        ReaderPrefetchRequestID(
-            presentationID: visiblePresentationID,
-            fullPageTarget: fullPagePrefetchTarget,
-            spreadPageTarget: spreadPagePrefetchTarget
+    private var prefetchRequest: ReaderPrefetchRequest {
+        ReaderPrefetchRequestResolver.resolve(
+            snapshot: visibleAssetSnapshot,
+            layout: layout,
+            motion: prefetchMotionTracker.motion,
+            windowCapability: windowCapability,
+            memoryState: prefetchMemoryState,
+            viewportSize: viewportSize,
+            displayScale: displayScale
         )
     }
 
@@ -329,16 +357,17 @@ struct ReaderContentView: View {
         _ presentationID: ReaderPresentationID?
     ) {
         guard layout.effectiveMode != .continuous else {
-            visibleAssetSnapshot = .empty
             return
         }
 
         synchronizeZoomGeometry(contentSize: viewportSize)
 
-        visibleAssetSnapshot = ReaderVisibleAssetResolver.resolve(
-            presentationIDs: presentationID.map { [$0] } ?? [],
-            layout: layout,
-            assetResolver: assetResolver
+        publishVisibleAssetSnapshot(
+            ReaderVisibleAssetResolver.resolve(
+                presentationIDs: presentationID.map { [$0] } ?? [],
+                layout: layout,
+                assetResolver: assetResolver
+            )
         )
     }
 
@@ -349,15 +378,30 @@ struct ReaderContentView: View {
             return
         }
 
-        visibleAssetSnapshot = ReaderVisibleAssetResolver.resolveContinuous(
-            geometries: geometries,
-            viewportHeight: Double(viewportSize.height),
-            layout: layout,
-            assetResolver: assetResolver
-        )
+        let orderedGeometries = geometries.sorted { left, right in
+            left.index < right.index
+        }
+        let snapshot = resolveContinuousVisibleAssets(orderedGeometries)
+        let canPublishSnapshot: Bool
+        if let prefetchRestoreTargetID {
+            canPublishSnapshot = snapshot.presentationIDs.contains(
+                prefetchRestoreTargetID
+            )
+            if canPublishSnapshot {
+                self.prefetchRestoreTargetID = nil
+            }
+        } else {
+            canPublishSnapshot = true
+        }
+        if canPublishSnapshot {
+            if latestContinuousGeometries != orderedGeometries {
+                latestContinuousGeometries = orderedGeometries
+            }
+            publishVisibleAssetSnapshot(snapshot)
+        }
 
         guard let activeZoomPresentationID,
-              let geometry = geometries.first(where: {
+              let geometry = orderedGeometries.first(where: {
                   $0.presentationID == activeZoomPresentationID
               }),
               geometry.height.isFinite,
@@ -371,6 +415,54 @@ struct ReaderContentView: View {
                 height: CGFloat(geometry.height)
             )
         )
+    }
+
+    private func publishVisibleAssetSnapshot(
+        _ snapshot: ReaderVisibleAssetSnapshot
+    ) {
+        if snapshot.presentationIDs.isEmpty {
+            if prefetchMotionTracker.hasSample {
+                prefetchMotionTracker.reset()
+            }
+        } else if snapshot != visibleAssetSnapshot
+                    || !prefetchMotionTracker.hasSample {
+            _ = prefetchMotionTracker.observe(
+                presentationIDs: snapshot.presentationIDs,
+                at: ProcessInfo.processInfo.systemUptime,
+                in: layout
+            )
+        }
+
+        guard snapshot != visibleAssetSnapshot else {
+            return
+        }
+        visibleAssetSnapshot = snapshot
+    }
+
+    private func resolveContinuousVisibleAssets(
+        _ geometries: [ReaderContinuousPageGeometry]
+    ) -> ReaderVisibleAssetSnapshot {
+        ReaderVisibleAssetResolver.resolveContinuous(
+            geometries: geometries,
+            viewportHeight: Double(viewportSize.height),
+            layout: layout,
+            assetResolver: assetResolver
+        )
+    }
+
+    private func resetPrefetchTracking(
+        clearingVisibleSnapshot: Bool
+    ) {
+        prefetchMotionTracker.reset()
+        if clearingVisibleSnapshot {
+            prefetchRestoreTargetID = nil
+            latestContinuousGeometries = []
+        }
+        guard clearingVisibleSnapshot,
+              visibleAssetSnapshot != .empty else {
+            return
+        }
+        visibleAssetSnapshot = .empty
     }
 
     private func synchronizeZoomGeometry(contentSize: CGSize) {
@@ -391,9 +483,12 @@ struct ReaderContentView: View {
                 for: sessionController.session.position.location
               ) else {
             continuousRestoreRequest = nil
+            prefetchRestoreTargetID = nil
             return
         }
 
+        prefetchRestoreTargetID = visibleAssetSnapshot.presentationIDs
+            .contains(presentationID) ? nil : presentationID
         continuousRestoreGeneration &+= 1
         continuousRestoreRequest = ReaderContinuousRestoreRequest(
             generation: continuousRestoreGeneration,
@@ -410,6 +505,15 @@ struct ReaderContentView: View {
             return
         }
 
+        if layout.effectiveMode == .continuous {
+            resetPrefetchTracking(
+                clearingVisibleSnapshot: (
+                    !visibleAssetSnapshot.presentationIDs.contains(
+                        request.presentationID
+                    )
+                )
+            )
+        }
         visiblePresentationID = request.presentationID
         onVisiblePresentationChanged(request.presentationID)
 
@@ -516,6 +620,18 @@ struct ReaderContentView: View {
         }
 
         continuousRestoreRequest = nil
+        prefetchRestoreTargetID = nil
+        if !visibleAssetSnapshot.presentationIDs.contains(
+            viewportPosition.presentationID
+        ) {
+            publishVisibleAssetSnapshot(
+                ReaderVisibleAssetResolver.resolve(
+                    presentationIDs: [viewportPosition.presentationID],
+                    layout: layout,
+                    assetResolver: assetResolver
+                )
+            )
+        }
         handleContinuousViewportPosition(viewportPosition)
     }
 
@@ -692,54 +808,31 @@ struct ReaderContentView: View {
         _ = sessionController.setZoomScale(zoomState.committedScale)
     }
 
-    private func prefetchAdjacentPages() async {
-        guard let visiblePresentationID,
-              let visibleIndex = layout.presentationIndex(
-                  for: visiblePresentationID
-              ) else {
+    private func prefetch(_ request: ReaderPrefetchRequest) async {
+        guard !request.plan.presentationIDs.isEmpty,
+              !Task.isCancelled else {
             return
         }
 
-        var assetsByTarget: [ReaderImageTarget: [ReaderPageAsset]] = [:]
-        for index in [visibleIndex + 1, visibleIndex - 1]
-            where layout.presentations.indices.contains(index) {
-            let presentation = layout.presentations[index]
-            guard let target = prefetchTarget(for: presentation) else {
-                continue
-            }
-
-            for location in presentation.locations {
-                if let asset = try? assetResolver.asset(
-                    for: location.pageID
-                ) {
-                    assetsByTarget[target, default: []].append(asset)
-                }
-            }
-        }
-
-        guard !assetsByTarget.isEmpty, !Task.isCancelled else {
+        let batches = ReaderPrefetchAssetBatchResolver.resolve(
+            plan: request.plan,
+            layout: layout,
+            assetResolver: assetResolver,
+            targets: request.targets
+        )
+        guard !Task.isCancelled else {
             return
         }
 
-        for (target, assets) in assetsByTarget {
+        for batch in batches {
             guard !Task.isCancelled else {
                 return
             }
 
-            await imagePipeline.prefetch(assets, target: target)
-        }
-    }
-
-    private func prefetchTarget(
-        for presentation: ReaderPresentation
-    ) -> ReaderImageTarget? {
-        switch presentation.content {
-        case .page:
-            fullPagePrefetchTarget
-        case .spread:
-            spreadPagePrefetchTarget
-        case .chapterBoundary:
-            nil
+            await imagePipeline.prefetch(
+                batch.assets,
+                target: batch.target
+            )
         }
     }
 }
@@ -1245,10 +1338,4 @@ private struct ReaderContinuousGeometryReporter: View {
             height: Double(frame.height)
         )
     }
-}
-
-private struct ReaderPrefetchRequestID: Equatable, Hashable {
-    let presentationID: ReaderPresentationID?
-    let fullPageTarget: ReaderImageTarget?
-    let spreadPageTarget: ReaderImageTarget?
 }

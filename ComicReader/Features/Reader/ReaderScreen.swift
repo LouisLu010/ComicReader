@@ -12,6 +12,7 @@ struct ReaderScreen: View {
 
     @State private var controller: ReaderScreenController
     @State private var visibleAssetSnapshot = ReaderVisibleAssetSnapshot.empty
+    @State private var prefetchMemoryState = ReaderPrefetchMemoryState.normal
     @State private var thumbnailReloadGeneration: UInt64 = 0
     @State private var presentedSheet: ReaderPresentedSheet?
     @State private var readerOverridesDraft: ComicReaderOverrides
@@ -246,6 +247,9 @@ struct ReaderScreen: View {
                     imagePipeline: controller.imagePipeline,
                     sessionController: sessionController,
                     viewportSize: viewportSize,
+                    windowCapability: sessionController.session
+                        .layoutCapability,
+                    prefetchMemoryState: prefetchMemoryState,
                     navigationRequest: controller.navigationRequest,
                     viewportControlRequest: viewportControlRequest,
                     onVisiblePresentationChanged: {
@@ -338,6 +342,7 @@ struct ReaderScreen: View {
     }
 
     private func handleMemoryWarning() {
+        prefetchMemoryState = .constrained
         let visibleAssetIdentities = visibleAssetSnapshot.assetIdentities
         Task { @MainActor in
             await controller.imagePipeline.handleMemoryWarning(
