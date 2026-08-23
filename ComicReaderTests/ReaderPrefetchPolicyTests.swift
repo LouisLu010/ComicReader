@@ -211,6 +211,7 @@ final class ReaderPrefetchPolicyTests: XCTestCase {
             ).presentationIDs,
             [
                 try pagePresentation("page-3", in: layout),
+                try pagePresentation("page-4", in: layout),
                 try pagePresentation("page-2", in: layout),
             ]
         )
