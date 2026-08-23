@@ -102,12 +102,18 @@ gh run download $runId `
   --dir .\ComicReaderArtifact
 ```
 
+使用 `--pattern` 时，GitHub CLI 可能在目标目录下再创建一个以 Artifact 命名的子目录，这是正常行为。若命令返回 HTTP `410 Gone` 或找不到匹配的 Artifact，说明该短期产物已经过期且无法恢复；请重新触发一次 `main` Workflow，或从 `v*` Tag 对应的 GitHub Release 下载长期保留的 IPA。
+
 下载后可核对产物 Hash：
 
 ```powershell
-Get-Content .\ComicReaderArtifact\ComicReader-*-SHA256SUMS.txt
-Get-FileHash -Algorithm SHA256 -Path .\ComicReaderArtifact\ComicReader-*-unsigned.ipa
-Get-FileHash -Algorithm SHA256 -Path .\ComicReaderArtifact\ComicReader-*.dSYM.zip
+$checksum = Get-ChildItem .\ComicReaderArtifact -Recurse -File -Filter '*-SHA256SUMS.txt' | Select-Object -First 1
+$ipa = Get-ChildItem .\ComicReaderArtifact -Recurse -File -Filter '*-unsigned.ipa' | Select-Object -First 1
+$dsym = Get-ChildItem .\ComicReaderArtifact -Recurse -File -Filter '*.dSYM.zip' | Select-Object -First 1
+
+Get-Content -LiteralPath $checksum.FullName
+Get-FileHash -Algorithm SHA256 -LiteralPath $ipa.FullName
+Get-FileHash -Algorithm SHA256 -LiteralPath $dsym.FullName
 ```
 
 如果浏览器下载的 `.zip` 仍无法解压，先检查文件是否下载完整，以及文件头是否为 ZIP 的 `50 4B`：
