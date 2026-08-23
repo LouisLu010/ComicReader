@@ -4,6 +4,9 @@ import XCTest
 
 final class ReaderVisibleAssetResolverTests: XCTestCase {
     func testEmptySnapshotContainsNoVisibleResources() {
+        XCTAssertTrue(
+            ReaderVisibleAssetSnapshot.empty.presentationIDs.isEmpty
+        )
         XCTAssertTrue(ReaderVisibleAssetSnapshot.empty.pageIDs.isEmpty)
         XCTAssertTrue(
             ReaderVisibleAssetSnapshot.empty.assetIdentities.isEmpty
@@ -21,6 +24,7 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(snapshot.presentationIDs, pagePresentationIDs)
         XCTAssertEqual(
             snapshot.assetIdentities,
             Set(fixture.pageIDs.map { pageID in
@@ -51,6 +55,7 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(snapshot.presentationIDs, [spreadID])
         XCTAssertEqual(snapshot.assetIdentities.count, 2)
     }
 
@@ -77,7 +82,9 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
             assetResolver: fixture.assetResolver
         )
 
-        XCTAssertEqual(snapshot, .empty)
+        XCTAssertEqual(snapshot.presentationIDs, [boundaryID])
+        XCTAssertTrue(snapshot.pageIDs.isEmpty)
+        XCTAssertTrue(snapshot.assetIdentities.isEmpty)
     }
 
     func testCorruptedAndFailedPagesKeepIDsButSkipIdentities() {
@@ -126,6 +133,10 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
             snapshot.pageIDs,
             [corruptedPageID, failedPageID]
         )
+        XCTAssertEqual(
+            snapshot.presentationIDs,
+            layout.presentations.map(\.id)
+        )
         XCTAssertTrue(snapshot.assetIdentities.isEmpty)
     }
 
@@ -142,16 +153,16 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         let snapshot = ReaderVisibleAssetResolver.resolveContinuous(
             geometries: [
                 geometry(
-                    index: 0,
-                    location: firstLocation,
-                    minY: -100,
-                    height: 250
-                ),
-                geometry(
                     index: 1,
                     location: secondLocation,
                     minY: 150,
                     height: 600
+                ),
+                geometry(
+                    index: 0,
+                    location: firstLocation,
+                    minY: -100,
+                    height: 250
                 ),
             ],
             viewportHeight: 500,
@@ -160,6 +171,10 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(
+            snapshot.presentationIDs,
+            fixture.layout.presentations.map(\.id)
+        )
         XCTAssertEqual(snapshot.assetIdentities.count, 2)
     }
 
@@ -190,6 +205,7 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(snapshot.presentationIDs, [spread.id])
         XCTAssertEqual(snapshot.assetIdentities.count, 2)
     }
 
@@ -298,7 +314,56 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.pageIDs, [fixture.pageIDs[0]])
+        XCTAssertEqual(
+            snapshot.presentationIDs,
+            [
+                .page(validLocation),
+                boundaryID,
+            ]
+        )
         XCTAssertEqual(snapshot.assetIdentities.count, 1)
+    }
+
+    func testResolveCanonicalizesKnownPresentationIDs() throws {
+        let fixture = makeFixture(mode: .continuous)
+        let firstID = try XCTUnwrap(fixture.layout.presentations.first?.id)
+        let lastID = try XCTUnwrap(fixture.layout.presentations.last?.id)
+        let unknownID = ReaderPresentationID.page(
+            .chapter(
+                ImportChapterCandidate.ID(rawValue: "unknown-chapter"),
+                ImportPageCandidate.ID(rawValue: "unknown-page")
+            )
+        )
+
+        let snapshot = ReaderVisibleAssetResolver.resolve(
+            presentationIDs: [lastID, unknownID, firstID, lastID],
+            layout: fixture.layout,
+            assetResolver: fixture.assetResolver
+        )
+
+        XCTAssertEqual(snapshot.presentationIDs, [firstID, lastID])
+        XCTAssertEqual(snapshot.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(snapshot.assetIdentities.count, 2)
+    }
+
+    func testResolveUsesLogicalOrderForPhysicalRTLInput() {
+        let fixture = makeFixture(
+            mode: .singlePage,
+            direction: .rightToLeft
+        )
+
+        let snapshot = ReaderVisibleAssetResolver.resolve(
+            presentationIDs: fixture.layout.pagedDisplayPresentations.map(\.id),
+            layout: fixture.layout,
+            assetResolver: fixture.assetResolver
+        )
+
+        XCTAssertEqual(
+            snapshot.presentationIDs,
+            fixture.layout.presentations.map(\.id)
+        )
+        XCTAssertEqual(snapshot.pageIDs, Set(fixture.pageIDs))
+        XCTAssertEqual(snapshot.assetIdentities.count, 2)
     }
 
     func testContinuousResolveRejectsInvalidViewportAndTolerance() {
@@ -346,7 +411,10 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
         }
     }
 
-    private func makeFixture(mode: ReadingMode) -> Fixture {
+    private func makeFixture(
+        mode: ReadingMode,
+        direction: ReadingDirection = .leftToRight
+    ) -> Fixture {
         let comicID = managedComicID(
             "00000000-0000-0000-0000-000000000901"
         )
@@ -382,7 +450,7 @@ final class ReaderVisibleAssetResolverTests: XCTestCase {
             layout: ReaderLayout(
                 comic: comic,
                 requestedMode: mode,
-                direction: .leftToRight,
+                direction: direction,
                 capability: .spreadCapable
             ),
             assetResolver: StubPageAssetResolver(

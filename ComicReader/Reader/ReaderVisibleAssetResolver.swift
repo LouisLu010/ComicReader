@@ -1,8 +1,13 @@
 import Foundation
 
 struct ReaderVisibleAssetSnapshot: Equatable, Sendable {
-    static let empty = Self(pageIDs: [], assetIdentities: [])
+    static let empty = Self(
+        presentationIDs: [],
+        pageIDs: [],
+        assetIdentities: []
+    )
 
+    let presentationIDs: [ReaderPresentationID]
     let pageIDs: Set<ImportPageCandidate.ID>
     let assetIdentities: Set<ReaderPageAssetIdentity>
 }
@@ -13,10 +18,13 @@ enum ReaderVisibleAssetResolver {
         layout: ReaderLayout,
         assetResolver: any ReaderPageAssetResolving
     ) -> ReaderVisibleAssetSnapshot {
+        let canonicalPresentationIDs = layout.canonicalPresentationIDs(
+            presentationIDs
+        )
         var pageIDs: Set<ImportPageCandidate.ID> = []
         var resolvablePageIDs: [ImportPageCandidate.ID] = []
 
-        for presentationID in presentationIDs {
+        for presentationID in canonicalPresentationIDs {
             guard let presentation = layout.presentation(
                 for: presentationID
             ) else {
@@ -46,6 +54,7 @@ enum ReaderVisibleAssetResolver {
         }
 
         return ReaderVisibleAssetSnapshot(
+            presentationIDs: canonicalPresentationIDs,
             pageIDs: pageIDs,
             assetIdentities: assetIdentities
         )

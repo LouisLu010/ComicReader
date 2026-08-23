@@ -511,6 +511,18 @@ struct ReaderLayout: Equatable, Sendable {
     ) -> Int? {
         pagedDisplayPresentationIndicesByID[presentationID]
     }
+
+    func canonicalPresentationIDs(
+        _ presentationIDs: [ReaderPresentationID]
+    ) -> [ReaderPresentationID] {
+        Set(
+            presentationIDs.compactMap { presentationID in
+                presentationIndicesByID[presentationID]
+            }
+        )
+        .sorted()
+        .map { presentations[$0].id }
+    }
 }
 
 enum ReaderSessionError: Error, Equatable, Sendable {

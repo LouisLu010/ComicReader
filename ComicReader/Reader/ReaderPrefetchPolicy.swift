@@ -41,10 +41,7 @@ struct ReaderPrefetchMotionTracker: Equatable, Sendable {
         at uptime: TimeInterval,
         in layout: ReaderLayout
     ) -> ReaderPrefetchMotion {
-        let canonicalIDs = ReaderPrefetchPolicy.canonicalPresentationIDs(
-            presentationIDs,
-            in: layout
-        )
+        let canonicalIDs = layout.canonicalPresentationIDs(presentationIDs)
         guard uptime.isFinite,
               uptime >= 0,
               !canonicalIDs.isEmpty else {
@@ -258,9 +255,8 @@ enum ReaderPrefetchPolicy {
         for presentationIDs: [ReaderPresentationID],
         in layout: ReaderLayout
     ) -> VisibleRange? {
-        let indices = canonicalPresentationIDs(
-            presentationIDs,
-            in: layout
+        let indices = layout.canonicalPresentationIDs(
+            presentationIDs
         ).compactMap { presentationID in
             layout.presentationIndex(for: presentationID)
         }
@@ -274,19 +270,6 @@ enum ReaderPrefetchPolicy {
             firstIndex: firstIndex,
             lastIndex: lastIndex
         )
-    }
-
-    fileprivate static func canonicalPresentationIDs(
-        _ presentationIDs: [ReaderPresentationID],
-        in layout: ReaderLayout
-    ) -> [ReaderPresentationID] {
-        Set(
-            presentationIDs.compactMap { presentationID in
-                layout.presentationIndex(for: presentationID)
-            }
-        )
-        .sorted()
-        .map { layout.presentations[$0].id }
     }
 
     private static func movementDistance(
