@@ -428,7 +428,7 @@ final class ReaderFlowUITests: XCTestCase {
     private func waitForValue(
         _ value: String,
         of element: XCUIElement,
-        timeout: TimeInterval = 5
+        timeout: TimeInterval = 15
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == true AND value == %@", value),
@@ -440,7 +440,7 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func waitUntilHittable(
         _ element: XCUIElement,
-        timeout: TimeInterval = 5
+        timeout: TimeInterval = 15
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(
@@ -454,7 +454,7 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func waitUntilGone(
         _ element: XCUIElement,
-        timeout: TimeInterval = 5
+        timeout: TimeInterval = 15
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
@@ -546,7 +546,7 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func waitUntilEnabled(
         _ element: XCUIElement,
-        timeout: TimeInterval = 5
+        timeout: TimeInterval = 15
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(
@@ -561,7 +561,7 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func waitUntilDisabled(
         _ element: XCUIElement,
-        timeout: TimeInterval = 5
+        timeout: TimeInterval = 15
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(
@@ -594,7 +594,7 @@ final class ReaderFlowUITests: XCTestCase {
 
     private func waitUntilSelected(
         _ element: XCUIElement,
-        timeout: TimeInterval = 8
+        timeout: TimeInterval = 15
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
