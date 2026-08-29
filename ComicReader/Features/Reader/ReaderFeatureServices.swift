@@ -8,7 +8,7 @@ struct ReaderFeatureServices: Sendable {
     }
 
     static func applicationSupport(
-        pageOrdersProvider: ReaderPageOrdersProvider = { _ in [:] }
+        pageOrdersProvider: @escaping ReaderPageOrdersProvider = { _ in [:] }
     ) -> ReaderFeatureServices? {
         guard let layout = try? JSONImportJobStore.applicationSupportLayout() else {
             return nil
