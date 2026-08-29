@@ -30,6 +30,32 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         coverPageID = plan.coverPageID
     }
 
+    private init(
+        schemaVersion: Int,
+        jobID: ImportJobID,
+        targetComicID: ManagedComicID,
+        revision: ImportPreviewRevision,
+        sourceRootName: String,
+        displayName: String,
+        sortLocaleIdentifier: String,
+        collections: [ImportCollectionCandidate],
+        chapters: [FrozenImportChapter],
+        workItems: [FrozenImportWorkItem],
+        coverPageID: ImportPageCandidate.ID
+    ) {
+        self.schemaVersion = schemaVersion
+        self.jobID = jobID
+        self.targetComicID = targetComicID
+        self.revision = revision
+        self.sourceRootName = sourceRootName
+        self.displayName = displayName
+        self.sortLocaleIdentifier = sortLocaleIdentifier
+        self.collections = collections
+        self.chapters = chapters
+        self.workItems = workItems
+        self.coverPageID = coverPageID
+    }
+
     /// 应用一次更新后的描述符：沿用导入身份与展示信息，
     /// 以新内容重新计算修订号。
     func updated(
