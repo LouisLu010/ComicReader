@@ -1370,55 +1370,49 @@ final class LibraryStateRepositoryTests: XCTestCase {
             naturalPageIDs: naturalIDs
         )
 
-        XCTAssertTrue(
-            await repository.setChapterPageOrder(order, for: comic.id)
+        let didSave = await repository.setChapterPageOrder(order, for: comic.id)
+        XCTAssertTrue(didSave)
+        let loadedOrder = await repository.chapterPageOrder(
+            chapterID: chapterID,
+            for: comic.id
         )
-        XCTAssertEqual(
-            await repository.chapterPageOrder(
-                chapterID: chapterID,
-                for: comic.id
-            ),
-            order
-        )
+        XCTAssertEqual(loadedOrder, order)
 
         let updatedOrder = try ChapterPageOrder(
             chapterID: chapterID,
             orderedPageIDs: naturalIDs.reversed(),
             naturalPageIDs: naturalIDs
         )
-        XCTAssertTrue(
-            await repository.setChapterPageOrder(updatedOrder, for: comic.id)
+        let didUpdate = await repository.setChapterPageOrder(
+            updatedOrder,
+            for: comic.id
         )
+        XCTAssertTrue(didUpdate)
         let records = try ModelContext(container).fetch(
             FetchDescriptor<ComicReaderSchemaV5.StoredChapterPageOrder>()
         )
         XCTAssertEqual(records.count, 1)
-        XCTAssertEqual(
-            await repository.chapterPageOrder(
-                chapterID: chapterID,
-                for: comic.id
-            ),
-            updatedOrder
+        let reloadedOrder = await repository.chapterPageOrder(
+            chapterID: chapterID,
+            for: comic.id
         )
+        XCTAssertEqual(reloadedOrder, updatedOrder)
 
-        XCTAssertTrue(
-            await repository.clearChapterPageOrder(
-                chapterID: chapterID,
-                for: comic.id
-            )
+        let didClear = await repository.clearChapterPageOrder(
+            chapterID: chapterID,
+            for: comic.id
         )
-        XCTAssertNil(
-            await repository.chapterPageOrder(
-                chapterID: chapterID,
-                for: comic.id
-            )
+        XCTAssertTrue(didClear)
+        let clearedOrder = await repository.chapterPageOrder(
+            chapterID: chapterID,
+            for: comic.id
         )
-        XCTAssertFalse(
-            await repository.clearChapterPageOrder(
-                chapterID: chapterID,
-                for: comic.id
-            )
+        XCTAssertNil(clearedOrder)
+        let repeatedClear = await repository.clearChapterPageOrder(
+            chapterID: chapterID,
+            for: comic.id
         )
+        XCTAssertFalse(repeatedClear)
     }
 
     @MainActor
@@ -1437,20 +1431,17 @@ final class LibraryStateRepositoryTests: XCTestCase {
             chapterID,
             naturalPageIDs: ["p1", "p2"].map(ImportPageCandidate.ID.init)
         )
-        XCTAssertTrue(
-            await repository.setChapterPageOrder(order, for: comic.id)
-        )
+        let didSave = await repository.setChapterPageOrder(order, for: comic.id)
+        XCTAssertTrue(didSave)
 
         await repository.configure(modelContainer: nil)
         await repository.configure(modelContainer: container)
 
-        XCTAssertEqual(
-            await repository.chapterPageOrder(
-                chapterID: chapterID,
-                for: comic.id
-            ),
-            order
+        let reloadedOrder = await repository.chapterPageOrder(
+            chapterID: chapterID,
+            for: comic.id
         )
+        XCTAssertEqual(reloadedOrder, order)
     }
 
     @MainActor
@@ -1464,9 +1455,11 @@ final class LibraryStateRepositoryTests: XCTestCase {
             naturalPageIDs: ["p1", "p2"].map(ImportPageCandidate.ID.init)
         )
 
-        XCTAssertFalse(
-            await repository.setChapterPageOrder(order, for: unknownComicID)
+        let didSave = await repository.setChapterPageOrder(
+            order,
+            for: unknownComicID
         )
+        XCTAssertFalse(didSave)
         XCTAssertTrue(repository.isWriteAvailable)
         XCTAssertEqual(repository.status, .ready)
     }
