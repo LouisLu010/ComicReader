@@ -99,6 +99,58 @@ final class RecoverableImportEngineTests: XCTestCase {
         )
     }
 
+    func testCompletedImportPersistsSourceAuthorizationForLaterUpdates()
+        async throws {
+        let sandbox = try TemporaryImportSandbox(sourceName: "Authorized Comic")
+        try sandbox.sourceTree.png("cover.png")
+        try sandbox.sourceTree.png("Chapter 1/01.png")
+        let manifest = try await scan(sandbox)
+        let draft = ImportPreviewDraft(manifest: manifest)
+        let targetComicID = ManagedComicID(
+            rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!
+        )
+        let layout = ImportStorageLayout(rootURL: sandbox.appManagedRootURL)
+        let engine = RecoverableImportEngine(
+            layout: layout,
+            sourceAccess: TestSourceAccess(rootURL: sandbox.sourceDirectoryURL),
+            capacityProvider: FixedCapacityProvider(value: .max),
+            thumbnailGenerator: TestThumbnailGenerator()
+        )
+
+        let queued = try await engine.enqueue(
+            draft,
+            sourceURL: sandbox.sourceDirectoryURL,
+            targetComicID: targetComicID
+        )
+        let completed = try await engine.run(queued.id)
+
+        XCTAssertEqual(completed.state.phase, .completed)
+
+        let authorizationURL = layout.sourceAuthorizationURL(for: targetComicID)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: authorizationURL.path)
+        )
+
+        let authorization = ComicSourceAuthorizationStore(layout: layout)
+            .load(for: targetComicID)
+        XCTAssertEqual(authorization?.comicID, targetComicID)
+        XCTAssertEqual(authorization?.sourceRootName, "Authorized Comic")
+        XCTAssertEqual(authorization?.bookmark, Data("test-bookmark".utf8))
+
+        let authorizationJSON = try XCTUnwrap(
+            String(data: Data(contentsOf: authorizationURL), encoding: .utf8)
+        )
+        XCTAssertFalse(
+            authorizationJSON.contains(sandbox.sourceDirectoryURL.path)
+        )
+
+        try Data("not json".utf8).write(to: authorizationURL)
+        XCTAssertNil(
+            ComicSourceAuthorizationStore(layout: layout)
+                .load(for: targetComicID)
+        )
+    }
+
     func testStoredJobSnapshotsExposeQueuedJobsBeforeRecoveryRuns() async throws {
         let sandbox = try TemporaryImportSandbox(sourceName: "Stored Jobs")
         try sandbox.sourceTree.png("Chapter/01.png")

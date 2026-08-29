@@ -927,6 +927,14 @@ actor RecoverableImportEngine {
             to: metadataURL.appendingPathComponent("library-catalog.json")
         )
         try write(
+            ComicSourceAuthorization(
+                comicID: journal.targetComicID,
+                sourceRootName: plan.sourceRootName,
+                bookmark: plan.sourceBookmark
+            ),
+            to: metadataURL.appendingPathComponent("source-authorization.json")
+        )
+        try write(
             receipt,
             to: metadataURL.appendingPathComponent("commit-receipt.json")
         )

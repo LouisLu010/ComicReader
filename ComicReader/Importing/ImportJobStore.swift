@@ -64,6 +64,12 @@ struct ImportStorageLayout: Sendable {
         )
     }
 
+    func sourceAuthorizationURL(for comicID: ManagedComicID) -> URL {
+        libraryMetadataURL(for: comicID).appendingPathComponent(
+            "source-authorization.json"
+        )
+    }
+
     func thumbnailURL(for comicID: ManagedComicID) -> URL {
         thumbnailsURL.appendingPathComponent(
             comicID.rawValue.uuidString.lowercased() + ".jpg"
