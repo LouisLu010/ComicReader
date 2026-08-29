@@ -14,6 +14,9 @@ final class ComicUpdateExecutorTests: XCTestCase {
         )
 
         let update = try await fixture.makeUpdate(removingMissing: true)
+
+        // 执行器不得修改来源；快照须在 apply 之前采集。
+        let snapshotBeforeApply = try fixture.sandbox.sourceSnapshot()
         let result = try await fixture.apply(update)
         let comicRootURL = fixture.layout.libraryURL(for: fixture.comicID)
 
@@ -120,7 +123,7 @@ final class ComicUpdateExecutorTests: XCTestCase {
         // 来源始终只读。
         XCTAssertTrue(
             try fixture.sandbox.sourceIsUnchanged(
-                since: fixture.sourceSnapshot
+                since: snapshotBeforeApply
             )
         )
     }
