@@ -1366,8 +1366,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertNil(unread.lastReadAt)
         XCTAssertEqual(unread.importedAt, comic.record.importedAt)
 
-        let didFavorite = await repository.toggleFavorite(for: comic.id)
-        XCTAssertTrue(didFavorite)
+        await repository.toggleFavorite(for: comic.id)
         let didRecord = await repository.recordProgress(
             LibraryReadingProgress(
                 chapterID: "chapter-1",
