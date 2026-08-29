@@ -387,7 +387,7 @@ private struct LibrarySearchModifier: ViewModifier {
         if isActive {
             content.searchable(
                 text: $text,
-                placement: .navigationBarDrawer(displayMode: .automatic),
+                placement: .navigationBarDrawer(displayMode: .always),
                 prompt: Text("library.search.prompt")
             )
         } else {
