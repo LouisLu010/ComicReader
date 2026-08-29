@@ -169,6 +169,7 @@ struct ComicUpdateDraft: Equatable, Sendable {
         }
 
         return FrozenComicUpdate(
+            resultingChapters: resultingChapters,
             addedChapters: addedChapters.map(Self.frozenChapter(for:)),
             addedWorkItems: addedChapters.flatMap { chapter in
                 chapter.pageIDs.compactMap { freshWorkItemsByID[$0] }
@@ -373,6 +374,10 @@ struct ComicUpdateDraft: Equatable, Sendable {
 /// 冻结后的漫画更新操作集合：执行器据此复制、交换与清理，
 /// 不再读取扫描结果或用户草稿。
 struct FrozenComicUpdate: Equatable, Sendable {
+    /// 应用后漫画的完整话序：保留话按已入库顺序原地排列，
+    /// 替换话原位换新，新增话按新扫描顺序追加在末尾。预览与
+    /// 执行共用这一份顺序，保证"所见即所执行"。
+    let resultingChapters: [FrozenImportChapter]
     /// 追加进漫画的新话，保持新扫描顺序；在目录树中的自然
     /// 插入位置由执行器结合来源 siblingIndex 决定。
     let addedChapters: [FrozenImportChapter]

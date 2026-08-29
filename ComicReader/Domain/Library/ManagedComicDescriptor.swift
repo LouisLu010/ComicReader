@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct ManagedComicDescriptor: Codable, Equatable, Sendable {
@@ -27,6 +28,77 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         chapters = plan.chapters
         workItems = plan.workItems
         coverPageID = plan.coverPageID
+    }
+
+    /// 应用一次更新后的描述符：沿用导入身份与展示信息，
+    /// 以新内容重新计算修订号。
+    func updated(
+        collections: [ImportCollectionCandidate],
+        chapters: [FrozenImportChapter],
+        workItems: [FrozenImportWorkItem],
+        coverPageID: ImportPageCandidate.ID
+    ) -> ManagedComicDescriptor {
+        ManagedComicDescriptor(
+            schemaVersion: Self.currentSchemaVersion,
+            jobID: jobID,
+            targetComicID: targetComicID,
+            revision: Self.makeRevision(
+                sourceRootName: sourceRootName,
+                displayName: displayName,
+                sortLocaleIdentifier: sortLocaleIdentifier,
+                collections: collections,
+                chapters: chapters,
+                workItems: workItems,
+                coverPageID: coverPageID
+            ),
+            sourceRootName: sourceRootName,
+            displayName: displayName,
+            sortLocaleIdentifier: sortLocaleIdentifier,
+            collections: collections,
+            chapters: chapters,
+            workItems: workItems,
+            coverPageID: coverPageID
+        )
+    }
+
+    private static func makeRevision(
+        sourceRootName: String,
+        displayName: String,
+        sortLocaleIdentifier: String,
+        collections: [ImportCollectionCandidate],
+        chapters: [FrozenImportChapter],
+        workItems: [FrozenImportWorkItem],
+        coverPageID: ImportPageCandidate.ID
+    ) -> ImportPreviewRevision {
+        struct RevisionPayload: Encodable {
+            let schemaVersion: Int
+            let sourceRootName: String
+            let displayName: String
+            let sortLocaleIdentifier: String
+            let collections: [ImportCollectionCandidate]
+            let chapters: [FrozenImportChapter]
+            let workItems: [FrozenImportWorkItem]
+            let coverPageID: ImportPageCandidate.ID
+        }
+
+        let payload = RevisionPayload(
+            schemaVersion: FrozenImportPlan.currentSchemaVersion,
+            sourceRootName: sourceRootName,
+            displayName: displayName,
+            sortLocaleIdentifier: sortLocaleIdentifier,
+            collections: collections,
+            chapters: chapters,
+            workItems: workItems,
+            coverPageID: coverPageID
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = (try? encoder.encode(payload)) ?? Data()
+        let digest = SHA256.hash(data: data)
+
+        return ImportPreviewRevision(
+            rawValue: digest.map { String(format: "%02x", $0) }.joined()
+        )
     }
 }
 
