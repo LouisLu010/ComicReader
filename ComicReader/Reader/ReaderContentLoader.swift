@@ -44,7 +44,7 @@ actor FileSystemReaderContentLoader: ReaderContentLoading {
 
     init(
         layout: ImportStorageLayout,
-        pageOrdersProvider: ReaderPageOrdersProvider = { _ in [:] }
+        pageOrdersProvider: @escaping ReaderPageOrdersProvider = { _ in [:] }
     ) {
         self.layout = layout
         self.pageOrdersProvider = pageOrdersProvider
