@@ -110,7 +110,8 @@ enum ImportUpdateDiffCalculator {
                 storedPages.map { ($0.path, $0.fingerprint) },
                 uniquingKeysWith: { _, fingerprint in fingerprint }
             )
-            let changedPagePaths = freshPages.compactMap { freshPage in
+            let changedPagePaths = freshPages.compactMap {
+                freshPage -> SourceRelativePath? in
                 guard let storedFingerprint = storedFingerprintsByPath[
                     freshPage.path
                 ] else {

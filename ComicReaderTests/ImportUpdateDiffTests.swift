@@ -325,8 +325,8 @@ final class ImportUpdateDiffTests: XCTestCase {
 
         XCTAssertEqual(diff.replacedChapters.count, 1)
         XCTAssertEqual(
-            diff.replacedChapters.first?.sourceDirectoryPath,
-            .root
+            diff.replacedChapters.first?.sourceDirectoryPath.stringValue,
+            ""
         )
         XCTAssertEqual(
             diff.replacedChapters.first?.addedPagePaths,
