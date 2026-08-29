@@ -98,19 +98,12 @@ struct LibrarySearchFilter: Codable, Equatable, Sendable {
 
     /// 大小写与变音符号不敏感的包含匹配；空白搜索匹配全部。
     func matches(displayName: String) -> Bool {
-        let query = normalizedSearchText.folding(
-            options: [.caseInsensitive, .diacriticInsensitive],
-            locale: .current
-        )
+        let query = normalizedSearchText
         guard !query.isEmpty else {
             return true
         }
 
-        return displayName.folding(
-            options: [.caseInsensitive, .diacriticInsensitive],
-            locale: .current
-        )
-        .contains(query)
+        return displayName.localizedStandardContains(query)
     }
 }
 
