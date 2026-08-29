@@ -264,6 +264,10 @@ final class ImportUpdateDiffTests: XCTestCase {
         let addedE = makeFreshChapter(["E"], pageNames: ["01.png"])
         let fresh = makeManifest(chapters: [
             makeFreshChapter(
+                ["A"],
+                pageNames: ["01.png"]
+            ),
+            makeFreshChapter(
                 ["D"],
                 pageNames: ["01.png"]
             ),
