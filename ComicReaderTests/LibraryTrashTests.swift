@@ -63,6 +63,7 @@ final class LibraryTrashPolicyTests: XCTestCase {
     }
 }
 
+@MainActor
 final class LibraryTrashStoreTests: XCTestCase {
     func testTrashRestorePurgeLifecycleExcludesFromCatalog() async throws {
         let fixture = try await makeImportedComicFixture()
@@ -115,9 +116,10 @@ final class LibraryTrashStoreTests: XCTestCase {
         catalog = try await catalogLoader.loadCatalog()
         XCTAssertEqual(catalog.comics.count, 2)
         XCTAssertTrue(coordinator.trashedComics.isEmpty)
-        XCTAssertFalse(
-            await coordinator.restoreComic(for: fixture.recentComicID)
+        let repeatedRestore = await coordinator.restoreComic(
+            for: fixture.recentComicID
         )
+        XCTAssertFalse(repeatedRestore)
 
         // 再次软删除后永久删除：目录与缩略图一并移除。
         _ = try await fixture.store.markTrashed(
@@ -146,9 +148,10 @@ final class LibraryTrashStoreTests: XCTestCase {
             )
         )
         XCTAssertTrue(coordinator.trashedComics.isEmpty)
-        XCTAssertFalse(
-            await coordinator.purgeComic(for: fixture.recentComicID)
+        let repeatedPurge = await coordinator.purgeComic(
+            for: fixture.recentComicID
         )
+        XCTAssertFalse(repeatedPurge)
 
         catalog = try await catalogLoader.loadCatalog()
         XCTAssertEqual(catalog.comics.map(\.id), [fixture.dueComicID])
