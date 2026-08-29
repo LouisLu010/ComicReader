@@ -70,6 +70,12 @@ struct ImportStorageLayout: Sendable {
         )
     }
 
+    func trashMarkerURL(for comicID: ManagedComicID) -> URL {
+        libraryMetadataURL(for: comicID).appendingPathComponent(
+            "trashed.json"
+        )
+    }
+
     func thumbnailURL(for comicID: ManagedComicID) -> URL {
         thumbnailsURL.appendingPathComponent(
             comicID.rawValue.uuidString.lowercased() + ".jpg"

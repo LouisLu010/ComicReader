@@ -59,6 +59,14 @@ actor FileSystemLibraryCatalogLoader: LibraryCatalogLoading {
                 continue
             }
 
+            // 回收站中的漫画不进入书库，也不计入忽略项。
+            let trashMarkerURL = directoryURL
+                .appendingPathComponent("metadata", isDirectory: true)
+                .appendingPathComponent("trashed.json")
+            if fileManager.fileExists(atPath: trashMarkerURL.path) {
+                continue
+            }
+
             guard let record = loadRecord(
                 for: comicID,
                 in: directoryURL,
