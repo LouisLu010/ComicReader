@@ -44,7 +44,7 @@ final class LibrarySearchFilterTests: XCTestCase {
         let comics = [
             makeComic("Café 東京"),
             makeComic("cafe girl"),
-            makeComic("拜訪 CAFFÉ"),
+            makeComic("拜訪 CAFÉ"),
             makeComic(" unrelated "),
         ]
 
