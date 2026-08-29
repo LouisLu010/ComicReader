@@ -15,6 +15,8 @@ final class LibraryCatalogCoordinator {
     private(set) var comics: [LibraryCatalogItem] = []
     private(set) var comicsByTitle: [LibraryCatalogItem] = []
     private(set) var ignoredEntryCount = 0
+    /// 书库搜索/筛选/排序的用户决策；跨分区与窗口共享。
+    var searchFilter = LibrarySearchFilter()
 
     @ObservationIgnored private let loader: (any LibraryCatalogLoading)?
     @ObservationIgnored private let layout: ImportStorageLayout?

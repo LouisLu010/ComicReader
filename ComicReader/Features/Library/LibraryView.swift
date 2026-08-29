@@ -117,7 +117,23 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .navigationTitle(section.title)
+        .modifier(
+            LibrarySearchModifier(
+                isActive: section == .all,
+                text: searchTextBinding
+            )
+        )
         .toolbar {
+            if section == .all {
+                ToolbarItem(placement: .secondaryAction) {
+                    LibraryFilterMenu(filter: filterBinding)
+                }
+
+                ToolbarItem(placement: .secondaryAction) {
+                    LibrarySortMenu(filter: filterBinding)
+                }
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 Button(action: onImport) {
                     Label("import.action", systemImage: "folder.badge.plus")
@@ -198,7 +214,7 @@ struct LibraryView: View {
     private var displayedComics: [LibraryCatalogItem] {
         switch section {
         case .all:
-            libraryCatalog.comicsByTitle
+            searchedLibraryComics
         case .unread:
             libraryState.unreadComics(in: libraryCatalog.comicsByTitle)
         case .recent:
@@ -210,6 +226,33 @@ struct LibraryView: View {
         case .shelves, .settings:
             []
         }
+    }
+
+    /// "全部"分区：应用搜索、筛选与排序后的书库条目。
+    private var searchedLibraryComics: [LibraryCatalogItem] {
+        let items = libraryCatalog.comicsByTitle
+        let sortedComics = LibraryCatalogSearchEngine.filter(
+            items.map { libraryState.sortableComic(for: $0) },
+            using: libraryCatalog.searchFilter
+        )
+        let itemsByID = Dictionary(
+            uniqueKeysWithValues: items.map { ($0.id, $0) }
+        )
+        return sortedComics.compactMap { itemsByID[$0.id] }
+    }
+
+    private var searchTextBinding: Binding<String> {
+        Binding(
+            get: { libraryCatalog.searchFilter.searchText },
+            set: { libraryCatalog.searchFilter.searchText = $0 }
+        )
+    }
+
+    private var filterBinding: Binding<LibrarySearchFilter> {
+        Binding(
+            get: { libraryCatalog.searchFilter },
+            set: { libraryCatalog.searchFilter = $0 }
+        )
     }
 
     private var showsEmptySection: Bool {
@@ -332,6 +375,107 @@ private struct LibraryStateUnavailableView: View {
         .font(.subheadline)
         .foregroundStyle(.orange)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibrarySearchModifier: ViewModifier {
+    let isActive: Bool
+    @Binding var text: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isActive {
+            content.searchable(
+                text: $text,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: Text("library.search.prompt")
+            )
+        } else {
+            content
+        }
+    }
+}
+
+private struct LibraryFilterMenu: View {
+    @Binding var filter: LibrarySearchFilter
+
+    var body: some View {
+        Menu {
+            Button {
+                filter.favoritesOnly.toggle()
+            } label: {
+                Label {
+                    Text("library.filter.favoritesOnly")
+                } icon: {
+                    Image(
+                        systemName: filter.favoritesOnly
+                            ? "checkmark" : "circle"
+                    )
+                }
+            }
+            .accessibilityIdentifier("library.filter.favoritesOnly")
+
+            Section("library.filter.readState") {
+                ForEach(
+                    LibraryReadStateFilter.allCases,
+                    id: \.rawValue
+                ) { readState in
+                    Button {
+                        filter.readState = readState
+                    } label: {
+                        LibraryMenuOptionLabel(
+                            title: Text("library.filter.readState.\(readState.rawValue)"),
+                            isSelected: filter.readState == readState
+                        )
+                    }
+                    .accessibilityIdentifier(
+                        "library.filter.readState.\(readState.rawValue)"
+                    )
+                }
+            }
+        } label: {
+            Label(
+                "library.filter.menu",
+                systemImage: "line.3.horizontal.decrease.circle"
+            )
+        }
+        .accessibilityIdentifier("library.filter.menu")
+    }
+}
+
+private struct LibrarySortMenu: View {
+    @Binding var filter: LibrarySearchFilter
+
+    var body: some View {
+        Menu {
+            ForEach(LibrarySortOption.allCases, id: \.rawValue) { sort in
+                Button {
+                    filter.sort = sort
+                } label: {
+                    LibraryMenuOptionLabel(
+                        title: Text("library.sort.\(sort.rawValue)"),
+                        isSelected: filter.sort == sort
+                    )
+                }
+                .accessibilityIdentifier("library.sort.\(sort.rawValue)")
+            }
+        } label: {
+            Label("library.sort.menu", systemImage: "arrow.up.arrow.down")
+        }
+        .accessibilityIdentifier("library.sort.menu")
+    }
+}
+
+private struct LibraryMenuOptionLabel: View {
+    let title: Text
+    let isSelected: Bool
+
+    var body: some View {
+        Label {
+            title
+        } icon: {
+            Image(systemName: isSelected ? "checkmark" : "circle")
+        }
     }
 }
 

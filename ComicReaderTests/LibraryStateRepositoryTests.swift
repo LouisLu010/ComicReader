@@ -1347,6 +1347,48 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertEqual(rebuiltRepository.status, .ready)
     }
 
+    // MARK: - Library Search Snapshots
+
+    @MainActor
+    func testSortableComicReflectsUserStateForSearch() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000413"),
+            title: "Sortable Comic",
+            importedAt: Date(timeIntervalSince1970: 500)
+        )
+        await repository.reconcile(catalogItems: [comic])
+
+        let unread = repository.sortableComic(for: comic)
+        XCTAssertEqual(unread.readState, .unread)
+        XCTAssertFalse(unread.isFavorite)
+        XCTAssertNil(unread.lastReadAt)
+        XCTAssertEqual(unread.importedAt, comic.record.importedAt)
+
+        let didFavorite = await repository.toggleFavorite(for: comic.id)
+        XCTAssertTrue(didFavorite)
+        let didRecord = await repository.recordProgress(
+            LibraryReadingProgress(
+                chapterID: "chapter-1",
+                pageID: "page-1",
+                pageOffset: 0,
+                zoomScale: 1,
+                updatedAt: Date(timeIntervalSince1970: 900)
+            ),
+            for: comic.id
+        )
+        XCTAssertTrue(didRecord)
+
+        let inProgress = repository.sortableComic(for: comic)
+        XCTAssertTrue(inProgress.isFavorite)
+        XCTAssertEqual(inProgress.readState, .inProgress)
+        XCTAssertEqual(
+            inProgress.lastReadAt?.timeIntervalSince1970,
+            900
+        )
+    }
+
     // MARK: - Chapter Page Orders
 
     @MainActor

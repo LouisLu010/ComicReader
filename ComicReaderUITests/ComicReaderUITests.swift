@@ -27,6 +27,42 @@ final class ComicReaderUITests: XCTestCase {
         )
     }
 
+    func testLibrarySearchFiltersAndRestoresComics() {
+        let app = XCUIApplication()
+        app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
+            "reader-navigation"
+        )
+        app.launchArguments += [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let comicButton = app.buttons[
+            "library.comic.00000000-0000-0000-0000-000000000901"
+        ]
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
+
+        let searchField = app.searchFields.firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("zzz")
+
+        let comicDisappeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: comicButton
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [comicDisappeared], timeout: 5),
+            .completed
+        )
+
+        searchField.typeText(
+            String(repeating: XCUIKeyboardKey.delete.rawValue, count: 3)
+        )
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 5))
+    }
+
     func testUnknownFixtureFailsClosed() {
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
