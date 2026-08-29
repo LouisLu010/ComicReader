@@ -87,7 +87,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let container = try makeContainer()
         let context = ModelContext(container)
         context.insert(
-            ComicReaderSchemaV4.StoredReaderGlobalPreferences(
+            ComicReaderSchemaV5.StoredReaderGlobalPreferences(
                 recordKey: "foreign-preferences",
                 defaultReadingModeRawValue: ReadingMode.spread.rawValue,
                 defaultReadingDirectionRawValue: (
@@ -104,7 +104,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         XCTAssertEqual(repository.globalReaderPreferences, .default)
         let records = try ModelContext(container).fetch(
-            FetchDescriptor<ComicReaderSchemaV4.StoredReaderGlobalPreferences>()
+            FetchDescriptor<ComicReaderSchemaV5.StoredReaderGlobalPreferences>()
         )
         XCTAssertEqual(
             Set(records.map(\.recordKey)),
@@ -307,7 +307,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let context = ModelContext(container)
         let storedComics = try context.fetch(
-            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
         )
         let storedComic = try XCTUnwrap(storedComics.first)
         XCTAssertEqual(storedComic.displayName, "Updated Title")
@@ -316,7 +316,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(storedComic.isFavorite)
         XCTAssertEqual(
             try context.fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
             ).count,
             1
         )
@@ -517,7 +517,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -545,7 +545,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         )
         let seedContext = ModelContext(container)
         seedContext.insert(
-            ComicReaderSchemaV4.StoredComic(
+            ComicReaderSchemaV5.StoredComic(
                 comicID: comicID.rawValue,
                 displayName: "Legacy Preference Comic",
                 sourceRootName: "legacy-preference-source",
@@ -555,7 +555,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             )
         )
         seedContext.insert(
-            ComicReaderSchemaV4.StoredReadingProgress(
+            ComicReaderSchemaV5.StoredReadingProgress(
                 comicID: comicID.rawValue,
                 chapterID: "chapter-1",
                 pageID: "page-1",
@@ -586,7 +586,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(didRecord)
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -711,7 +711,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let globalRecord = try XCTUnwrap(
             try context.fetch(
                 FetchDescriptor<
-                    ComicReaderSchemaV4.StoredReaderGlobalPreferences
+                    ComicReaderSchemaV5.StoredReaderGlobalPreferences
                 >()
             ).first
         )
@@ -721,7 +721,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         globalRecord.rightTapActionRawValue = "future-right-action"
         let comicRecord = try XCTUnwrap(
             try context.fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
             ).first
         )
         comicRecord.readingModeOverrideRawValue = "future-mode"
@@ -773,7 +773,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -802,7 +802,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let timestamp = Date(timeIntervalSince1970: 300)
         let context = ModelContext(container)
         context.insert(
-            ComicReaderSchemaV4.StoredReadingProgress(
+            ComicReaderSchemaV5.StoredReadingProgress(
                 comicID: comic.id.rawValue,
                 chapterID: "chapter-future",
                 pageID: "page-future",
@@ -1110,7 +1110,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedContext = ModelContext(container)
         let seededStoredProgress = try XCTUnwrap(
             try seedContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
             ).first
         )
         seededStoredProgress.completedChapterIDs = [
@@ -1148,7 +1148,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let mergedStoredProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV4.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -1256,7 +1256,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedRepository = await makeRepository(container: container)
         await seedRepository.reconcile(catalogItems: [first, second])
         for storedComic in try seedContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
         ) {
             seedContext.delete(storedComic)
         }
@@ -1266,7 +1266,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let rebuiltRepository = await makeRepository(container: container)
         await rebuiltRepository.reconcile(catalogItems: [first, second])
         let rebuiltComics = try rebuiltContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
         )
 
         XCTAssertEqual(
@@ -1340,11 +1340,135 @@ final class LibraryStateRepositoryTests: XCTestCase {
         await coordinator.reloadAndReconcile(with: rebuiltRepository)
 
         let rebuiltRecords = try ModelContext(rebuiltContainer).fetch(
-            FetchDescriptor<ComicReaderSchemaV4.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
         )
         XCTAssertEqual(rebuiltRecords.map(\.comicID), [comic.id.rawValue])
         XCTAssertEqual(coordinator.comics.map(\.id), [comic.id])
         XCTAssertEqual(rebuiltRepository.status, .ready)
+    }
+
+    // MARK: - Chapter Page Orders
+
+    @MainActor
+    func testChapterPageOrderRoundTripsUpdatesAndClears() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000410"),
+            title: "Ordered Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+
+        let chapterID = ImportChapterCandidate.ID(rawValue: "chapter-1")
+        let naturalIDs = ["p1", "p2", "p3"].map(ImportPageCandidate.ID.init)
+        let order = try ChapterPageOrder(
+            chapterID: chapterID,
+            orderedPageIDs: ["p2", "p3", "p1"].map(
+                ImportPageCandidate.ID.init
+            ),
+            naturalPageIDs: naturalIDs
+        )
+
+        XCTAssertTrue(
+            await repository.setChapterPageOrder(order, for: comic.id)
+        )
+        XCTAssertEqual(
+            await repository.chapterPageOrder(
+                chapterID: chapterID,
+                for: comic.id
+            ),
+            order
+        )
+
+        let updatedOrder = try ChapterPageOrder(
+            chapterID: chapterID,
+            orderedPageIDs: naturalIDs.reversed(),
+            naturalPageIDs: naturalIDs
+        )
+        XCTAssertTrue(
+            await repository.setChapterPageOrder(updatedOrder, for: comic.id)
+        )
+        let records = try ModelContext(container).fetch(
+            FetchDescriptor<ComicReaderSchemaV5.StoredChapterPageOrder>()
+        )
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(
+            await repository.chapterPageOrder(
+                chapterID: chapterID,
+                for: comic.id
+            ),
+            updatedOrder
+        )
+
+        XCTAssertTrue(
+            await repository.clearChapterPageOrder(
+                chapterID: chapterID,
+                for: comic.id
+            )
+        )
+        XCTAssertNil(
+            await repository.chapterPageOrder(
+                chapterID: chapterID,
+                for: comic.id
+            )
+        )
+        XCTAssertFalse(
+            await repository.clearChapterPageOrder(
+                chapterID: chapterID,
+                for: comic.id
+            )
+        )
+    }
+
+    @MainActor
+    func testChapterPageOrderSurvivesReconfiguration() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000411"),
+            title: "Persisted Order Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+
+        let chapterID = ImportChapterCandidate.ID(rawValue: "chapter-9")
+        let order = ChapterPageOrder.reversed(
+            chapterID,
+            naturalPageIDs: ["p1", "p2"].map(ImportPageCandidate.ID.init)
+        )
+        XCTAssertTrue(
+            await repository.setChapterPageOrder(order, for: comic.id)
+        )
+
+        await repository.configure(modelContainer: nil)
+        await repository.configure(modelContainer: container)
+
+        XCTAssertEqual(
+            await repository.chapterPageOrder(
+                chapterID: chapterID,
+                for: comic.id
+            ),
+            order
+        )
+    }
+
+    @MainActor
+    func testChapterPageOrderRejectsUnknownComic() async throws {
+        let repository = await makeRepository(container: try makeContainer())
+        let unknownComicID = managedComicID(
+            "00000000-0000-0000-0000-000000000412"
+        )
+        let order = ChapterPageOrder.reversed(
+            ImportChapterCandidate.ID(rawValue: "chapter-1"),
+            naturalPageIDs: ["p1", "p2"].map(ImportPageCandidate.ID.init)
+        )
+
+        XCTAssertFalse(
+            await repository.setChapterPageOrder(order, for: unknownComicID)
+        )
+        XCTAssertTrue(repository.isWriteAvailable)
+        XCTAssertEqual(repository.status, .ready)
     }
 
     private func makeContainer() throws -> ModelContainer {
