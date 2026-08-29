@@ -49,7 +49,7 @@ final class LibraryTrashPolicyTests: XCTestCase {
                 )!
             ),
             displayName: "Recent",
-            trashedAt: Date(timeIntervalSince1970: 100 * 86_400)
+            trashedAt: Date(timeIntervalSince1970: 130 * 86_400)
         )
         let now = Date(timeIntervalSince1970: 131 * 86_400)
 
@@ -222,12 +222,15 @@ private final class ImportedComicForTrashFixture {
     let recentComicID: ManagedComicID
     let dueComicID: ManagedComicID
     let store: FileSystemLibraryTrashStore
+    private let sandbox: TemporaryImportSandbox
 
     private init(
+        sandbox: TemporaryImportSandbox,
         layout: ImportStorageLayout,
         recentComicID: ManagedComicID,
         dueComicID: ManagedComicID
     ) {
+        self.sandbox = sandbox
         self.layout = layout
         self.recentComicID = recentComicID
         self.dueComicID = dueComicID
@@ -279,6 +282,7 @@ private final class ImportedComicForTrashFixture {
         }
 
         return ImportedComicForTrashFixture(
+            sandbox: sandbox,
             layout: layout,
             recentComicID: recentComicID,
             dueComicID: dueComicID
