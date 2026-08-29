@@ -465,23 +465,6 @@ private actor LibraryStateStore {
         return true
     }
 
-    /// 把目录条目与用户状态组装成搜索/排序所需的快照。
-    func sortableComic(for item: LibraryCatalogItem) -> LibrarySortableComic {
-        let state = statesByComicID[item.id] ?? .empty
-
-        return LibrarySortableComic(
-            id: item.id,
-            displayName: item.record.displayName,
-            importedAt: item.record.importedAt,
-            isFavorite: state.isFavorite,
-            lastReadAt: state.progress?.updatedAt,
-            readState: LibraryComicReadState.make(
-                hasReadingProgress: state.progress != nil,
-                isCompleted: state.progress?.isCompleted ?? false
-            )
-        )
-    }
-
     func chapterPageOrders(
         for comicID: ManagedComicID
     ) throws -> [ImportChapterCandidate.ID: [ImportPageCandidate.ID]] {
@@ -884,6 +867,23 @@ final class LibraryStateRepository {
             isWriteAvailable = false
             status = .failed
         }
+    }
+
+    /// 把目录条目与用户状态组装成搜索/排序所需的快照。
+    func sortableComic(for item: LibraryCatalogItem) -> LibrarySortableComic {
+        let state = statesByComicID[item.id] ?? .empty
+
+        return LibrarySortableComic(
+            id: item.id,
+            displayName: item.record.displayName,
+            importedAt: item.record.importedAt,
+            isFavorite: state.isFavorite,
+            lastReadAt: state.progress?.updatedAt,
+            readState: LibraryComicReadState.make(
+                hasReadingProgress: state.progress != nil,
+                isCompleted: state.progress?.isCompleted ?? false
+            )
+        )
     }
 
     /// 返回 `nil` 表示该话没有用户页序覆盖，按自然顺序阅读。
