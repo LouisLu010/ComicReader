@@ -42,6 +42,64 @@ final class ReaderContentLoaderTests: XCTestCase {
         )
     }
 
+    func testAppliesUserPageOrderOverrideWhenLoadingComic() async throws {
+        let sandboxURL = try makeSandboxURL()
+        defer { try? FileManager.default.removeItem(at: sandboxURL) }
+
+        let layout = ImportStorageLayout(rootURL: sandboxURL)
+        let comicID = managedComicID(
+            "00000000-0000-0000-0000-000000000903"
+        )
+        let pageIDs = ["page-1", "page-2", "page-3"].map(
+            ImportPageCandidate.ID.init
+        )
+        let workItems = pageIDs.enumerated().map { index, pageID in
+            makeWorkItem(
+                pageID,
+                managedRelativePath: ManagedRelativePath(
+                    components: [
+                        "original",
+                        "Chapter 1",
+                        "page-\(index + 1).png",
+                    ]
+                )
+            )
+        }
+        try write(
+            makeDescriptor(comicID: comicID, workItems: workItems),
+            to: descriptorURL(for: comicID, layout: layout)
+        )
+        let chapterID = ImportChapterCandidate.ID(rawValue: "chapter-1")
+
+        // 完整排列覆盖。
+        let fullOverrideLoader = FileSystemReaderContentLoader(
+            layout: layout,
+            pageOrdersProvider: { _ in
+                [chapterID: pageIDs.reversed()]
+            }
+        )
+        let reordered = try await fullOverrideLoader.load(comicID: comicID)
+        XCTAssertEqual(
+            reordered.comic.chapters.first?.pages.map(\.id),
+            pageIDs.reversed()
+        )
+
+        // 部分覆盖：保留可匹配页序，其余按自然顺序补回。
+        let partialOverrideLoader = FileSystemReaderContentLoader(
+            layout: layout,
+            pageOrdersProvider: { _ in
+                [chapterID: [ImportPageCandidate.ID(rawValue: "page-2")]]
+            }
+        )
+        let partiallyReordered = try await partialOverrideLoader.load(
+            comicID: comicID
+        )
+        XCTAssertEqual(
+            partiallyReordered.comic.chapters.first?.pages.map(\.id),
+            ["page-2", "page-1", "page-3"].map(ImportPageCandidate.ID.init)
+        )
+    }
+
     func testMissingDescriptorHasExplicitError() async throws {
         let sandboxURL = try makeSandboxURL()
         defer { try? FileManager.default.removeItem(at: sandboxURL) }

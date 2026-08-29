@@ -42,7 +42,8 @@ private struct ComicReaderApplicationRoot: View {
         case let .ready(dependencies):
             ApplicationRoot(
                 modelContainer: dependencies.persistence.modelContainer,
-                uiTestFixture: dependencies.uiTestFixture
+                uiTestFixture: dependencies.uiTestFixture,
+                libraryState: dependencies.libraryState
             )
             .environment(dependencies.importJobs)
             .environment(dependencies.libraryState)
@@ -119,6 +120,7 @@ private struct ApplicationDependencies {
 private struct ApplicationRoot: View {
     let modelContainer: ModelContainer?
     let uiTestFixture: UITestFixtureConfiguration?
+    let libraryState: LibraryStateRepository
 
     var body: some View {
         Group {
@@ -135,7 +137,13 @@ private struct ApplicationRoot: View {
         SceneRoot(
             modelContainer: modelContainer,
             readerFeatureServices: uiTestFixture?.readerFeatureServices
-                ?? ReaderFeatureServices.applicationSupport(),
+                ?? ReaderFeatureServices.applicationSupport(
+                    pageOrdersProvider: { comicID in
+                        await libraryState.pageOrderOverridesForReader(
+                            comicID: comicID
+                        )
+                    }
+                ),
             libraryCatalog: uiTestFixture?.libraryCatalog
         )
     }

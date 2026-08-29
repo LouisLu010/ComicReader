@@ -465,6 +465,25 @@ private actor LibraryStateStore {
         return true
     }
 
+    func chapterPageOrders(
+        for comicID: ManagedComicID
+    ) throws -> [ImportChapterCandidate.ID: [ImportPageCandidate.ID]] {
+        try modelContext
+            .fetch(
+                FetchDescriptor<ComicReaderSchemaV5.StoredChapterPageOrder>()
+            )
+            .reduce(into: [:]) { result, record in
+                guard record.comicID == comicID.rawValue else {
+                    return
+                }
+
+                result[ImportChapterCandidate.ID(rawValue: record.chapterID)] =
+                    record.orderedPageIDs.map { pageID in
+                        ImportPageCandidate.ID(rawValue: pageID)
+                    }
+            }
+    }
+
     private func chapterPageOrderRecord(
         comicID: ManagedComicID,
         chapterID: ImportChapterCandidate.ID
@@ -952,6 +971,25 @@ final class LibraryStateRepository {
             isWriteAvailable = false
             status = .failed
             return false
+        }
+    }
+
+    /// 阅读器加载内容时一次性取回该漫画全部话的用户页序。
+    func pageOrderOverridesForReader(
+        comicID: ManagedComicID
+    ) async -> [ImportChapterCandidate.ID: [ImportPageCandidate.ID]] {
+        guard let store else {
+            if storeCreationTask == nil {
+                isWriteAvailable = false
+                status = .unavailable
+            }
+            return [:]
+        }
+
+        do {
+            return try await store.chapterPageOrders(for: comicID)
+        } catch {
+            return [:]
         }
     }
 

@@ -84,7 +84,10 @@ struct ReaderComic: Equatable, Sendable {
 
     init(
         descriptor: ManagedComicDescriptor,
-        displayPixelSizesByPageID: [ImportPageCandidate.ID: ImportPixelSize] = [:]
+        displayPixelSizesByPageID: [ImportPageCandidate.ID: ImportPixelSize] = [:],
+        pageOrdersByChapterID: [
+            ImportChapterCandidate.ID: [ImportPageCandidate.ID]
+        ] = [:]
     ) throws {
         var workItemsByID: [ImportPageCandidate.ID: FrozenImportWorkItem] = [:]
 
@@ -102,10 +105,19 @@ struct ReaderComic: Equatable, Sendable {
 
         let chapterPageIDs = Set(descriptor.chapters.flatMap(\.pageIDs))
         let chapters = try descriptor.chapters.map { chapter in
-            ReaderChapter(
+            let naturalPageIDs = chapter.pageIDs
+            let orderedPageIDs = pageOrdersByChapterID[chapter.id].map {
+                ChapterPageOrder(
+                    chapterID: chapter.id,
+                    orderedPageIDs: $0
+                )
+                .applied(to: naturalPageIDs)
+            } ?? naturalPageIDs
+
+            return ReaderChapter(
                 id: chapter.id,
                 displayName: chapter.displayName,
-                pages: try chapter.pageIDs.map { pageID in
+                pages: try orderedPageIDs.map { pageID in
                     guard let workItem = workItemsByID[pageID] else {
                         throw ReaderComicError.missingPageWorkItem(pageID)
                     }

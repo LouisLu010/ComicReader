@@ -26,6 +26,11 @@ enum ReaderContentLoaderError: Error, Equatable, Sendable {
     case invalidAssets(ReaderPageAssetResolverError)
 }
 
+/// 按漫画提供各话的用户页序覆盖；无覆盖的话保持自然顺序。
+typealias ReaderPageOrdersProvider = @Sendable (ManagedComicID) async -> [
+    ImportChapterCandidate.ID: [ImportPageCandidate.ID]
+]
+
 actor FileSystemReaderContentLoader: ReaderContentLoading {
     private static let managedResourceKeys: Set<URLResourceKey> = [
         .isDirectoryKey,
@@ -35,9 +40,14 @@ actor FileSystemReaderContentLoader: ReaderContentLoading {
     ]
 
     private let layout: ImportStorageLayout
+    private let pageOrdersProvider: ReaderPageOrdersProvider
 
-    init(layout: ImportStorageLayout) {
+    init(
+        layout: ImportStorageLayout,
+        pageOrdersProvider: ReaderPageOrdersProvider = { _ in [:] }
+    ) {
         self.layout = layout
+        self.pageOrdersProvider = pageOrdersProvider
     }
 
     func load(
@@ -92,7 +102,11 @@ actor FileSystemReaderContentLoader: ReaderContentLoading {
 
         let comic: ReaderComic
         do {
-            comic = try ReaderComic(descriptor: descriptor)
+            let pageOrders = await pageOrdersProvider(comicID)
+            comic = try ReaderComic(
+                descriptor: descriptor,
+                pageOrdersByChapterID: pageOrders
+            )
         } catch let error as ReaderComicError {
             throw ReaderContentLoaderError.invalidComic(error)
         }

@@ -1081,6 +1081,38 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读设置" } }
       }
     },
+    "reader.controls.pageOrder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page Order"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页序"
+          }
+        }
+      }
+    },
+    "reader.controls.reversePageOrder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverse Page Order"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整话反序"
+          }
+        }
+      }
+    },
     "reader.controls.show" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Reader Controls" } },

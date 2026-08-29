@@ -7,13 +7,18 @@ struct ReaderFeatureServices: Sendable {
         self.contentLoader = contentLoader
     }
 
-    static func applicationSupport() -> ReaderFeatureServices? {
+    static func applicationSupport(
+        pageOrdersProvider: ReaderPageOrdersProvider = { _ in [:] }
+    ) -> ReaderFeatureServices? {
         guard let layout = try? JSONImportJobStore.applicationSupportLayout() else {
             return nil
         }
 
         return ReaderFeatureServices(
-            contentLoader: FileSystemReaderContentLoader(layout: layout)
+            contentLoader: FileSystemReaderContentLoader(
+                layout: layout,
+                pageOrdersProvider: pageOrdersProvider
+            )
         )
     }
 }

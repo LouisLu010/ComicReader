@@ -22,6 +22,7 @@ struct ReaderScreen: View {
     @State private var viewportControlRequest: ReaderViewportControlRequest?
     @State private var viewportControlGeneration: UInt64 = 0
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(LibraryStateRepository.self) private var libraryState
     private let preferencesWriter: (any ReaderPreferenceWriting)?
 
     init(
@@ -375,8 +376,12 @@ struct ReaderScreen: View {
             ToolbarItem(placement: .topBarTrailing) {
                 ReaderControlsMenu(
                     overrides: readerOverridesDraft,
+                    canReversePageOrder: canReverseCurrentChapterPageOrder,
                     onSelectMode: setReadingModeOverride,
-                    onSelectDirection: setReadingDirectionOverride
+                    onSelectDirection: setReadingDirectionOverride,
+                    onReversePageOrder: {
+                        Task { await reverseCurrentChapterPageOrder() }
+                    }
                 )
                 .disabled(
                     !canModifyReaderPreferences
@@ -507,6 +512,52 @@ struct ReaderScreen: View {
         presentedSheet = .chapters
     }
 
+    private var canReverseCurrentChapterPageOrder: Bool {
+        guard presentedSheet == nil,
+              let sessionController = controller.sessionController,
+              let chapterID = sessionController.session.position.chapterID,
+              let chapter = sessionController.session.comic.chapters.first(
+                  where: { $0.id == chapterID }
+              ) else {
+            return false
+        }
+
+        return chapter.pages.count > 1
+    }
+
+    /// 整话反序开关：无覆盖时写入反序页序，已覆盖时恢复自然
+    /// 顺序；成功后重新加载内容使新页序立即生效。
+    private func reverseCurrentChapterPageOrder() async {
+        guard canReverseCurrentChapterPageOrder,
+              let sessionController = controller.sessionController,
+              let chapterID = sessionController.session.position.chapterID,
+              let chapter = sessionController.session.comic.chapters.first(
+                  where: { $0.id == chapterID }
+              ) else {
+            return
+        }
+
+        if await libraryState.chapterPageOrder(
+            chapterID: chapterID,
+            for: controller.comicID
+        ) != nil {
+            _ = await libraryState.clearChapterPageOrder(
+                chapterID: chapterID,
+                for: controller.comicID
+            )
+        } else {
+            _ = await libraryState.setChapterPageOrder(
+                .reversed(
+                    chapterID,
+                    naturalPageIDs: chapter.pages.map(\.id)
+                ),
+                for: controller.comicID
+            )
+        }
+
+        _ = await controller.load()
+    }
+
     private func setReadingModeOverride(_ mode: ReadingMode?) {
         saveReaderPreference(.mode(mode))
     }
@@ -607,11 +658,26 @@ private struct ReaderControlsRevealButton: View {
 @MainActor
 private struct ReaderControlsMenu: View {
     let overrides: ComicReaderOverrides
+    let canReversePageOrder: Bool
     let onSelectMode: (ReadingMode?) -> Void
     let onSelectDirection: (ReadingDirection?) -> Void
+    let onReversePageOrder: () -> Void
 
     var body: some View {
         Menu {
+            Section("reader.controls.pageOrder") {
+                Button {
+                    onReversePageOrder()
+                } label: {
+                    Label(
+                        "reader.controls.reversePageOrder",
+                        systemImage: "arrow.left.arrow.right"
+                    )
+                }
+                .disabled(!canReversePageOrder)
+                .accessibilityIdentifier("reader.controls.reversePageOrder")
+            }
+
             Section("reader.controls.mode") {
                 Button {
                     onSelectMode(nil)
