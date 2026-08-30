@@ -94,7 +94,7 @@ final class ComicReaderUITests: XCTestCase {
             .completed
         )
 
-        app.buttons["sidebar.trash"].tap()
+        app.descendants(matching: .any)["sidebar.trash"].tap()
         let trashRow = app.otherElements[
             "library.trash.comic.00000000-0000-0000-0000-000000000901"
         ]
@@ -127,7 +127,7 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(restoreButton.waitForExistence(timeout: 5))
         restoreButton.tap()
 
-        app.buttons["sidebar.all"].tap()
+        app.descendants(matching: .any)["sidebar.all"].tap()
         XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
     }
 
