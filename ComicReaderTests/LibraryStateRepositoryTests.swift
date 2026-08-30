@@ -1456,8 +1456,12 @@ final class LibraryStateRepositoryTests: XCTestCase {
             fromShelf: shelfID
         )
         XCTAssertFalse(repeatedRemove)
-        XCTAssertEqual(await repository.comicIDs(inShelf: shelfID), [])
-        XCTAssertTrue(await repository.shelves(containing: comic.id).isEmpty)
+        let emptiedMemberIDs = await repository.comicIDs(inShelf: shelfID)
+        XCTAssertEqual(emptiedMemberIDs, [])
+        let containingAfterRemoval = await repository.shelves(
+            containing: comic.id
+        )
+        XCTAssertTrue(containingAfterRemoval.isEmpty)
     }
 
     @MainActor
@@ -1479,8 +1483,13 @@ final class LibraryStateRepositoryTests: XCTestCase {
             await repository.createShelf(named: "Ordered")
         )
 
-        XCTAssertTrue(await repository.addComic(first.id, toShelf: shelf.id))
-        XCTAssertTrue(await repository.addComic(second.id, toShelf: shelf.id))
+        let didAddFirst = await repository.addComic(first.id, toShelf: shelf.id)
+        XCTAssertTrue(didAddFirst)
+        let didAddSecond = await repository.addComic(
+            second.id,
+            toShelf: shelf.id
+        )
+        XCTAssertTrue(didAddSecond)
 
         let orderedMemberIDs = await repository.comicIDs(inShelf: shelf.id)
         XCTAssertEqual(orderedMemberIDs, [first.id, second.id])
@@ -1499,18 +1508,22 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let shelf = try XCTUnwrap(
             await repository.createShelf(named: "Temporary")
         )
-        XCTAssertTrue(await repository.addComic(comic.id, toShelf: shelf.id))
+        let didAdd = await repository.addComic(comic.id, toShelf: shelf.id)
+        XCTAssertTrue(didAdd)
 
-        XCTAssertFalse(await repository.renameShelf(shelf.id, to: "   "))
-        XCTAssertTrue(await repository.renameShelf(shelf.id, to: "Renamed"))
-        XCTAssertEqual(
-            await repository.shelves().first?.displayName,
-            "Renamed"
-        )
+        let blankRename = await repository.renameShelf(shelf.id, to: "   ")
+        XCTAssertFalse(blankRename)
+        let didRename = await repository.renameShelf(shelf.id, to: "Renamed")
+        XCTAssertTrue(didRename)
+        let renamedShelves = await repository.shelves()
+        XCTAssertEqual(renamedShelves.first?.displayName, "Renamed")
 
-        XCTAssertTrue(await repository.deleteShelf(shelf.id))
-        XCTAssertTrue(await repository.shelves().isEmpty)
-        XCTAssertTrue(await repository.comicIDs(inShelf: shelf.id).isEmpty)
+        let didDelete = await repository.deleteShelf(shelf.id)
+        XCTAssertTrue(didDelete)
+        let shelvesAfterDelete = await repository.shelves()
+        XCTAssertTrue(shelvesAfterDelete.isEmpty)
+        let memberIDsAfterDelete = await repository.comicIDs(inShelf: shelf.id)
+        XCTAssertTrue(memberIDsAfterDelete.isEmpty)
     }
 
     @MainActor
