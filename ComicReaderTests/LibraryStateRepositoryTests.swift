@@ -1396,8 +1396,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let first = await repository.createShelf(named: "  Favorites  ")
         let second = await repository.createShelf(named: "Reading Now")
-        XCTAssertNil(await repository.createShelf(named: "   
-	 "))
+        XCTAssertNil(await repository.createShelf(named: "     "))
 
         XCTAssertEqual(first?.displayName, "Favorites")
         XCTAssertEqual(first?.sortOrder, 0)
