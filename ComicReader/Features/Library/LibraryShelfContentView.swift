@@ -30,7 +30,9 @@ struct LibraryShelfContentView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 20) {
                         LibraryComicGrid(
-                            title: shelf?.displayName ?? "",
+                            title: LocalizedStringKey(
+                                shelf?.displayName ?? ""
+                            ),
                             comics: comics,
                             thumbnailURL: { comic in
                                 libraryCatalog.thumbnailURL(for: comic)
