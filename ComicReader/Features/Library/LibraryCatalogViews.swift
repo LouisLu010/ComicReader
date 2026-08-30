@@ -60,6 +60,7 @@ struct ComicDetailView: View {
                 readingEntry
                 details
                 contentTree
+                dangerZone
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
@@ -83,14 +84,6 @@ struct ComicDetailView: View {
                 .accessibilityIdentifier("library.favorite")
             }
 
-            ToolbarItem(placement: .secondaryAction) {
-                Button(role: .destructive) {
-                    isTrashConfirmationPresented = true
-                } label: {
-                    Label("library.detail.trash", systemImage: "trash")
-                }
-                .accessibilityIdentifier("library.detail.trash")
-            }
         }
         .alert(
             "library.detail.trash.confirm",
@@ -116,6 +109,18 @@ struct ComicDetailView: View {
 
         await libraryCatalog.reload()
         dismiss()
+    }
+
+    private var dangerZone: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(role: .destructive) {
+                isTrashConfirmationPresented = true
+            } label: {
+                Label("library.detail.trash", systemImage: "trash")
+            }
+            .accessibilityIdentifier("library.detail.trash")
+        }
+        .padding(.top, 8)
     }
 
     private var header: some View {
