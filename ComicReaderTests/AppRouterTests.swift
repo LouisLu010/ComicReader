@@ -14,8 +14,9 @@ final class AppRouterTests: XCTestCase {
         let identifiers = LibrarySection.allCases.map(\.id)
 
         XCTAssertEqual(Set(identifiers).count, identifiers.count)
-        XCTAssertEqual(LibrarySection.librarySections.count, 6)
+        XCTAssertEqual(LibrarySection.librarySections.count, 7)
         XCTAssertFalse(LibrarySection.librarySections.contains(.settings))
+        XCTAssertTrue(LibrarySection.librarySections.contains(.trash))
     }
 
     func testRouterStateIsIndependentPerSceneInstance() {

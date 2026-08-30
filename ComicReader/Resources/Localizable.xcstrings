@@ -1173,6 +1173,38 @@
         }
       }
     },
+    "library.detail.trash.confirm.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The comic stays in Trash for 30 days and can be restored anytime."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "漫画将在最近删除保留 30 天，可随时恢复。"
+          }
+        }
+      }
+    },
+    "library.trash.purge.confirm.message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This permanently removes the app copy and thumbnail."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这将永久移除 App 内副本与缩略图。"
+          }
+        }
+      }
+    },
     "library.detail.trash.confirm.action" : {
       "localizations" : {
         "en" : {

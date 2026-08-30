@@ -471,10 +471,9 @@ private struct LibraryTrashRow: View {
             .accessibilityIdentifier(
                 "library.trash.purge.\(trashed.id.rawValue.uuidString)"
             )
-            .confirmationDialog(
+            .alert(
                 "library.trash.purge.confirm",
-                isPresented: $isPurgeConfirmationPresented,
-                titleVisibility: .visible
+                isPresented: $isPurgeConfirmationPresented
             ) {
                 Button("library.trash.purge.confirm.action", role: .destructive) {
                     Task {
@@ -484,6 +483,8 @@ private struct LibraryTrashRow: View {
                 .accessibilityIdentifier(
                     "library.trash.purge.confirm.\(trashed.id.rawValue.uuidString)"
                 )
+            } message: {
+                Text("library.trash.purge.confirm.message")
             }
         }
         .padding(12)

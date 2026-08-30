@@ -92,10 +92,9 @@ struct ComicDetailView: View {
                 .accessibilityIdentifier("library.detail.trash")
             }
         }
-        .confirmationDialog(
+        .alert(
             "library.detail.trash.confirm",
-            isPresented: $isTrashConfirmationPresented,
-            titleVisibility: .visible
+            isPresented: $isTrashConfirmationPresented
         ) {
             Button("library.detail.trash.confirm.action", role: .destructive) {
                 Task {
@@ -103,6 +102,8 @@ struct ComicDetailView: View {
                 }
             }
             .accessibilityIdentifier("library.detail.trash.confirm.action")
+        } message: {
+            Text("library.detail.trash.confirm.message")
         }
         .accessibilityIdentifier("library.detail")
     }
