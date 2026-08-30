@@ -63,9 +63,7 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(comicButton.waitForExistence(timeout: 5))
     }
 
-    func testTrashFlowRestoresComicFromSidebar() throws {
-        try XCTSkipIf(true, "bisecting reader launch hang")
-
+    func testTrashFlowRestoresComicFromSidebar() {
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
             "reader-navigation"
@@ -86,12 +84,6 @@ final class ComicReaderUITests: XCTestCase {
         let trashButton = app.buttons["library.detail.trash"]
         XCTAssertTrue(trashButton.waitForExistence(timeout: 5))
         trashButton.tap()
-
-        let confirmButton = app.buttons[
-            "library.detail.trash.confirm.action"
-        ]
-        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5))
-        confirmButton.tap()
 
         let comicDisappeared = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
