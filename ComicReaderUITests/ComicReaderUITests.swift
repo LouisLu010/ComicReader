@@ -112,8 +112,10 @@ final class ComicReaderUITests: XCTestCase {
             let emptyState = app.descendants(matching: .any)[
                 "library.trash.empty"
             ].firstMatch
+            let grid = app.descendants(matching: .any)["library.grid"].firstMatch
             XCTFail(
                 "trash row missing; emptyState=\(emptyState.exists); "
+                    + "grid=\(grid.exists); "
                     + "rows=\(libraryTrashRowCount(app))"
             )
             return
