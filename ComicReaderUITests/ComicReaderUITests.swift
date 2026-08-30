@@ -205,6 +205,7 @@ final class ComicReaderUITests: XCTestCase {
 
         let nameField = app.textFields["library.shelves.create.field"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
         nameField.typeText("Weekend")
 
         let addButton = app.buttons["library.shelves.add"]
