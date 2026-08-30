@@ -6,6 +6,7 @@ enum LibrarySection: String, CaseIterable, Hashable, Identifiable {
     case recent
     case favorites
     case unread
+    case trash
     case shelves
     case settings
 
@@ -15,6 +16,7 @@ enum LibrarySection: String, CaseIterable, Hashable, Identifiable {
         .recent,
         .favorites,
         .unread,
+        .trash,
         .shelves,
     ]
 
@@ -32,6 +34,8 @@ enum LibrarySection: String, CaseIterable, Hashable, Identifiable {
             "library.section.favorites"
         case .unread:
             "library.section.unread"
+        case .trash:
+            "library.section.trash"
         case .shelves:
             "library.section.shelves"
         case .settings:
@@ -51,6 +55,8 @@ enum LibrarySection: String, CaseIterable, Hashable, Identifiable {
             "heart"
         case .unread:
             "circle"
+        case .trash:
+            "trash"
         case .shelves:
             "books.vertical.fill"
         case .settings:

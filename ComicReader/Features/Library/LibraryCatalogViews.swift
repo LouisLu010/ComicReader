@@ -47,7 +47,11 @@ struct ComicDetailView: View {
     let thumbnailURL: URL?
 
     @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
+    @Environment(LibraryTrashCoordinator.self) private var libraryTrash
     @Environment(\.readerFeatureServices) private var readerFeatureServices
+    @Environment(\.dismiss) private var dismiss
+    @State private var isTrashConfirmationPresented = false
 
     var body: some View {
         ScrollView {
@@ -78,8 +82,39 @@ struct ComicDetailView: View {
                 .disabled(!libraryState.canModifyState(for: comic.id))
                 .accessibilityIdentifier("library.favorite")
             }
+
+            ToolbarItem(placement: .secondaryAction) {
+                Button(role: .destructive) {
+                    isTrashConfirmationPresented = true
+                } label: {
+                    Label("library.detail.trash", systemImage: "trash")
+                }
+                .accessibilityIdentifier("library.detail.trash")
+            }
+        }
+        .confirmationDialog(
+            "library.detail.trash.confirm",
+            isPresented: $isTrashConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("library.detail.trash.confirm.action", role: .destructive) {
+                Task {
+                    await trashComic()
+                }
+            }
+            .accessibilityIdentifier("library.detail.trash.confirm.action")
         }
         .accessibilityIdentifier("library.detail")
+    }
+
+    private func trashComic() async {
+        let didTrash = await libraryTrash.trashComic(for: comic.id)
+        guard didTrash else {
+            return
+        }
+
+        await libraryCatalog.reload()
+        dismiss()
     }
 
     private var header: some View {

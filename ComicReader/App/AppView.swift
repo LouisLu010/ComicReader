@@ -118,6 +118,7 @@ struct AppView: View {
         .environment(FolderImportCoordinator())
         .environment(ImportJobCoordinator())
         .environment(LibraryCatalogCoordinator())
+        .environment(LibraryTrashCoordinator(layout: nil))
         .environment(LibraryStateRepository())
         .environment(
             LibraryPersistenceController(previewModelContainer: nil)

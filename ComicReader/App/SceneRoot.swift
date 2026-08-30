@@ -14,6 +14,7 @@ struct SceneRoot: View {
     @State private var router = AppRouter()
     @State private var importCoordinator = FolderImportCoordinator()
     @State private var libraryCatalog: LibraryCatalogCoordinator
+    @State private var libraryTrash: LibraryTrashCoordinator
     @State private var allowsIncrementalCatalogRefresh = false
     @Environment(ImportJobCoordinator.self) private var importJobs
     @Environment(LibraryStateRepository.self) private var libraryState
@@ -23,12 +24,19 @@ struct SceneRoot: View {
         modelContainer: ModelContainer? = nil,
         readerFeatureServices: ReaderFeatureServices?
             = ReaderFeatureServices.applicationSupport(),
-        libraryCatalog: LibraryCatalogCoordinator? = nil
+        libraryCatalog: LibraryCatalogCoordinator? = nil,
+        libraryTrash: LibraryTrashCoordinator? = nil
     ) {
         self.modelContainer = modelContainer
         self.readerFeatureServices = readerFeatureServices
         _libraryCatalog = State(
             initialValue: libraryCatalog ?? LibraryCatalogCoordinator()
+        )
+        _libraryTrash = State(
+            initialValue: libraryTrash ?? LibraryTrashCoordinator(
+                layout: libraryCatalog?.applicationLayout
+                    ?? (try? JSONImportJobStore.applicationSupportLayout())
+            )
         )
     }
 
@@ -37,6 +45,7 @@ struct SceneRoot: View {
             .environment(importCoordinator)
             .environment(importJobs)
             .environment(libraryCatalog)
+            .environment(libraryTrash)
             .environment(\.readerFeatureServices, readerFeatureServices)
             .task {
                 guard !Task.isCancelled else {

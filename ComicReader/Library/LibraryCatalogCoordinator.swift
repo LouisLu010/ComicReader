@@ -20,6 +20,11 @@ final class LibraryCatalogCoordinator {
 
     @ObservationIgnored private let loader: (any LibraryCatalogLoading)?
     @ObservationIgnored private let layout: ImportStorageLayout?
+
+    /// 供同源的回收站协调器复用同一份资料库布局。
+    var applicationLayout: ImportStorageLayout? {
+        layout
+    }
     @ObservationIgnored private var reloadGeneration = 0
 
     init(

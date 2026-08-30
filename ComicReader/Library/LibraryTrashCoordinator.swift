@@ -6,20 +6,24 @@ import Observation
 final class LibraryTrashCoordinator {
     private(set) var trashedComics: [LibraryTrashedComic] = []
 
-    @ObservationIgnored private let store: FileSystemLibraryTrashStore
+    @ObservationIgnored private let store: FileSystemLibraryTrashStore?
 
-    init(layout: ImportStorageLayout) {
-        store = FileSystemLibraryTrashStore(layout: layout)
+    init(layout: ImportStorageLayout?) {
+        store = layout.map { FileSystemLibraryTrashStore(layout: $0) }
     }
 
     func reload() async {
-        trashedComics = await store.trashedComics()
+        trashedComics = await store?.trashedComics() ?? []
     }
 
     /// 软删除；返回是否发生了状态变化。
     @discardableResult
     func trashComic(for comicID: ManagedComicID) async -> Bool {
         guard !trashedComics.contains(where: { $0.id == comicID }) else {
+            return false
+        }
+
+        guard let store else {
             return false
         }
 
@@ -36,6 +40,10 @@ final class LibraryTrashCoordinator {
     /// 恢复漫画；返回是否发生了状态变化。
     @discardableResult
     func restoreComic(for comicID: ManagedComicID) async -> Bool {
+        guard let store else {
+            return false
+        }
+
         let didRestore = await store.restore(comicID: comicID)
         if didRestore {
             await reload()
@@ -47,6 +55,10 @@ final class LibraryTrashCoordinator {
     /// 永久删除：移除 App 管理的漫画副本与缩略图，不可恢复。
     @discardableResult
     func purgeComic(for comicID: ManagedComicID) async -> Bool {
+        guard let store else {
+            return false
+        }
+
         let didPurge = await store.purge(comicID: comicID)
         if didPurge {
             await reload()

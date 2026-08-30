@@ -63,6 +63,80 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(comicButton.waitForExistence(timeout: 5))
     }
 
+    func testTrashFlowRestoresComicFromSidebar() {
+        let app = XCUIApplication()
+        app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
+            "reader-navigation"
+        )
+        app.launchArguments += [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let comicIdentifier = (
+            "library.comic.00000000-0000-0000-0000-000000000901"
+        )
+        let comicButton = app.buttons[comicIdentifier]
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
+        comicButton.tap()
+
+        let trashButton = app.buttons["library.detail.trash"]
+        XCTAssertTrue(trashButton.waitForExistence(timeout: 5))
+        trashButton.tap()
+
+        let confirmButton = app.buttons[
+            "library.detail.trash.confirm.action"
+        ]
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5))
+        confirmButton.tap()
+
+        let comicDisappeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: comicButton
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [comicDisappeared], timeout: 5),
+            .completed
+        )
+
+        app.buttons["sidebar.trash"].tap()
+        let trashRow = app.otherElements[
+            "library.trash.comic.00000000-0000-0000-0000-000000000901"
+        ]
+        let trashRowFallback = app.buttons[
+            "library.trash.comic.00000000-0000-0000-0000-000000000901"
+        ]
+        let rowAppeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true"
+            ),
+            object: trashRow
+        )
+        let rowFallbackAppeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "exists == true"
+            ),
+            object: trashRowFallback
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [rowAppeared, rowFallbackAppeared],
+                timeout: 5
+            ),
+            .completed
+        )
+
+        let restoreButton = app.buttons[
+            "library.trash.restore.00000000-0000-0000-0000-000000000901"
+        ]
+        XCTAssertTrue(restoreButton.waitForExistence(timeout: 5))
+        restoreButton.tap()
+
+        app.buttons["sidebar.all"].tap()
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
+    }
+
     func testUnknownFixtureFailsClosed() {
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (

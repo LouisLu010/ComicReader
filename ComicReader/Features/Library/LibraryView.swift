@@ -67,7 +67,9 @@ struct LibraryView: View {
                     )
                 }
 
-                if !displayedComics.isEmpty {
+                if section == .trash {
+                    LibraryTrashSectionView()
+                } else if !displayedComics.isEmpty {
                     LibraryComicGrid(
                         title: section.title,
                         comics: displayedComics,
@@ -223,7 +225,7 @@ struct LibraryView: View {
             libraryState.continueReadingComics(in: libraryCatalog.comics)
         case .favorites:
             libraryState.favoriteComics(in: libraryCatalog.comicsByTitle)
-        case .shelves, .settings:
+        case .shelves, .settings, .trash:
             []
         }
     }
@@ -268,7 +270,7 @@ struct LibraryView: View {
         switch section {
         case .continueReading, .favorites, .unread:
             true
-        case .all, .recent, .shelves, .settings:
+        case .all, .recent, .shelves, .settings, .trash:
             false
         }
     }
@@ -375,6 +377,121 @@ private struct LibraryStateUnavailableView: View {
         .font(.subheadline)
         .foregroundStyle(.orange)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LibraryTrashSectionView: View {
+    @Environment(LibraryTrashCoordinator.self) private var libraryTrash
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
+
+    var body: some View {
+        Group {
+            if libraryTrash.trashedComics.isEmpty {
+                ContentUnavailableView {
+                    Label(
+                        "library.section.trash",
+                        systemImage: "trash"
+                    )
+                } description: {
+                    Text("library.trash.empty.description")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 48)
+                .accessibilityIdentifier("library.trash.empty")
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label(
+                        "library.section.trash",
+                        systemImage: "trash"
+                    )
+                    .font(.headline)
+
+                    LazyVStack(spacing: 12) {
+                        ForEach(libraryTrash.trashedComics) { trashed in
+                            LibraryTrashRow(trashed: trashed)
+                        }
+                    }
+                }
+                .frame(maxWidth: 820, alignment: .leading)
+            }
+        }
+        .task {
+            await libraryTrash.purgeComicsPastRetention()
+            await libraryTrash.reload()
+        }
+    }
+}
+
+private struct LibraryTrashRow: View {
+    let trashed: LibraryTrashedComic
+
+    @Environment(LibraryTrashCoordinator.self) private var libraryTrash
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
+    @State private var isPurgeConfirmationPresented = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: "book.closed")
+                .font(.title2)
+                .frame(width: 44, height: 56)
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(trashed.displayName)
+                    .font(.headline)
+                    .lineLimit(2)
+
+                Text(
+                    "library.trash.purgeAfter \(trashed.purgeAfter, style: .date)"
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                Task {
+                    if await libraryTrash.restoreComic(for: trashed.id) {
+                        await libraryCatalog.reload()
+                    }
+                }
+            } label: {
+                Label("library.trash.restore", systemImage: "tray.and.arrow.up")
+            }
+            .accessibilityIdentifier(
+                "library.trash.restore.\(trashed.id.rawValue.uuidString)"
+            )
+
+            Button(role: .destructive) {
+                isPurgeConfirmationPresented = true
+            } label: {
+                Label("library.trash.purge", systemImage: "trash")
+            }
+            .accessibilityIdentifier(
+                "library.trash.purge.\(trashed.id.rawValue.uuidString)"
+            )
+            .confirmationDialog(
+                "library.trash.purge.confirm",
+                isPresented: $isPurgeConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("library.trash.purge.confirm.action", role: .destructive) {
+                    Task {
+                        await libraryTrash.purgeComic(for: trashed.id)
+                    }
+                }
+                .accessibilityIdentifier(
+                    "library.trash.purge.confirm.\(trashed.id.rawValue.uuidString)"
+                )
+            }
+        }
+        .padding(12)
+        .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(
+            "library.trash.comic.\(trashed.id.rawValue.uuidString)"
+        )
     }
 }
 
