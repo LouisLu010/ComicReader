@@ -220,6 +220,8 @@ private struct PlannerFixture {
     let descriptor: ManagedComicDescriptor
 
     init(comicID: ManagedComicID) {
+        self.comicID = comicID
+
         func makeWorkItem(
             _ path: [String],
             isCover: Bool = false
