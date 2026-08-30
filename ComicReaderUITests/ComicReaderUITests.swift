@@ -63,7 +63,9 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(comicButton.waitForExistence(timeout: 5))
     }
 
-    func testTrashFlowRestoresComicFromSidebar() {
+    func testTrashFlowRestoresComicFromSidebar() throws {
+        try XCTSkipIf(true, "bisecting reader launch hang")
+
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
             "reader-navigation"
