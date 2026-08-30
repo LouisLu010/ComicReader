@@ -4,6 +4,7 @@ import SwiftUI
 struct LibraryView: View {
     let section: LibrarySection
     let onImport: () -> Void
+    var onShowTrash: () -> Void = {}
 
     @Environment(FolderImportCoordinator.self) private var importCoordinator
     @Environment(ImportJobCoordinator.self) private var importJobs
@@ -127,6 +128,16 @@ struct LibraryView: View {
         )
         .toolbar {
             if section == .all {
+                ToolbarItem(placement: .secondaryAction) {
+                    Button(action: onShowTrash) {
+                        Label(
+                            "library.trash.open",
+                            systemImage: "trash"
+                        )
+                    }
+                    .accessibilityIdentifier("library.trash.open")
+                }
+
                 ToolbarItem(placement: .secondaryAction) {
                     LibraryFilterMenu(filter: filterBinding)
                 }
@@ -776,7 +787,7 @@ private struct ImportSelectionBanner: View {
 
 #Preview("Empty library") {
     NavigationStack {
-        LibraryView(section: .all) {}
+        LibraryView(section: .all, onImport: {})
             .environment(FolderImportCoordinator())
             .environment(ImportJobCoordinator())
             .environment(LibraryCatalogCoordinator())

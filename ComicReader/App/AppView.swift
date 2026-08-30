@@ -75,12 +75,18 @@ struct AppView: View {
         case .settings:
             SettingsView()
         case let section:
-            LibraryView(section: section) {
-                guard allowsLibraryWrites else {
-                    return
+            LibraryView(
+                section: section,
+                onImport: {
+                    guard allowsLibraryWrites else {
+                        return
+                    }
+                    router.presentedImporter = .folders
+                },
+                onShowTrash: {
+                    router.selectedSection = .trash
                 }
-                router.presentedImporter = .folders
-            }
+            )
         }
     }
 

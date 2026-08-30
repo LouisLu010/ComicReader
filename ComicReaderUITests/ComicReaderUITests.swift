@@ -94,9 +94,9 @@ final class ComicReaderUITests: XCTestCase {
             .completed
         )
 
-        let sidebarTrash = hittableSidebarItem("sidebar.trash", in: app)
-        XCTAssertTrue(sidebarTrash.waitForExistence(timeout: 5))
-        sidebarTrash.tap()
+        let trashOpenButton = app.buttons["library.trash.open"]
+        XCTAssertTrue(trashOpenButton.waitForExistence(timeout: 5))
+        trashOpenButton.tap()
         let trashRow = app.descendants(matching: .any)[
             "library.trash.comic.00000000-0000-0000-0000-000000000901"
         ].firstMatch
@@ -135,8 +135,18 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(restoreButton.waitForExistence(timeout: 5))
         restoreButton.tap()
 
-        hittableSidebarItem("sidebar.all", in: app).tap()
-        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
+        // 恢复后回收站回到空态；书库目录随之刷新。
+        let trashEmptyState = app.descendants(matching: .any)[
+            "library.trash.empty"
+        ].firstMatch
+        let emptyAppeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true"),
+            object: trashEmptyState
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [emptyAppeared], timeout: 5),
+            .completed
+        )
     }
 
     func testUnknownFixtureFailsClosed() {
@@ -213,32 +223,6 @@ final class ComicReaderUITests: XCTestCase {
         let settings = app.buttons["app.settings"]
         XCTAssertTrue(waitUntilHittable(settings, timeout: 8))
         settings.tap()
-    }
-
-    /// 侧边栏可能在折叠状态启动；展开后同一分区可能同时存在
-    /// 多个可访问元素，只取可点击的那个。
-    @discardableResult
-    private func hittableSidebarItem(
-        _ identifier: String,
-        in app: XCUIApplication
-    ) -> XCUIElement {
-        let query = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == %@", identifier))
-        if let hittable = query.allElementsBoundByIndex.first(where: {
-            $0.isHittable
-        }) {
-            return hittable
-        }
-
-        // 模拟器可能以折叠侧边栏启动，先展开再重新查找。
-        app.buttons["ToggleSidebar"].tap()
-        if let hittable = query.allElementsBoundByIndex.first(where: {
-            $0.isHittable
-        }) {
-            return hittable
-        }
-
-        return query.firstMatch
     }
 
     private func libraryTrashRowCount(_ app: XCUIApplication) -> Int {

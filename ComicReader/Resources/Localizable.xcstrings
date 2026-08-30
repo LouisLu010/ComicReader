@@ -1029,6 +1029,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载书库…" } }
       }
     },
+    "library.trash.open" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trash"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近删除"
+          }
+        }
+      }
+    },
     "library.section.trash" : {
       "localizations" : {
         "en" : {
