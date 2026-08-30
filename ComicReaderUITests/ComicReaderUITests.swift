@@ -210,7 +210,8 @@ final class ComicReaderUITests: XCTestCase {
         _ identifier: String,
         in app: XCUIApplication
     ) -> XCUIElement {
-        let item = app.descendants(matching: .any)[identifier]
+        let item = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@", identifier))
             .matching(NSPredicate(format: "hittable == true"))
             .firstMatch
         if item.waitForExistence(timeout: 3) {
