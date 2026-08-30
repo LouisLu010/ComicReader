@@ -1479,9 +1479,8 @@ final class LibraryStateRepositoryTests: XCTestCase {
             importedAt: .distantPast
         )
         await repository.reconcile(catalogItems: [first, second])
-        let shelf = try XCTUnwrap(
-            await repository.createShelf(named: "Ordered")
-        )
+        let createdShelf = await repository.createShelf(named: "Ordered")
+        let shelf = try XCTUnwrap(createdShelf)
 
         let didAddFirst = await repository.addComic(first.id, toShelf: shelf.id)
         XCTAssertTrue(didAddFirst)
@@ -1505,9 +1504,8 @@ final class LibraryStateRepositoryTests: XCTestCase {
             importedAt: .distantPast
         )
         await repository.reconcile(catalogItems: [comic])
-        let shelf = try XCTUnwrap(
-            await repository.createShelf(named: "Temporary")
-        )
+        let createdShelf = await repository.createShelf(named: "Temporary")
+        let shelf = try XCTUnwrap(createdShelf)
         let didAdd = await repository.addComic(comic.id, toShelf: shelf.id)
         XCTAssertTrue(didAdd)
 
@@ -1530,14 +1528,14 @@ final class LibraryStateRepositoryTests: XCTestCase {
     func testShelvesPersistAcrossReconfiguration() async throws {
         let container = try makeContainer()
         let repository = await makeRepository(container: container)
-        let shelf = try XCTUnwrap(
-            await repository.createShelf(named: "Persistent")
-        )
+        let createdShelf = await repository.createShelf(named: "Persistent")
+        let shelf = try XCTUnwrap(createdShelf)
 
         await repository.configure(modelContainer: nil)
         await repository.configure(modelContainer: container)
 
-        XCTAssertEqual(await repository.shelves(), [shelf])
+        let persistedShelves = await repository.shelves()
+        XCTAssertEqual(persistedShelves, [shelf])
     }
 
     // MARK: - Chapter Page Orders
