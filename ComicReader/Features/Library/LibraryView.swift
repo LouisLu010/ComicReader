@@ -5,6 +5,7 @@ struct LibraryView: View {
     let section: LibrarySection
     let onImport: () -> Void
     var onShowTrash: () -> Void = {}
+    var onShowShelves: () -> Void = {}
 
     @Environment(FolderImportCoordinator.self) private var importCoordinator
     @Environment(ImportJobCoordinator.self) private var importJobs
@@ -136,6 +137,16 @@ struct LibraryView: View {
                         )
                     }
                     .accessibilityIdentifier("library.trash.open")
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: onShowShelves) {
+                        Label(
+                            "library.shelves.open",
+                            systemImage: "square.stack"
+                        )
+                    }
+                    .accessibilityIdentifier("library.shelves.open")
                 }
 
                 ToolbarItem(placement: .secondaryAction) {

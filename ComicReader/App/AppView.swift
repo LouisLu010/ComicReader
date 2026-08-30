@@ -106,6 +106,10 @@ struct AppView: View {
                 },
                 onShowTrash: {
                     router.selectedSection = .trash
+                },
+                onShowShelves: {
+                    router.selectedSection = .shelves
+                    router.selectedShelfID = nil
                 }
             )
         }
