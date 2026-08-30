@@ -558,7 +558,7 @@ private actor LibraryStateStore {
         toShelf shelfID: ComicShelfID
     ) throws -> Bool {
         guard try shelfRecord(for: shelfID) != nil,
-              comicExists(comicID),
+              try comicExists(comicID),
               try membershipRecord(shelfID: shelfID, comicID: comicID) == nil
         else {
             return false
