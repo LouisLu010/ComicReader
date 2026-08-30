@@ -56,6 +56,7 @@ struct AppView: View {
                     Label(section.title, systemImage: section.systemImage)
                         .tag(Optional(section))
                         .accessibilityIdentifier("sidebar.\(section.id)")
+                        .accessibilityAddTraits(.isButton)
                 }
             }
 
