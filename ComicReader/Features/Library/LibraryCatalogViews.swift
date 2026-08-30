@@ -47,10 +47,7 @@ struct ComicDetailView: View {
     let thumbnailURL: URL?
 
     @Environment(LibraryStateRepository.self) private var libraryState
-    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
-    @Environment(LibraryTrashCoordinator.self) private var libraryTrash
     @Environment(\.readerFeatureServices) private var readerFeatureServices
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
@@ -59,7 +56,7 @@ struct ComicDetailView: View {
                 readingEntry
                 details
                 contentTree
-                dangerZone
+                ComicTrashAction(comic: comic)
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
@@ -85,31 +82,6 @@ struct ComicDetailView: View {
 
         }
         .accessibilityIdentifier("library.detail")
-    }
-
-    /// 移入最近删除是可逆操作（30 天内可恢复），无需确认弹窗。
-    private var dangerZone: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(role: .destructive) {
-                Task {
-                    await trashComic()
-                }
-            } label: {
-                Label("library.detail.trash", systemImage: "trash")
-            }
-            .accessibilityIdentifier("library.detail.trash")
-        }
-        .padding(.top, 8)
-    }
-
-    private func trashComic() async {
-        let didTrash = await libraryTrash.trashComic(for: comic.id)
-        guard didTrash else {
-            return
-        }
-
-        await libraryCatalog.reload()
-        dismiss()
     }
 
     private var header: some View {
@@ -415,5 +387,39 @@ private actor LibraryThumbnailLoader {
 
     func image(at url: URL) -> UIImage? {
         UIImage(contentsOfFile: url.path)
+    }
+}
+
+/// 详情页的危险区：移入最近删除是可逆操作（30 天内可恢复），
+/// 无需确认弹窗；成功后关闭详情并刷新书库目录。
+private struct ComicTrashAction: View {
+    let comic: LibraryCatalogItem
+
+    @Environment(LibraryTrashCoordinator.self) private var libraryTrash
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(role: .destructive) {
+                Task {
+                    await trashComic()
+                }
+            } label: {
+                Label("library.detail.trash", systemImage: "trash")
+            }
+            .accessibilityIdentifier("library.detail.trash")
+        }
+        .padding(.top, 8)
+    }
+
+    private func trashComic() async {
+        let didTrash = await libraryTrash.trashComic(for: comic.id)
+        guard didTrash else {
+            return
+        }
+
+        await libraryCatalog.reload()
+        dismiss()
     }
 }
