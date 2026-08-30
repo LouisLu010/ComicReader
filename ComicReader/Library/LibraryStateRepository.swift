@@ -108,10 +108,10 @@ private actor LibraryStateStore {
     func snapshot() throws -> LibraryStateStoreSnapshot {
         try makeSnapshot(
             storedComics: modelContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
             ),
             storedProgress: modelContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ),
             globalPreferences: try globalPreferencesRecord()
         )
@@ -121,10 +121,10 @@ private actor LibraryStateStore {
         catalogItems: [LibraryCatalogItem]
     ) throws -> LibraryStateStoreSnapshot {
         var storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         var comicsByID = firstStoredComicsByComicID(storedComics)
@@ -140,7 +140,7 @@ private actor LibraryStateStore {
                 storedComic.chapterCount = record.chapterCount
                 storedComic.pageCount = record.pageCount
             } else {
-                let storedComic = ComicReaderSchemaV5.StoredComic(
+                let storedComic = ComicReaderSchemaV6.StoredComic(
                     comicID: comicID,
                     displayName: record.displayName,
                     sourceRootName: record.sourceRootName,
@@ -166,10 +166,10 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateStoreSnapshot? {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         guard let storedComic = storedComics.first(where: {
@@ -192,7 +192,7 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateProgressWriteResult {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let globalPreferences = try globalPreferencesRecord()
         guard storedComics.contains(where: {
@@ -202,7 +202,7 @@ private actor LibraryStateStore {
         }
 
         var storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         if let record = storedProgress.first(where: {
             $0.comicID == comicID.rawValue
@@ -252,7 +252,7 @@ private actor LibraryStateStore {
             record.isCompleted = record.isCompleted || progress.isCompleted
             record.updatedAt = progress.updatedAt
         } else {
-            let record = ComicReaderSchemaV5.StoredReadingProgress(
+            let record = ComicReaderSchemaV6.StoredReadingProgress(
                 comicID: comicID.rawValue,
                 chapterID: progress.chapterID,
                 pageID: progress.pageID,
@@ -280,10 +280,10 @@ private actor LibraryStateStore {
         _ readingMode: ReadingMode
     ) throws -> LibraryStateStoreSnapshot {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         globalPreferences.defaultReadingModeRawValue = readingMode.rawValue
@@ -300,10 +300,10 @@ private actor LibraryStateStore {
         _ readingDirection: ReadingDirection
     ) throws -> LibraryStateStoreSnapshot {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         globalPreferences.defaultReadingDirectionRawValue = readingDirection.rawValue
@@ -321,10 +321,10 @@ private actor LibraryStateStore {
         isLeftZone: Bool
     ) throws -> LibraryStateStoreSnapshot {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         if isLeftZone {
@@ -346,10 +346,10 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateStoreSnapshot? {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         guard let storedComic = storedComics.first(where: {
@@ -373,10 +373,10 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> LibraryStateStoreSnapshot? {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let globalPreferences = try globalPreferencesRecord()
         guard let storedComic = storedComics.first(where: {
@@ -419,7 +419,7 @@ private actor LibraryStateStore {
         for comicID: ManagedComicID
     ) throws -> Bool {
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         guard storedComics.contains(where: {
             $0.comicID == comicID.rawValue
@@ -436,7 +436,7 @@ private actor LibraryStateStore {
             record.updatedAt = Date()
         } else {
             modelContext.insert(
-                ComicReaderSchemaV5.StoredChapterPageOrder(
+                ComicReaderSchemaV6.StoredChapterPageOrder(
                     comicID: comicID.rawValue,
                     chapterID: order.chapterID.rawValue,
                     orderedPageIDs: order.orderedPageIDs.map(\.rawValue),
@@ -470,7 +470,7 @@ private actor LibraryStateStore {
     ) throws -> [ImportChapterCandidate.ID: [ImportPageCandidate.ID]] {
         try modelContext
             .fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredChapterPageOrder>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredChapterPageOrder>()
             )
             .reduce(into: [:]) { result, record in
                 guard record.comicID == comicID.rawValue else {
@@ -484,13 +484,175 @@ private actor LibraryStateStore {
             }
     }
 
+    func shelves() throws -> [ComicShelf] {
+        try modelContext
+            .fetch(FetchDescriptor<ComicReaderSchemaV6.StoredComicShelf>())
+            .map { record in
+                ComicShelf(
+                    id: ComicShelfID(rawValue: record.shelfID),
+                    displayName: record.displayName,
+                    sortOrder: record.sortOrder,
+                    createdAt: record.createdAt
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder {
+                    return lhs.sortOrder < rhs.sortOrder
+                }
+
+                return lhs.createdAt < rhs.createdAt
+            }
+    }
+
+    func createShelf(named rawName: String) throws -> ComicShelf? {
+        guard let name = ComicShelf.normalizedName(rawName) else {
+            return nil
+        }
+
+        let sortOrder = ((try shelves()).map(\.sortOrder).max() ?? -1) + 1
+        let shelf = ComicShelf(displayName: name, sortOrder: sortOrder)
+        modelContext.insert(
+            ComicReaderSchemaV6.StoredComicShelf(
+                shelfID: shelf.id.rawValue,
+                displayName: shelf.displayName,
+                sortOrder: shelf.sortOrder,
+                createdAt: shelf.createdAt
+            )
+        )
+        try saveOrRollback()
+        return shelf
+    }
+
+    func renameShelf(
+        _ shelfID: ComicShelfID,
+        to rawName: String
+    ) throws -> Bool {
+        guard let name = ComicShelf.normalizedName(rawName),
+              let record = try shelfRecord(for: shelfID) else {
+            return false
+        }
+
+        record.displayName = name
+        try saveOrRollback()
+        return true
+    }
+
+    func deleteShelf(_ shelfID: ComicShelfID) throws -> Bool {
+        guard let record = try shelfRecord(for: shelfID) else {
+            return false
+        }
+
+        for membership in try modelContext.fetch(
+            FetchDescriptor<ComicReaderSchemaV6.StoredComicShelfMembership>()
+        ) where membership.shelfID == shelfID.rawValue {
+            modelContext.delete(membership)
+        }
+
+        modelContext.delete(record)
+        try saveOrRollback()
+        return true
+    }
+
+    func addComic(
+        _ comicID: ManagedComicID,
+        toShelf shelfID: ComicShelfID
+    ) throws -> Bool {
+        guard try shelfRecord(for: shelfID) != nil,
+              comicExists(comicID),
+              try membershipRecord(shelfID: shelfID, comicID: comicID) == nil
+        else {
+            return false
+        }
+
+        modelContext.insert(
+            ComicReaderSchemaV6.StoredComicShelfMembership(
+                shelfID: shelfID.rawValue,
+                comicID: comicID.rawValue,
+                addedAt: Date()
+            )
+        )
+        try saveOrRollback()
+        return true
+    }
+
+    func removeComic(
+        _ comicID: ManagedComicID,
+        fromShelf shelfID: ComicShelfID
+    ) throws -> Bool {
+        guard let membership = try membershipRecord(
+            shelfID: shelfID,
+            comicID: comicID
+        ) else {
+            return false
+        }
+
+        modelContext.delete(membership)
+        try saveOrRollback()
+        return true
+    }
+
+    func comicIDs(inShelf shelfID: ComicShelfID) throws -> [ManagedComicID] {
+        try modelContext
+            .fetch(
+                FetchDescriptor<ComicReaderSchemaV6.StoredComicShelfMembership>()
+            )
+            .filter { $0.shelfID == shelfID.rawValue }
+            .sorted { $0.addedAt < $1.addedAt }
+            .map { ManagedComicID(rawValue: $0.comicID) }
+    }
+
+    func shelves(containing comicID: ManagedComicID) throws -> [ComicShelf] {
+        let memberShelfIDs = Set(
+            try modelContext
+                .fetch(
+                    FetchDescriptor<ComicReaderSchemaV6.StoredComicShelfMembership>()
+                )
+                .filter { $0.comicID == comicID.rawValue }
+                .map(\.shelfID)
+        )
+
+        return try shelves().filter {
+            memberShelfIDs.contains($0.id.rawValue)
+        }
+    }
+
+    private func shelfRecord(
+        for shelfID: ComicShelfID
+    ) throws -> ComicReaderSchemaV6.StoredComicShelf? {
+        try modelContext
+            .fetch(FetchDescriptor<ComicReaderSchemaV6.StoredComicShelf>())
+            .first { $0.shelfID == shelfID.rawValue }
+    }
+
+    private func membershipRecord(
+        shelfID: ComicShelfID,
+        comicID: ManagedComicID
+    ) throws -> ComicReaderSchemaV6.StoredComicShelfMembership? {
+        let key = shelfID.rawValue.uuidString.lowercased()
+            + "|"
+            + comicID.rawValue.uuidString.lowercased()
+        return try modelContext
+            .fetch(
+                FetchDescriptor<ComicReaderSchemaV6.StoredComicShelfMembership>()
+            )
+            .first { $0.membershipKey == key }
+    }
+
+    private func comicExists(
+        _ comicID: ManagedComicID
+    ) throws -> Bool {
+        try modelContext
+            .fetch(FetchDescriptor<ComicReaderSchemaV6.StoredComic>())
+            .contains { $0.comicID == comicID.rawValue }
+    }
+
     private func chapterPageOrderRecord(
         comicID: ManagedComicID,
         chapterID: ImportChapterCandidate.ID
-    ) throws -> ComicReaderSchemaV5.StoredChapterPageOrder? {
+    ) throws -> ComicReaderSchemaV6.StoredChapterPageOrder? {
         try modelContext
             .fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredChapterPageOrder>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredChapterPageOrder>()
             )
             .first { record in
                 record.comicID == comicID.rawValue
@@ -499,20 +661,20 @@ private actor LibraryStateStore {
     }
 
     private func globalPreferencesRecord() throws
-        -> ComicReaderSchemaV5.StoredReaderGlobalPreferences {
+        -> ComicReaderSchemaV6.StoredReaderGlobalPreferences {
         let recordKey = "reader-global-v1"
         let records = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReaderGlobalPreferences>(
+            FetchDescriptor<ComicReaderSchemaV6.StoredReaderGlobalPreferences>(
                 predicate: #Predicate { record in
                     record.recordKey == recordKey
                 }
             )
         )
-        let record: ComicReaderSchemaV5.StoredReaderGlobalPreferences
+        let record: ComicReaderSchemaV6.StoredReaderGlobalPreferences
         if let existingRecord = records.first {
             record = existingRecord
         } else {
-            record = ComicReaderSchemaV5.StoredReaderGlobalPreferences()
+            record = ComicReaderSchemaV6.StoredReaderGlobalPreferences()
             modelContext.insert(record)
         }
 
@@ -521,10 +683,10 @@ private actor LibraryStateStore {
         }
 
         let storedComics = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedProgress = try modelContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
         )
         let progressByComicID = firstStoredProgressByComicID(storedProgress)
 
@@ -556,7 +718,7 @@ private actor LibraryStateStore {
     }
 
     private func readerGlobalPreferences(
-        from record: ComicReaderSchemaV5.StoredReaderGlobalPreferences
+        from record: ComicReaderSchemaV6.StoredReaderGlobalPreferences
     ) -> ReaderGlobalPreferences {
         ReaderGlobalPreferences(
             defaultReadingMode: ReadingMode(
@@ -586,9 +748,9 @@ private actor LibraryStateStore {
     }
 
     private func makeSnapshot(
-        storedComics: [ComicReaderSchemaV5.StoredComic],
-        storedProgress: [ComicReaderSchemaV5.StoredReadingProgress],
-        globalPreferences: ComicReaderSchemaV5.StoredReaderGlobalPreferences
+        storedComics: [ComicReaderSchemaV6.StoredComic],
+        storedProgress: [ComicReaderSchemaV6.StoredReadingProgress],
+        globalPreferences: ComicReaderSchemaV6.StoredReaderGlobalPreferences
     ) -> LibraryStateStoreSnapshot {
         let comicsByID = firstStoredComicsByComicID(storedComics)
         let progressByComicID = firstStoredProgressByComicID(storedProgress)
@@ -640,9 +802,9 @@ private actor LibraryStateStore {
     }
 
     private func firstStoredComicsByComicID(
-        _ records: [ComicReaderSchemaV5.StoredComic]
-    ) -> [UUID: ComicReaderSchemaV5.StoredComic] {
-        var recordsByComicID: [UUID: ComicReaderSchemaV5.StoredComic] = [:]
+        _ records: [ComicReaderSchemaV6.StoredComic]
+    ) -> [UUID: ComicReaderSchemaV6.StoredComic] {
+        var recordsByComicID: [UUID: ComicReaderSchemaV6.StoredComic] = [:]
         for record in records where recordsByComicID[record.comicID] == nil {
             recordsByComicID[record.comicID] = record
         }
@@ -650,10 +812,10 @@ private actor LibraryStateStore {
     }
 
     private func firstStoredProgressByComicID(
-        _ records: [ComicReaderSchemaV5.StoredReadingProgress]
-    ) -> [UUID: ComicReaderSchemaV5.StoredReadingProgress] {
+        _ records: [ComicReaderSchemaV6.StoredReadingProgress]
+    ) -> [UUID: ComicReaderSchemaV6.StoredReadingProgress] {
         var recordsByComicID: [
-            UUID: ComicReaderSchemaV5.StoredReadingProgress
+            UUID: ComicReaderSchemaV6.StoredReadingProgress
         ] = [:]
         for record in records where recordsByComicID[record.comicID] == nil {
             recordsByComicID[record.comicID] = record
@@ -906,6 +1068,115 @@ final class LibraryStateRepository {
             )
         } catch {
             return nil
+        }
+    }
+
+    func shelves() async -> [ComicShelf] {
+        guard let store else {
+            return []
+        }
+
+        do {
+            return try await store.shelves()
+        } catch {
+            return []
+        }
+    }
+
+    func createShelf(named rawName: String) async -> ComicShelf? {
+        guard let store else {
+            return nil
+        }
+
+        do {
+            return try await store.createShelf(named: rawName)
+        } catch {
+            return nil
+        }
+    }
+
+    @discardableResult
+    func renameShelf(
+        _ shelfID: ComicShelfID,
+        to rawName: String
+    ) async -> Bool {
+        guard let store else {
+            return false
+        }
+
+        do {
+            return try await store.renameShelf(shelfID, to: rawName)
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func deleteShelf(_ shelfID: ComicShelfID) async -> Bool {
+        guard let store else {
+            return false
+        }
+
+        do {
+            return try await store.deleteShelf(shelfID)
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func addComic(
+        _ comicID: ManagedComicID,
+        toShelf shelfID: ComicShelfID
+    ) async -> Bool {
+        guard let store else {
+            return false
+        }
+
+        do {
+            return try await store.addComic(comicID, toShelf: shelfID)
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeComic(
+        _ comicID: ManagedComicID,
+        fromShelf shelfID: ComicShelfID
+    ) async -> Bool {
+        guard let store else {
+            return false
+        }
+
+        do {
+            return try await store.removeComic(comicID, fromShelf: shelfID)
+        } catch {
+            return false
+        }
+    }
+
+    func comicIDs(inShelf shelfID: ComicShelfID) async -> [ManagedComicID] {
+        guard let store else {
+            return []
+        }
+
+        do {
+            return try await store.comicIDs(inShelf: shelfID)
+        } catch {
+            return []
+        }
+    }
+
+    func shelves(containing comicID: ManagedComicID) async -> [ComicShelf] {
+        guard let store else {
+            return []
+        }
+
+        do {
+            return try await store.shelves(containing: comicID)
+        } catch {
+            return []
         }
     }
 

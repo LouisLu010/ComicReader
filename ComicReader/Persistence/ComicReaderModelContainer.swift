@@ -110,7 +110,7 @@ enum ComicReaderModelContainer {
         isStoredInMemoryOnly: Bool,
         storeURL: URL?
     ) -> (schema: Schema, configuration: ModelConfiguration) {
-        let schema = Schema(versionedSchema: ComicReaderSchemaV5.self)
+        let schema = Schema(versionedSchema: ComicReaderSchemaV6.self)
         let configuration: ModelConfiguration
         if let storeURL {
             configuration = ModelConfiguration(

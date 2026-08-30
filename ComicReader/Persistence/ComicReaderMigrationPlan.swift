@@ -8,6 +8,7 @@ enum ComicReaderMigrationPlan: SchemaMigrationPlan {
             ComicReaderSchemaV3.self,
             ComicReaderSchemaV4.self,
             ComicReaderSchemaV5.self,
+            ComicReaderSchemaV6.self,
         ]
     }
 
@@ -28,6 +29,10 @@ enum ComicReaderMigrationPlan: SchemaMigrationPlan {
             .lightweight(
                 fromVersion: ComicReaderSchemaV4.self,
                 toVersion: ComicReaderSchemaV5.self
+            ),
+            .lightweight(
+                fromVersion: ComicReaderSchemaV5.self,
+                toVersion: ComicReaderSchemaV6.self
             ),
         ]
     }

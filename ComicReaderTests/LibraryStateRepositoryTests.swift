@@ -87,7 +87,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let container = try makeContainer()
         let context = ModelContext(container)
         context.insert(
-            ComicReaderSchemaV5.StoredReaderGlobalPreferences(
+            ComicReaderSchemaV6.StoredReaderGlobalPreferences(
                 recordKey: "foreign-preferences",
                 defaultReadingModeRawValue: ReadingMode.spread.rawValue,
                 defaultReadingDirectionRawValue: (
@@ -104,7 +104,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         XCTAssertEqual(repository.globalReaderPreferences, .default)
         let records = try ModelContext(container).fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredReaderGlobalPreferences>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredReaderGlobalPreferences>()
         )
         XCTAssertEqual(
             Set(records.map(\.recordKey)),
@@ -307,7 +307,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let context = ModelContext(container)
         let storedComics = try context.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         let storedComic = try XCTUnwrap(storedComics.first)
         XCTAssertEqual(storedComic.displayName, "Updated Title")
@@ -316,7 +316,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(storedComic.isFavorite)
         XCTAssertEqual(
             try context.fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ).count,
             1
         )
@@ -517,7 +517,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -545,7 +545,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         )
         let seedContext = ModelContext(container)
         seedContext.insert(
-            ComicReaderSchemaV5.StoredComic(
+            ComicReaderSchemaV6.StoredComic(
                 comicID: comicID.rawValue,
                 displayName: "Legacy Preference Comic",
                 sourceRootName: "legacy-preference-source",
@@ -555,7 +555,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
             )
         )
         seedContext.insert(
-            ComicReaderSchemaV5.StoredReadingProgress(
+            ComicReaderSchemaV6.StoredReadingProgress(
                 comicID: comicID.rawValue,
                 chapterID: "chapter-1",
                 pageID: "page-1",
@@ -586,7 +586,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(didRecord)
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -711,7 +711,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let globalRecord = try XCTUnwrap(
             try context.fetch(
                 FetchDescriptor<
-                    ComicReaderSchemaV5.StoredReaderGlobalPreferences
+                    ComicReaderSchemaV6.StoredReaderGlobalPreferences
                 >()
             ).first
         )
@@ -721,7 +721,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         globalRecord.rightTapActionRawValue = "future-right-action"
         let comicRecord = try XCTUnwrap(
             try context.fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
             ).first
         )
         comicRecord.readingModeOverrideRawValue = "future-mode"
@@ -773,7 +773,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let storedProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -802,7 +802,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let timestamp = Date(timeIntervalSince1970: 300)
         let context = ModelContext(container)
         context.insert(
-            ComicReaderSchemaV5.StoredReadingProgress(
+            ComicReaderSchemaV6.StoredReadingProgress(
                 comicID: comic.id.rawValue,
                 chapterID: "chapter-future",
                 pageID: "page-future",
@@ -1110,7 +1110,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedContext = ModelContext(container)
         let seededStoredProgress = try XCTUnwrap(
             try seedContext.fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ).first
         )
         seededStoredProgress.completedChapterIDs = [
@@ -1148,7 +1148,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let mergedStoredProgress = try XCTUnwrap(
             try ModelContext(container).fetch(
-                FetchDescriptor<ComicReaderSchemaV5.StoredReadingProgress>()
+                FetchDescriptor<ComicReaderSchemaV6.StoredReadingProgress>()
             ).first
         )
         XCTAssertEqual(
@@ -1256,7 +1256,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let seedRepository = await makeRepository(container: container)
         await seedRepository.reconcile(catalogItems: [first, second])
         for storedComic in try seedContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         ) {
             seedContext.delete(storedComic)
         }
@@ -1266,7 +1266,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         let rebuiltRepository = await makeRepository(container: container)
         await rebuiltRepository.reconcile(catalogItems: [first, second])
         let rebuiltComics = try rebuiltContext.fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
 
         XCTAssertEqual(
@@ -1340,7 +1340,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         await coordinator.reloadAndReconcile(with: rebuiltRepository)
 
         let rebuiltRecords = try ModelContext(rebuiltContainer).fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredComic>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredComic>()
         )
         XCTAssertEqual(rebuiltRecords.map(\.comicID), [comic.id.rawValue])
         XCTAssertEqual(coordinator.comics.map(\.id), [comic.id])
@@ -1388,6 +1388,143 @@ final class LibraryStateRepositoryTests: XCTestCase {
         )
     }
 
+    // MARK: - Custom Shelves
+
+    @MainActor
+    func testCreateShelvesAssignsOrderAndNormalizesNames() async throws {
+        let repository = await makeRepository(container: try makeContainer())
+
+        let first = await repository.createShelf(named: "  Favorites  ")
+        let second = await repository.createShelf(named: "Reading Now")
+        XCTAssertNil(await repository.createShelf(named: "   
+	 "))
+
+        XCTAssertEqual(first?.displayName, "Favorites")
+        XCTAssertEqual(first?.sortOrder, 0)
+        XCTAssertEqual(second?.sortOrder, 1)
+        XCTAssertEqual(
+            await repository.shelves().map(\.displayName),
+            ["Favorites", "Reading Now"]
+        )
+    }
+
+    @MainActor
+    func testShelfMembershipAddRemoveAndUnknownTargets() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000414"),
+            title: "Shelved Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+        let shelf = await repository.createShelf(named: "Weekend")
+        let shelfID = try XCTUnwrap(shelf?.id)
+        let unknownShelfID = ComicShelfID(
+            rawValue: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000415"
+            )!
+        )
+        let unknownComicID = managedComicID(
+            "00000000-0000-0000-0000-000000000416"
+        )
+
+        XCTAssertTrue(await repository.addComic(comic.id, toShelf: shelfID))
+        XCTAssertFalse(await repository.addComic(comic.id, toShelf: shelfID))
+        XCTAssertEqual(
+            await repository.comicIDs(inShelf: shelfID),
+            [comic.id]
+        )
+        XCTAssertEqual(
+            await repository.shelves(containing: comic.id),
+            [shelf]
+        )
+        XCTAssertFalse(
+            await repository.addComic(unknownComicID, toShelf: shelfID)
+        )
+        XCTAssertFalse(
+            await repository.addComic(comic.id, toShelf: unknownShelfID)
+        )
+
+        XCTAssertTrue(
+            await repository.removeComic(comic.id, fromShelf: shelfID)
+        )
+        XCTAssertFalse(
+            await repository.removeComic(comic.id, fromShelf: shelfID)
+        )
+        XCTAssertEqual(await repository.comicIDs(inShelf: shelfID), [])
+        XCTAssertTrue(await repository.shelves(containing: comic.id).isEmpty)
+    }
+
+    @MainActor
+    func testShelfMembershipKeepsInsertionOrder() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let first = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000417"),
+            title: "First",
+            importedAt: .distantPast
+        )
+        let second = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000418"),
+            title: "Second",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [first, second])
+        let shelf = try XCTUnwrap(
+            await repository.createShelf(named: "Ordered")
+        )
+
+        XCTAssertTrue(await repository.addComic(first.id, toShelf: shelf.id))
+        XCTAssertTrue(await repository.addComic(second.id, toShelf: shelf.id))
+
+        XCTAssertEqual(
+            await repository.comicIDs(inShelf: shelf.id),
+            [first.id, second.id]
+        )
+    }
+
+    @MainActor
+    func testRenameAndDeleteShelfCleansUpMemberships() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let comic = catalogItem(
+            id: managedComicID("00000000-0000-0000-0000-000000000419"),
+            title: "Trash Shelf Comic",
+            importedAt: .distantPast
+        )
+        await repository.reconcile(catalogItems: [comic])
+        let shelf = try XCTUnwrap(
+            await repository.createShelf(named: "Temporary")
+        )
+        XCTAssertTrue(await repository.addComic(comic.id, toShelf: shelf.id))
+
+        XCTAssertFalse(await repository.renameShelf(shelf.id, to: "   "))
+        XCTAssertTrue(await repository.renameShelf(shelf.id, to: "Renamed"))
+        XCTAssertEqual(
+            await repository.shelves().first?.displayName,
+            "Renamed"
+        )
+
+        XCTAssertTrue(await repository.deleteShelf(shelf.id))
+        XCTAssertTrue(await repository.shelves().isEmpty)
+        XCTAssertTrue(await repository.comicIDs(inShelf: shelf.id).isEmpty)
+    }
+
+    @MainActor
+    func testShelvesPersistAcrossReconfiguration() async throws {
+        let container = try makeContainer()
+        let repository = await makeRepository(container: container)
+        let shelf = try XCTUnwrap(
+            await repository.createShelf(named: "Persistent")
+        )
+
+        await repository.configure(modelContainer: nil)
+        await repository.configure(modelContainer: container)
+
+        XCTAssertEqual(await repository.shelves(), [shelf])
+    }
+
     // MARK: - Chapter Page Orders
 
     @MainActor
@@ -1430,7 +1567,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         )
         XCTAssertTrue(didUpdate)
         let records = try ModelContext(container).fetch(
-            FetchDescriptor<ComicReaderSchemaV5.StoredChapterPageOrder>()
+            FetchDescriptor<ComicReaderSchemaV6.StoredChapterPageOrder>()
         )
         XCTAssertEqual(records.count, 1)
         let reloadedOrder = await repository.chapterPageOrder(
