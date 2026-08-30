@@ -98,8 +98,7 @@ final class ComicReaderUITests: XCTestCase {
         if !sidebarTrash.waitForExistence(timeout: 5) {
             let treeSnapshot = app.debugDescription
             XCTFail(
-                "sidebar.trash missing. Tree:
-"
+                "sidebar.trash missing. Tree: "
                     + String(treeSnapshot.prefix(2500))
             )
             return
