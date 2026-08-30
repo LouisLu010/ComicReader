@@ -3,7 +3,7 @@ import XCTest
 @testable import ComicReader
 
 final class ComicMetadataEditTests: XCTestCase {
-    func testValidatedDisplayNameTrimsAndRejectsBlank() {
+    func testValidatedDisplayNameTrimsAndRejectsBlank() throws {
         XCTAssertEqual(
             ComicMetadataEditPolicy.validatedDisplayName("  新名字  "),
             "新名字"
@@ -13,8 +13,8 @@ final class ComicMetadataEditTests: XCTestCase {
         )
     }
 
-    func testOnlyReadableExistingPagesAreSelectableCovers() {
-        let fixture = MetadataEditFixture()
+    func testOnlyReadableExistingPagesAreSelectableCovers() throws {
+        let fixture = try MetadataEditFixture()
         let readableID = ImportPageCandidate.ID(rawValue: "page-readable")
         let corruptedID = ImportPageCandidate.ID(rawValue: "page-corrupted")
         let missingID = ImportPageCandidate.ID(rawValue: "page-missing")
@@ -39,8 +39,8 @@ final class ComicMetadataEditTests: XCTestCase {
         )
     }
 
-    func testApplyingDisplayNameKeepsEverythingElse() {
-        let fixture = MetadataEditFixture()
+    func testApplyingDisplayNameKeepsEverythingElse() throws {
+        let fixture = try MetadataEditFixture()
         let originalRevision = fixture.descriptor.revision
 
         let updated = ComicMetadataEditPolicy.applying(
@@ -59,8 +59,8 @@ final class ComicMetadataEditTests: XCTestCase {
         )
     }
 
-    func testApplyingCoverMovesCoverFlags() {
-        let fixture = MetadataEditFixture()
+    func testApplyingCoverMovesCoverFlags() throws {
+        let fixture = try MetadataEditFixture()
         let newCoverID = ImportPageCandidate.ID(rawValue: "page-readable")
 
         let updated = ComicMetadataEditPolicy.applying(
@@ -75,7 +75,7 @@ final class ComicMetadataEditTests: XCTestCase {
     }
 
     func testEditorAppliesRenameAndWritesCatalogRecord() async throws {
-        let fixture = try MetadataEditorFixture()
+        let fixture = try MetadataEditFixture()
 
         let updated = try await fixture.editor.apply(
             comicID: fixture.comicID,
@@ -98,7 +98,7 @@ final class ComicMetadataEditTests: XCTestCase {
     }
 
     func testEditorAppliesCoverChangeAndRegeneratesThumbnail() async throws {
-        let fixture = try MetadataEditorFixture()
+        let fixture = try MetadataEditFixture()
         let newCoverID = ImportPageCandidate.ID(rawValue: "page-readable")
 
         _ = try await fixture.editor.apply(
@@ -117,7 +117,7 @@ final class ComicMetadataEditTests: XCTestCase {
     }
 
     func testEditorRejectsInvalidEdits() async throws {
-        let fixture = try MetadataEditorFixture()
+        let fixture = try MetadataEditFixture()
 
         do {
             _ = try await fixture.editor.apply(
