@@ -56,6 +56,35 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         self.coverPageID = coverPageID
     }
 
+    /// 应用元数据编辑（显示名/封面），生成新修订号的描述符。
+    func with(
+        displayName: String,
+        workItems: [FrozenImportWorkItem],
+        coverPageID: ImportPageCandidate.ID
+    ) -> ManagedComicDescriptor {
+        ManagedComicDescriptor(
+            schemaVersion: Self.currentSchemaVersion,
+            jobID: jobID,
+            targetComicID: targetComicID,
+            revision: Self.makeRevision(
+                sourceRootName: sourceRootName,
+                displayName: displayName,
+                sortLocaleIdentifier: sortLocaleIdentifier,
+                collections: collections,
+                chapters: chapters,
+                workItems: workItems,
+                coverPageID: coverPageID
+            ),
+            sourceRootName: sourceRootName,
+            displayName: displayName,
+            sortLocaleIdentifier: sortLocaleIdentifier,
+            collections: collections,
+            chapters: chapters,
+            workItems: workItems,
+            coverPageID: coverPageID
+        )
+    }
+
     /// 应用一次更新后的描述符：沿用导入身份与展示信息，
     /// 以新内容重新计算修订号。
     func updated(

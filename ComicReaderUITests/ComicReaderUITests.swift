@@ -244,6 +244,53 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(shelfComic.waitForExistence(timeout: 10))
     }
 
+    func testComicDetailSupportsMetadataEditing() {
+        let app = XCUIApplication()
+        app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
+            "reader-navigation"
+        )
+        app.launchArguments += [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let comicButton = app.buttons[
+            "library.comic.00000000-0000-0000-0000-000000000901"
+        ]
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
+        comicButton.tap()
+
+        let editButton = app.buttons["library.metadata.edit"].firstMatch
+        var scrollAttempts = 0
+        while !editButton.exists, scrollAttempts < 6 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        XCTAssertTrue(editButton.waitForExistence(timeout: 3))
+        editButton.tap()
+
+        let nameField = app.textFields["library.metadata.displayName"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        for _ in 0..<24 {
+            nameField.typeText(XCUIKeyboardKey.delete.rawValue)
+        }
+        nameField.typeText("Renamed Comic")
+
+        let saveButton = app.buttons["library.metadata.save"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        saveButton.tap()
+
+        // 返回书库后网格显示新名称。
+        let backButton = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5))
+        backButton.tap()
+
+        let renamedTitle = app.staticTexts["Renamed Comic"]
+        XCTAssertTrue(renamedTitle.waitForExistence(timeout: 10))
+    }
+
     func testUnknownFixtureFailsClosed() {
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
