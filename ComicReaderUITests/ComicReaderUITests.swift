@@ -191,64 +191,51 @@ final class ComicReaderUITests: XCTestCase {
         )
         let comicButton = app.buttons[comicIdentifier]
         XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
-
-        openSidebarItem("sidebar.shelves", in: app)
-        let emptyState = app.descendants(matching: .any)["library.shelves.empty"]
-            .firstMatch
-        XCTAssertTrue(emptyState.waitForExistence(timeout: 5))
-
-        let createButton = app.buttons["library.shelves.create"].firstMatch
-        XCTAssertTrue(createButton.waitForExistence(timeout: 5))
-        createButton.tap()
-
-        let nameField = app.textFields.firstMatch
-        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
-        nameField.typeText("Weekend")
-
-        let saveButton = app.buttons["library.shelves.save"]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
-        saveButton.tap()
-
-        let shelfRow = app.staticTexts["Weekend"]
-        XCTAssertTrue(shelfRow.waitForExistence(timeout: 5))
-
-        // 返回书库，把漫画加入书架。
-        openSidebarItem("sidebar.all", in: app)
-        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
         comicButton.tap()
 
+        // 详情页打开书架面板，新建书架并自动加入。
         let shelvesMenu = app.buttons["library.shelves.menu"].firstMatch
-        var attempts = 0
-        while !shelvesMenu.exists, attempts < 5 {
+        var scrollAttempts = 0
+        while !shelvesMenu.exists, scrollAttempts < 5 {
             app.swipeUp()
-            attempts += 1
+            scrollAttempts += 1
         }
         XCTAssertTrue(shelvesMenu.waitForExistence(timeout: 3))
         shelvesMenu.tap()
 
-        let toggleWeekend = app.buttons["library.shelves.toggle.Weekend"]
-        XCTAssertTrue(toggleWeekend.waitForExistence(timeout: 5))
-        toggleWeekend.tap()
+        let nameField = app.textFields["library.shelves.create.field"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.typeText("Weekend")
 
-        // 进入书架内容，漫画已加入。
-        openSidebarItem("sidebar.shelves", in: app)
+        let addButton = app.buttons["library.shelves.add"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.tap()
+
+        let shelfRow = app.buttons["library.shelf.row.Weekend"]
         XCTAssertTrue(shelfRow.waitForExistence(timeout: 5))
-        shelfRow.tap()
+
+        // 关闭面板，回到书库并从工具栏进入书架内容。
+        let doneButton = app.buttons["library.shelves.done"]
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5))
+        doneButton.tap()
+
+        let shelvesOpenButton = app.buttons["library.shelves.open"]
+        XCTAssertTrue(shelvesOpenButton.waitForExistence(timeout: 5))
+        shelvesOpenButton.tap()
+
+        let shelfEntryAppeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true"),
+            object: app.staticTexts["Weekend"]
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [shelfEntryAppeared], timeout: 5),
+            .completed
+        )
+
+        app.staticTexts["Weekend"].tap()
 
         let shelfComic = app.buttons[comicIdentifier]
         XCTAssertTrue(shelfComic.waitForExistence(timeout: 10))
-    }
-
-    private func openSidebarItem(
-        _ identifier: String,
-        in app: XCUIApplication
-    ) {
-        let item = app.descendants(matching: .any)[identifier].firstMatch
-        if !item.waitForExistence(timeout: 3) {
-            app.buttons["ToggleSidebar"].tap()
-        }
-        XCTAssertTrue(item.waitForExistence(timeout: 5))
-        item.tap()
     }
 
     func testUnknownFixtureFailsClosed() {
