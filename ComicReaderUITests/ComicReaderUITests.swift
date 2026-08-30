@@ -94,7 +94,17 @@ final class ComicReaderUITests: XCTestCase {
             .completed
         )
 
-        app.descendants(matching: .any)["sidebar.trash"].tap()
+        let sidebarTrash = app.descendants(matching: .any)["sidebar.trash"]
+        if !sidebarTrash.waitForExistence(timeout: 5) {
+            let treeSnapshot = app.debugDescription
+            XCTFail(
+                "sidebar.trash missing. Tree:
+"
+                    + String(treeSnapshot.prefix(2500))
+            )
+            return
+        }
+        sidebarTrash.tap()
         let trashRow = app.otherElements[
             "library.trash.comic.00000000-0000-0000-0000-000000000901"
         ]
