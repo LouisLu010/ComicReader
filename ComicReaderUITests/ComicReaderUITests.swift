@@ -94,11 +94,7 @@ final class ComicReaderUITests: XCTestCase {
             .completed
         )
 
-        let sidebarTrash = app.descendants(matching: .any)["sidebar.trash"].firstMatch
-        if !sidebarTrash.waitForExistence(timeout: 3) {
-            // 模拟器可能以折叠侧边栏启动，先展开再导航。
-            app.buttons["ToggleSidebar"].tap()
-        }
+        let sidebarTrash = hittableSidebarItem("sidebar.trash", in: app)
         XCTAssertTrue(sidebarTrash.waitForExistence(timeout: 5))
         sidebarTrash.tap()
         let trashRow = app.descendants(matching: .any)[
@@ -127,7 +123,7 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(restoreButton.waitForExistence(timeout: 5))
         restoreButton.tap()
 
-        app.descendants(matching: .any)["sidebar.all"].firstMatch.tap()
+        hittableSidebarItem("sidebar.all", in: app).tap()
         XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
     }
 
@@ -205,6 +201,24 @@ final class ComicReaderUITests: XCTestCase {
         let settings = app.buttons["app.settings"]
         XCTAssertTrue(waitUntilHittable(settings, timeout: 8))
         settings.tap()
+    }
+
+    /// 侧边栏可能在折叠状态启动；展开后同一分区可能同时存在
+    /// 多个可访问元素，只取可点击的那个。
+    @discardableResult
+    private func hittableSidebarItem(
+        _ identifier: String,
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        let item = app.descendants(matching: .any)[identifier]
+            .matching(NSPredicate(format: "hittable == true"))
+            .firstMatch
+        if item.waitForExistence(timeout: 3) {
+            return item
+        }
+
+        app.buttons["ToggleSidebar"].tap()
+        return item
     }
 
     private func libraryTrashRowCount(_ app: XCUIApplication) -> Int {
