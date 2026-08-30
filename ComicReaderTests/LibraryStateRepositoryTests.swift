@@ -1401,10 +1401,8 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertEqual(first?.displayName, "Favorites")
         XCTAssertEqual(first?.sortOrder, 0)
         XCTAssertEqual(second?.sortOrder, 1)
-        XCTAssertEqual(
-            await repository.shelves().map(\.displayName),
-            ["Favorites", "Reading Now"]
-        )
+        let shelfNames = await repository.shelves().map(\.displayName)
+        XCTAssertEqual(shelfNames, ["Favorites", "Reading Now"])
     }
 
     @MainActor
@@ -1430,14 +1428,10 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         XCTAssertTrue(await repository.addComic(comic.id, toShelf: shelfID))
         XCTAssertFalse(await repository.addComic(comic.id, toShelf: shelfID))
-        XCTAssertEqual(
-            await repository.comicIDs(inShelf: shelfID),
-            [comic.id]
-        )
-        XCTAssertEqual(
-            await repository.shelves(containing: comic.id),
-            [shelf]
-        )
+        let memberIDs = await repository.comicIDs(inShelf: shelfID)
+        XCTAssertEqual(memberIDs, [comic.id])
+        let containingShelves = await repository.shelves(containing: comic.id)
+        XCTAssertEqual(containingShelves, [shelf])
         XCTAssertFalse(
             await repository.addComic(unknownComicID, toShelf: shelfID)
         )
@@ -1477,10 +1471,8 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertTrue(await repository.addComic(first.id, toShelf: shelf.id))
         XCTAssertTrue(await repository.addComic(second.id, toShelf: shelf.id))
 
-        XCTAssertEqual(
-            await repository.comicIDs(inShelf: shelf.id),
-            [first.id, second.id]
-        )
+        let orderedMemberIDs = await repository.comicIDs(inShelf: shelf.id)
+        XCTAssertEqual(orderedMemberIDs, [first.id, second.id])
     }
 
     @MainActor
