@@ -149,6 +149,32 @@ final class ComicReaderUITests: XCTestCase {
         )
     }
 
+    func testComicDetailOffersExport() {
+        let app = XCUIApplication()
+        app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (
+            "reader-navigation"
+        )
+        app.launchArguments += [
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US",
+        ]
+        app.launch()
+
+        let comicButton = app.buttons[
+            "library.comic.00000000-0000-0000-0000-000000000901"
+        ]
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
+        comicButton.tap()
+
+        let exportButton = app.buttons["library.export"].firstMatch
+        var attempts = 0
+        while !exportButton.exists, attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(exportButton.waitForExistence(timeout: 3))
+    }
+
     func testUnknownFixtureFailsClosed() {
         let app = XCUIApplication()
         app.launchEnvironment["COMICREADER_UI_TEST_FIXTURE"] = (

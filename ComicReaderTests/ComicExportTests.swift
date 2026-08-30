@@ -61,7 +61,7 @@ final class ComicExportTests: XCTestCase {
         let executor = ComicExportExecutor(layout: fixture.layout)
 
         let exportRootURL = try await fixture.export(
-            from: fixture.originalDescriptor,
+            comicID: fixture.comicID,
             to: destinationURL,
             executor: executor
         )
@@ -118,7 +118,7 @@ final class ComicExportTests: XCTestCase {
         let executor = ComicExportExecutor(layout: fixture.layout)
 
         let exportRootURL = try await fixture.export(
-            from: fixture.originalDescriptor,
+            comicID: fixture.comicID,
             to: destinationURL,
             executor: executor
         )
@@ -132,7 +132,7 @@ final class ComicExportTests: XCTestCase {
 
         do {
             _ = try await fixture.export(
-                from: fixture.originalDescriptor,
+                comicID: fixture.comicID,
                 to: fixture.layout.libraryURL,
                 executor: executor
             )
@@ -154,7 +154,7 @@ final class ComicExportTests: XCTestCase {
 
         do {
             _ = try await fixture.export(
-                from: fixture.originalDescriptor,
+                comicID: fixture.comicID,
                 to: destinationURL,
                 executor: executor
             )
@@ -178,22 +178,41 @@ final class ComicExportTests: XCTestCase {
         let fixture = try await makeImportedComicFixture()
         let destinationURL = fixture.makeDestinationDirectory()
         let executor = ComicExportExecutor(layout: fixture.layout)
-        let unknownDescriptor = makeDescriptorFixture(
-            comicID: ManagedComicID(
-                rawValue: UUID(
-                    uuidString: "00000000-0000-0000-0000-000000000633"
-                )!
-            )
-        ).descriptor
+        let unknownComicID = ManagedComicID(
+            rawValue: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000633"
+            )!
+        )
 
         do {
             _ = try await executor.export(
-                descriptor: unknownDescriptor,
+                comicID: unknownComicID,
                 to: destinationURL
             )
             XCTFail("Expected unknown comic failure")
         } catch let error as ComicExportError {
             XCTAssertEqual(error, .comicNotFound)
+        }
+    }
+
+    func testExportRejectsCorruptedDescriptor() async throws {
+        let fixture = try await makeImportedComicFixture()
+        try Data("not json".utf8).write(
+            to: fixture.layout
+                .libraryMetadataURL(for: fixture.comicID)
+                .appendingPathComponent("import-descriptor.json")
+        )
+        let destinationURL = fixture.makeDestinationDirectory()
+        let executor = ComicExportExecutor(layout: fixture.layout)
+
+        do {
+            _ = try await executor.export(
+                comicID: fixture.comicID,
+                to: destinationURL
+            )
+            XCTFail("Expected descriptor failure")
+        } catch let error as ComicExportError {
+            XCTAssertEqual(error, .descriptorUnreadable)
         }
     }
 
@@ -393,12 +412,12 @@ private final class ImportedComicForExportFixture {
     }
 
     func export(
-        from descriptor: ManagedComicDescriptor,
+        comicID: ManagedComicID,
         to destinationURL: URL,
         executor: ComicExportExecutor
     ) async throws -> URL {
         try await executor.export(
-            descriptor: descriptor,
+            comicID: comicID,
             to: destinationURL
         )
     }

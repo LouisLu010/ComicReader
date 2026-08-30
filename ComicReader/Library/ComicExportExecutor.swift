@@ -1,8 +1,9 @@
 import Foundation
 
 enum ComicExportError: Error, Equatable, Sendable {
-    /// 已入库漫画目录不存在。
+    /// 已入库漫画目录或描述符不存在。
     case comicNotFound
+    case descriptorUnreadable
     /// 目标位置无效（不存在、不是目录，或位于 App 管理目录内）。
     case destinationInvalid
     /// 库内缺少计划中的文件。
@@ -21,14 +22,32 @@ actor ComicExportExecutor {
     }
 
     /// 返回实际使用的导出根目录（`目标/显示名`，重名自动追加序号）。
+    /// 描述符在执行器内读取，调用方只需要漫画 ID 与目标位置。
     func export(
-        descriptor: ManagedComicDescriptor,
+        comicID: ManagedComicID,
         to destinationURL: URL
     ) async throws -> URL {
         let fileManager = FileManager.default
-        let comicRootURL = layout.libraryURL(for: descriptor.targetComicID)
+        let comicRootURL = layout.libraryURL(for: comicID)
 
         guard fileManager.fileExists(atPath: comicRootURL.path) else {
+            throw ComicExportError.comicNotFound
+        }
+
+        let descriptor: ManagedComicDescriptor
+        do {
+            let descriptorData = try Data(contentsOf: layout
+                .libraryMetadataURL(for: comicID)
+                .appendingPathComponent("import-descriptor.json"))
+            descriptor = try JSONDecoder().decode(
+                ManagedComicDescriptor.self,
+                from: descriptorData
+            )
+        } catch {
+            throw ComicExportError.descriptorUnreadable
+        }
+
+        guard descriptor.targetComicID == comicID else {
             throw ComicExportError.comicNotFound
         }
 

@@ -57,6 +57,7 @@ struct ComicDetailView: View {
                 details
                 contentTree
                 ComicTrashAction(comic: comic)
+                ComicExportAction(comicID: comic.id)
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
@@ -421,5 +422,107 @@ private struct ComicTrashAction: View {
 
         await libraryCatalog.reload()
         dismiss()
+    }
+}
+
+/// 原结构导出操作：选择目标目录后把漫画按导入时的目录结构
+/// 复制出去；成功后提示导出位置，失败时提示错误类别。
+private struct ComicExportAction: View {
+    let comicID: ManagedComicID
+
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
+    @State private var isExporterPresented = false
+    @State private var exportNotice: ComicExportNotice?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                isExporterPresented = true
+            } label: {
+                Label("library.export", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityIdentifier("library.export")
+        }
+        .padding(.top, 8)
+        .fileImporter(
+            isPresented: $isExporterPresented,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case let .success(urls):
+                guard let destinationURL = urls.first else {
+                    return
+                }
+
+                Task {
+                    await export(to: destinationURL)
+                }
+            case .failure:
+                exportNotice = .failure
+            }
+        }
+        .alert(
+            exportNotice?.titleKey ?? "",
+            isPresented: Binding(
+                get: { exportNotice != nil },
+                set: { if !$0 { exportNotice = nil } }
+            )
+        ) {
+            Button("common.ok", role: .cancel) {}
+        } message: {
+            Text(verbatim: exportNotice?.message ?? "")
+        }
+    }
+
+    private func export(to destinationURL: URL) async {
+        guard let layout = libraryCatalog.applicationLayout else {
+            exportNotice = .failure
+            return
+        }
+
+        let executor = ComicExportExecutor(layout: layout)
+        let wasScoped = destinationURL
+            .startAccessingSecurityScopedResource()
+        defer {
+            if wasScoped {
+                destinationURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            let exportRootURL = try await executor.export(
+                comicID: comicID,
+                to: destinationURL
+            )
+            exportNotice = .success(folderName: exportRootURL.lastPathComponent)
+        } catch {
+            exportNotice = .failure
+        }
+    }
+}
+
+private enum ComicExportNotice {
+    case success(folderName: String)
+    case failure
+
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .success:
+            "library.export.success"
+        case .failure:
+            "library.export.failed"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case let .success(folderName):
+            String(
+                localized: "library.export.success.description \(folderName)"
+            )
+        case .failure:
+            String(localized: "library.export.failed.description")
+        }
     }
 }
