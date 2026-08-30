@@ -220,6 +220,11 @@ final class ComicReaderUITests: XCTestCase {
         XCTAssertTrue(doneButton.waitForExistence(timeout: 5))
         doneButton.tap()
 
+        // 返回书库列表，工具栏的书架入口才可见。
+        let backButton = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5))
+        backButton.tap()
+
         let shelvesOpenButton = app.buttons["library.shelves.open"]
         XCTAssertTrue(shelvesOpenButton.waitForExistence(timeout: 5))
         shelvesOpenButton.tap()
