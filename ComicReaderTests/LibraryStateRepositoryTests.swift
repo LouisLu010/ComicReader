@@ -1396,7 +1396,8 @@ final class LibraryStateRepositoryTests: XCTestCase {
 
         let first = await repository.createShelf(named: "  Favorites  ")
         let second = await repository.createShelf(named: "Reading Now")
-        XCTAssertNil(await repository.createShelf(named: "     "))
+        let blankShelf = await repository.createShelf(named: "     ")
+        XCTAssertNil(blankShelf)
 
         XCTAssertEqual(first?.displayName, "Favorites")
         XCTAssertEqual(first?.sortOrder, 0)
@@ -1426,25 +1427,35 @@ final class LibraryStateRepositoryTests: XCTestCase {
             "00000000-0000-0000-0000-000000000416"
         )
 
-        XCTAssertTrue(await repository.addComic(comic.id, toShelf: shelfID))
-        XCTAssertFalse(await repository.addComic(comic.id, toShelf: shelfID))
+        let didAdd = await repository.addComic(comic.id, toShelf: shelfID)
+        XCTAssertTrue(didAdd)
+        let repeatedAdd = await repository.addComic(comic.id, toShelf: shelfID)
+        XCTAssertFalse(repeatedAdd)
         let memberIDs = await repository.comicIDs(inShelf: shelfID)
         XCTAssertEqual(memberIDs, [comic.id])
         let containingShelves = await repository.shelves(containing: comic.id)
         XCTAssertEqual(containingShelves, [shelf])
-        XCTAssertFalse(
-            await repository.addComic(unknownComicID, toShelf: shelfID)
+        let unknownComicAdd = await repository.addComic(
+            unknownComicID,
+            toShelf: shelfID
         )
-        XCTAssertFalse(
-            await repository.addComic(comic.id, toShelf: unknownShelfID)
+        XCTAssertFalse(unknownComicAdd)
+        let unknownShelfAdd = await repository.addComic(
+            comic.id,
+            toShelf: unknownShelfID
         )
+        XCTAssertFalse(unknownShelfAdd)
 
-        XCTAssertTrue(
-            await repository.removeComic(comic.id, fromShelf: shelfID)
+        let didRemove = await repository.removeComic(
+            comic.id,
+            fromShelf: shelfID
         )
-        XCTAssertFalse(
-            await repository.removeComic(comic.id, fromShelf: shelfID)
+        XCTAssertTrue(didRemove)
+        let repeatedRemove = await repository.removeComic(
+            comic.id,
+            fromShelf: shelfID
         )
+        XCTAssertFalse(repeatedRemove)
         XCTAssertEqual(await repository.comicIDs(inShelf: shelfID), [])
         XCTAssertTrue(await repository.shelves(containing: comic.id).isEmpty)
     }
