@@ -128,7 +128,7 @@ struct LibraryView: View {
         )
         .toolbar {
             if section == .all {
-                ToolbarItem(placement: .secondaryAction) {
+                ToolbarItem(placement: .primaryAction) {
                     Button(action: onShowTrash) {
                         Label(
                             "library.trash.open",
