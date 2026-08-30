@@ -94,46 +94,32 @@ final class ComicReaderUITests: XCTestCase {
             .completed
         )
 
-        let sidebarTrash = app.descendants(matching: .any)["sidebar.trash"]
+        let sidebarTrash = app.descendants(matching: .any)["sidebar.trash"].firstMatch
         if !sidebarTrash.waitForExistence(timeout: 3) {
             // 模拟器可能以折叠侧边栏启动，先展开再导航。
             app.buttons["ToggleSidebar"].tap()
         }
         XCTAssertTrue(sidebarTrash.waitForExistence(timeout: 5))
         sidebarTrash.tap()
-        let trashRow = app.otherElements[
+        let trashRow = app.descendants(matching: .any)[
             "library.trash.comic.00000000-0000-0000-0000-000000000901"
-        ]
-        let trashRowFallback = app.buttons[
-            "library.trash.comic.00000000-0000-0000-0000-000000000901"
-        ]
+        ].firstMatch
         let rowAppeared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(
-                format: "exists == true"
-            ),
+            predicate: NSPredicate(format: "exists == true"),
             object: trashRow
         )
-        let rowFallbackAppeared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(
-                format: "exists == true"
-            ),
-            object: trashRowFallback
-        )
         XCTAssertEqual(
-            XCTWaiter.wait(
-                for: [rowAppeared, rowFallbackAppeared],
-                timeout: 5
-            ),
+            XCTWaiter.wait(for: [rowAppeared], timeout: 5),
             .completed
         )
 
-        let restoreButton = app.buttons[
+        let restoreButton = app.descendants(matching: .any)[
             "library.trash.restore.00000000-0000-0000-0000-000000000901"
-        ]
+        ].firstMatch
         XCTAssertTrue(restoreButton.waitForExistence(timeout: 5))
         restoreButton.tap()
 
-        app.descendants(matching: .any)["sidebar.all"].tap()
+        app.descendants(matching: .any)["sidebar.all"].firstMatch.tap()
         XCTAssertTrue(comicButton.waitForExistence(timeout: 10))
     }
 
