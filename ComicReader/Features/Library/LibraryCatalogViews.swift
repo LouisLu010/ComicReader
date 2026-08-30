@@ -47,11 +47,7 @@ struct ComicDetailView: View {
     let thumbnailURL: URL?
 
     @Environment(LibraryStateRepository.self) private var libraryState
-    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
-    @Environment(LibraryTrashCoordinator.self) private var libraryTrash
     @Environment(\.readerFeatureServices) private var readerFeatureServices
-    @Environment(\.dismiss) private var dismiss
-    @State private var isTrashConfirmationPresented = false
 
     var body: some View {
         ScrollView {
@@ -60,7 +56,6 @@ struct ComicDetailView: View {
                 readingEntry
                 details
                 contentTree
-                dangerZone
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()
@@ -85,42 +80,7 @@ struct ComicDetailView: View {
             }
 
         }
-        .alert(
-            "library.detail.trash.confirm",
-            isPresented: $isTrashConfirmationPresented
-        ) {
-            Button("library.detail.trash.confirm.action", role: .destructive) {
-                Task {
-                    await trashComic()
-                }
-            }
-            .accessibilityIdentifier("library.detail.trash.confirm.action")
-        } message: {
-            Text("library.detail.trash.confirm.message")
-        }
         .accessibilityIdentifier("library.detail")
-    }
-
-    private func trashComic() async {
-        let didTrash = await libraryTrash.trashComic(for: comic.id)
-        guard didTrash else {
-            return
-        }
-
-        await libraryCatalog.reload()
-        dismiss()
-    }
-
-    private var dangerZone: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(role: .destructive) {
-                isTrashConfirmationPresented = true
-            } label: {
-                Label("library.detail.trash", systemImage: "trash")
-            }
-            .accessibilityIdentifier("library.detail.trash")
-        }
-        .padding(.top, 8)
     }
 
     private var header: some View {
