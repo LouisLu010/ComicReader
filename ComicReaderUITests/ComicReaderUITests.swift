@@ -109,10 +109,22 @@ final class ComicReaderUITests: XCTestCase {
                 "library.trash.empty"
             ].firstMatch
             let grid = app.descendants(matching: .any)["library.grid"].firstMatch
+            let emptyLibrary = app.descendants(matching: .any)[
+                "library.empty"
+            ].firstMatch
+            let trashIdentifiers = app.descendants(matching: .any)
+                .matching(NSPredicate(
+                    format: "identifier BEGINSWITH 'library.trash'"
+                ))
+                .allElementsBoundByIndex
+                .map(\.identifier)
+                .joined(separator: ",")
             XCTFail(
                 "trash row missing; emptyState=\(emptyState.exists); "
                     + "grid=\(grid.exists); "
-                    + "rows=\(libraryTrashRowCount(app))"
+                    + "emptyLibrary=\(emptyLibrary.exists); "
+                    + "rows=\(libraryTrashRowCount(app)); "
+                    + "trashIds=\(trashIdentifiers)"
             )
             return
         }
