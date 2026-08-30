@@ -16,8 +16,8 @@ fi
 # GitHub 会随镜像更新替换可用的 Xcode 与模拟器运行时，因此：
 # 1. 若首选 Xcode 缺少可用的 iOS 模拟器运行时，改用镜像上
 #    自带 iOS 运行时的最新 Xcode；
-# 2. 测试目标优先使用固定 destination，不可用时回退到该
-#    Xcode 下运行时最新的 iPad 模拟器。
+# 2. 若首选的 iPad 模拟器设备不存在，则用最新 iOS 运行时
+#    创建一台，并以其版本作为测试目标。
 has_ios_runtime() {
   xcrun --developer-dir "$1" simctl list runtimes available 2>/dev/null |
     grep -q '^iOS '
@@ -44,37 +44,54 @@ select_developer_dir() {
 export DEVELOPER_DIR="$(select_developer_dir)"
 echo "Using DEVELOPER_DIR: $DEVELOPER_DIR"
 
-resolve_test_destination() {
-  local preferred_name
-  preferred_name="$(printf '%s' "$PREFERRED_TEST_DESTINATION" |
-    sed -E 's/.*name=([^,]+).*/\1/')"
-  local preferred_os
-  preferred_os="$(printf '%s' "$PREFERRED_TEST_DESTINATION" |
-    sed -E 's/.*OS=([^,]+).*/\1/')"
+latest_ios_runtime_version() {
+  xcrun simctl list runtimes available |
+    grep '^iOS ' | sort -V | tail -1 |
+    sed -E 's/^iOS ([0-9.]+).*$/\1/'
+}
 
-  local available
-  available="$(xcodebuild -showdestinations \
-    -project "$PROJECT" -scheme "$SCHEME" 2>/dev/null |
-    grep 'platform:iOS Simulator' || true)"
-
-  if printf '%s\n' "$available" | grep -qF "name:$preferred_name" \
-    && printf '%s\n' "$available" | grep -qF "OS:$preferred_os"; then
-    printf '%s' "$PREFERRED_TEST_DESTINATION"
+ensure_ipad_device() {
+  local preferred_name="iPad Pro 13-inch (M4)"
+  if xcrun simctl list devices available | grep -qF "$preferred_name"; then
     return
   fi
 
-  local fallback_line
-  fallback_line="$(printf '%s\n' "$available" |
-    grep -F 'name:iPad' | sort -V | tail -1)"
-  if [[ -z "$fallback_line" ]]; then
-    echo "::error title=No iPad simulator::No available iPad simulator destination was found."
+  local device_type runtime
+  device_type="$(xcrun simctl list devicetypes |
+    grep -F "$preferred_name" | tail -1 |
+    sed -E 's/.*\((com\.apple[^)]*)\).*/\1/')"
+  runtime="$(xcrun simctl list runtimes available |
+    grep '^iOS ' | sort -V | tail -1 |
+    sed -E 's/.*(com\.apple\.CoreSimulator\.SimRuntime[^ ]*).*/\1/')"
+
+  if [[ -z "$device_type" || -z "$runtime" ]]; then
+    echo "::error title=No iPad simulator::No iPad device type or iOS runtime is available."
     exit 1
   fi
 
-  local fallback_os fallback_name
-  fallback_os="$(printf '%s' "$fallback_line" | sed -E 's/.*OS:([^,]+).*/\1/')"
-  fallback_name="$(printf '%s' "$fallback_line" | sed -E 's/.*name:([^,]+).*/\1/')"
-  printf 'platform=iOS Simulator,name=%s,OS=%s' "$fallback_name" "$fallback_os"
+  echo "Creating simulator device: $preferred_name ($runtime)"
+  xcrun simctl create "$preferred_name" "$device_type" "$runtime"
+}
+
+resolve_test_destination() {
+  ensure_ipad_device
+
+  local preferred_name="iPad Pro 13-inch (M4)"
+  local preferred_os="18.5"
+  local preferred_runtime
+  preferred_runtime="$(xcrun simctl list runtimes available |
+    grep -F "iOS $preferred_os" | head -1)"
+  if [[ -n "$preferred_runtime" ]] && xcrun simctl list devices available |
+    grep -qF "$preferred_name"; then
+    printf 'platform=iOS Simulator,name=%s,OS=%s' \
+      "$preferred_name" "$preferred_os"
+    return
+  fi
+
+  local runtime_version
+  runtime_version="$(latest_ios_runtime_version)"
+  printf 'platform=iOS Simulator,name=%s,OS=%s' \
+    "$preferred_name" "$runtime_version"
 }
 
 readonly TEST_DESTINATION="$(resolve_test_destination)"
