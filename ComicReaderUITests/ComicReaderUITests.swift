@@ -108,10 +108,16 @@ final class ComicReaderUITests: XCTestCase {
             predicate: NSPredicate(format: "exists == true"),
             object: trashRow
         )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [rowAppeared], timeout: 5),
-            .completed
-        )
+        if XCTWaiter.wait(for: [rowAppeared], timeout: 5) != .completed {
+            let emptyState = app.descendants(matching: .any)[
+                "library.trash.empty"
+            ].firstMatch
+            XCTFail(
+                "trash row missing; emptyState=\(emptyState.exists); "
+                    + "rows=\(libraryTrashRowCount(app))"
+            )
+            return
+        }
 
         let restoreButton = app.descendants(matching: .any)[
             "library.trash.restore.00000000-0000-0000-0000-000000000901"
@@ -197,6 +203,14 @@ final class ComicReaderUITests: XCTestCase {
         let settings = app.buttons["app.settings"]
         XCTAssertTrue(waitUntilHittable(settings, timeout: 8))
         settings.tap()
+    }
+
+    private func libraryTrashRowCount(_ app: XCUIApplication) -> Int {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(
+                format: "identifier BEGINSWITH 'library.trash.comic.'"
+            ))
+            .count
     }
 
     private func waitUntilHittable(
