@@ -58,6 +58,19 @@ struct AppView: View {
                         .accessibilityIdentifier("sidebar.\(section.id)")
                         .accessibilityAddTraits(.isButton)
                 }
+
+                ForEach(libraryState.shelves) { shelf in
+                    Label(shelf.displayName, systemImage: "square.stack")
+                        .tag(Optional(LibrarySection.shelves))
+                        .accessibilityIdentifier(
+                            "sidebar.shelf.\(shelf.id.rawValue.uuidString)"
+                        )
+                        .accessibilityAddTraits(.isButton)
+                        .onTapGesture {
+                            router.selectedSection = .shelves
+                            router.selectedShelfID = shelf.id
+                        }
+                }
             }
 
             Section {
@@ -74,6 +87,14 @@ struct AppView: View {
         switch router.selectedSection ?? .all {
         case .settings:
             SettingsView()
+        case .shelves:
+            if let shelfID = router.selectedShelfID {
+                LibraryShelfContentView(shelfID: shelfID)
+            } else {
+                LibraryShelvesView(onSelectShelf: { shelfID in
+                    router.selectedShelfID = shelfID
+                })
+            }
         case let section:
             LibraryView(
                 section: section,

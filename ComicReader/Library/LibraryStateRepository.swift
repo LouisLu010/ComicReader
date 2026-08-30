@@ -831,6 +831,7 @@ final class LibraryStateRepository {
     private(set) var isWriteAvailable = false
     private(set) var statesByComicID: [ManagedComicID: LibraryComicUserState] = [:]
     private(set) var globalReaderPreferences = ReaderGlobalPreferences.default
+    private(set) var shelves: [ComicShelf] = []
 
     @ObservationIgnored private var store: LibraryStateStore?
     @ObservationIgnored private var configuredContainer: ModelContainer?
@@ -862,6 +863,7 @@ final class LibraryStateRepository {
             indexedComicIDs = []
             statesByComicID = [:]
             globalReaderPreferences = .default
+            shelves = []
             isWriteAvailable = false
             status = .unavailable
             return
@@ -894,6 +896,7 @@ final class LibraryStateRepository {
         indexedComicIDs = []
         statesByComicID = [:]
         globalReaderPreferences = .default
+        shelves = []
         isWriteAvailable = false
         status = .loading
         configuredContainer = modelContainer
@@ -933,6 +936,7 @@ final class LibraryStateRepository {
             }
 
             apply(snapshot)
+            shelves = (try? await store.shelves()) ?? []
             isWriteAvailable = true
             status = .ready
         } catch {
@@ -1089,7 +1093,9 @@ final class LibraryStateRepository {
         }
 
         do {
-            return try await store.createShelf(named: rawName)
+            let shelf = try await store.createShelf(named: rawName)
+            shelves = (try? await store.shelves()) ?? []
+            return shelf
         } catch {
             return nil
         }
@@ -1105,7 +1111,11 @@ final class LibraryStateRepository {
         }
 
         do {
-            return try await store.renameShelf(shelfID, to: rawName)
+            let didRename = try await store.renameShelf(shelfID, to: rawName)
+            if didRename {
+                shelves = (try? await store.shelves()) ?? []
+            }
+            return didRename
         } catch {
             return false
         }
@@ -1118,7 +1128,11 @@ final class LibraryStateRepository {
         }
 
         do {
-            return try await store.deleteShelf(shelfID)
+            let didDelete = try await store.deleteShelf(shelfID)
+            if didDelete {
+                shelves = (try? await store.shelves()) ?? []
+            }
+            return didDelete
         } catch {
             return false
         }

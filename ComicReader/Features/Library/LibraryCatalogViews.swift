@@ -58,6 +58,7 @@ struct ComicDetailView: View {
                 contentTree
                 ComicTrashAction(comic: comic)
                 ComicExportAction(comicID: comic.id)
+                ComicShelfMembershipAction(comicID: comic.id)
             }
             .frame(maxWidth: 720, alignment: .leading)
             .padding()

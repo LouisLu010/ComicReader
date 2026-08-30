@@ -1404,6 +1404,7 @@ final class LibraryStateRepositoryTests: XCTestCase {
         XCTAssertEqual(second?.sortOrder, 1)
         let shelfNames = await repository.shelves().map(\.displayName)
         XCTAssertEqual(shelfNames, ["Favorites", "Reading Now"])
+        XCTAssertEqual(repository.shelves.map(\.displayName), shelfNames)
     }
 
     @MainActor
