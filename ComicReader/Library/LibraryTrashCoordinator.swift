@@ -70,6 +70,10 @@ final class LibraryTrashCoordinator {
     /// 清理保留期已满的漫画，返回被清理的漫画 ID。
     @discardableResult
     func purgeComicsPastRetention(now: Date = Date()) async -> [ManagedComicID] {
+        guard let store else {
+            return []
+        }
+
         let dueComicIDs = LibraryTrashPolicy.purgeDueComicIDs(
             trashedComics,
             now: now
