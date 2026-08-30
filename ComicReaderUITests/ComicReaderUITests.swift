@@ -210,16 +210,23 @@ final class ComicReaderUITests: XCTestCase {
         _ identifier: String,
         in app: XCUIApplication
     ) -> XCUIElement {
-        let item = app.descendants(matching: .any)
+        let query = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == %@", identifier))
-            .matching(NSPredicate(format: "hittable == true"))
-            .firstMatch
-        if item.waitForExistence(timeout: 3) {
-            return item
+        if let hittable = query.allElementsBoundByIndex.first(where: {
+            $0.isHittable
+        }) {
+            return hittable
         }
 
+        // 模拟器可能以折叠侧边栏启动，先展开再重新查找。
         app.buttons["ToggleSidebar"].tap()
-        return item
+        if let hittable = query.allElementsBoundByIndex.first(where: {
+            $0.isHittable
+        }) {
+            return hittable
+        }
+
+        return query.firstMatch
     }
 
     private func libraryTrashRowCount(_ app: XCUIApplication) -> Int {
