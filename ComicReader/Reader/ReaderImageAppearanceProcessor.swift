@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// 仅处理管线已降采样的展示图，不访问或改写来源。白边探测限制在 256 像素。
+/// 仅处理管线已降采样的展示图，不访问或改写来源。纯色边缘探测限制在 256 像素。
 actor ReaderImageAppearanceProcessor {
     static let shared = ReaderImageAppearanceProcessor()
 
@@ -32,11 +32,19 @@ actor ReaderImageAppearanceProcessor {
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         guard let bytes = context.data?.assumingMemoryBound(to: UInt8.self) else { return image }
+        let background = (0..<3).map { Int(bytes[$0]) }
+        func matchesBackground(x: Int, y: Int) -> Bool {
+            let index = y * context.bytesPerRow + x * 4
+            return (0..<3).allSatisfy { abs(Int(bytes[index + $0]) - background[$0]) <= 10 }
+        }
+        // 四角颜色不一致时不推断纯色背景，保留整页以免误裁漫画内容。
+        guard matchesBackground(x: width - 1, y: 0),
+              matchesBackground(x: 0, y: height - 1),
+              matchesBackground(x: width - 1, y: height - 1) else { return image }
         var left = width, right = -1, top = height, bottom = -1
         for y in 0..<height {
             for x in 0..<width {
-                let index = y * context.bytesPerRow + x * 4
-                if bytes[index] < 245 || bytes[index + 1] < 245 || bytes[index + 2] < 245 {
+                if !matchesBackground(x: x, y: y) {
                     left = min(left, x); right = max(right, x)
                     top = min(top, y); bottom = max(bottom, y)
                 }

@@ -13,6 +13,7 @@ struct ReaderPageImageView: View {
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.readerDisplayPreferences) private var displayPreferences
+    @Environment(\.readerPageRotations) private var pageRotations
     @Environment(\.readerViewportVisiblePageIDs)
     private var viewportVisiblePageIDs
 
@@ -52,7 +53,7 @@ struct ReaderPageImageView: View {
                 lifecycleGeneration: lifecycle.generation,
                 reloadGeneration: reloadGeneration,
                 trimsWhitespace: displayPreferences.trimsWhitespace,
-                quarterTurns: displayPreferences.quarterTurns
+                quarterTurns: pageRotations[presentedPage.page.id.rawValue] ?? displayPreferences.quarterTurns
             )
 
             content

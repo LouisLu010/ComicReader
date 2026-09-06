@@ -28,6 +28,7 @@ struct ReaderScreen: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var awakeLeaseID = UUID()
     @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(ReaderExperienceSettings.self) private var experienceSettings
     private let preferencesWriter: (any ReaderPreferenceWriting)?
 
     init(
@@ -224,7 +225,10 @@ struct ReaderScreen: View {
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .display:
-                ReaderDisplaySettingsSheet()
+                ReaderDisplaySettingsSheet(
+                    comicID: comicID,
+                    pageID: controller.sessionController?.session.position.pageID.rawValue
+                )
             case .chapters:
                 ReaderChapterListView(
                     destinations: controller.navigationIndex?
@@ -246,6 +250,7 @@ struct ReaderScreen: View {
         } message: {
             Text("reader.preferences.saveFailed.message")
         }
+        .environment(\.readerPageRotations, experienceSettings.rotations(for: comicID))
     }
 
     @ViewBuilder

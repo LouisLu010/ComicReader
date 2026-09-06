@@ -45,10 +45,33 @@ struct ReaderDisplaySettings: View {
 
 struct ReaderDisplaySettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(ReaderExperienceSettings.self) private var settings
+    var comicID: ManagedComicID? = nil
+    var pageID: String? = nil
 
     var body: some View {
         NavigationStack {
-            Form { ReaderDisplaySettings() }
+            Form {
+                if let comicID, let pageID {
+                    Section("reader.display.currentPage") {
+                        Picker("reader.display.rotation", selection: Binding(
+                            get: { settings.rotations(for: comicID)[pageID] ?? settings.preferences.quarterTurns },
+                            set: { settings.setRotation($0, pageID: pageID, comicID: comicID) }
+                        )) {
+                            ForEach(0..<4, id: \.self) { turns in
+                                Text(verbatim: "\(turns * 90)°").tag(turns)
+                            }
+                        }
+                        .accessibilityIdentifier("reader.display.currentPage.rotation")
+                        Button("reader.display.currentPage.reset") {
+                            settings.setRotation(nil, pageID: pageID, comicID: comicID)
+                        }
+                        .disabled(settings.rotations(for: comicID)[pageID] == nil)
+                        .accessibilityIdentifier("reader.display.currentPage.reset")
+                    }
+                }
+                ReaderDisplaySettings()
+            }
                 .navigationTitle("reader.display.title")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {

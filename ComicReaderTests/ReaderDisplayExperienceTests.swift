@@ -65,6 +65,44 @@ final class ReaderDisplayExperienceTests: XCTestCase {
         XCTAssertTrue(disabled)
     }
 
+    @MainActor
+    func testSinglePageRotationIsScopedPersistedAndResettable() {
+        let defaults = UserDefaults(suiteName: "PageRotationTests.\(UUID().uuidString)")!
+        let settings = ReaderExperienceSettings(defaults: defaults)
+        let first = ManagedComicID(), second = ManagedComicID()
+        settings.setRotation(5, pageID: "page1", comicID: first)
+        XCTAssertEqual(settings.rotations(for: first), ["page1": 1])
+        XCTAssertTrue(settings.rotations(for: second).isEmpty)
+        XCTAssertEqual(settings.preferences.quarterTurns, 0)
+        let restored = ReaderExperienceSettings(defaults: defaults)
+        XCTAssertEqual(restored.rotations(for: first), ["page1": 1])
+        restored.setRotation(nil, pageID: "page1", comicID: first)
+        XCTAssertTrue(ReaderExperienceSettings(defaults: defaults).rotations(for: first).isEmpty)
+    }
+
+    func testSolidColorTrimPreservesContentAndRejectsMismatchedCorners() async throws {
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: 120, height: 80, bitsPerComponent: 8, bytesPerRow: 480,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let processor = ReaderImageAppearanceProcessor()
+        for background in [CGColor(gray: 0, alpha: 1), CGColor(red: 0.8, green: 0.7, blue: 0.4, alpha: 1)] {
+            context.setFillColor(background)
+            context.fill(CGRect(x: 0, y: 0, width: 120, height: 80))
+            context.setFillColor(gray: 1, alpha: 1)
+            context.fill(CGRect(x: 20, y: 10, width: 60, height: 30))
+            let original = try XCTUnwrap(context.makeImage())
+            let trimmed = try await processor.process(original, trimsWhitespace: true, quarterTurns: 0)
+            XCTAssertEqual(trimmed.width, 64)
+            XCTAssertEqual(trimmed.height, 34)
+            context.fill(CGRect(x: 0, y: 0, width: 5, height: 5))
+            let irregular = try XCTUnwrap(context.makeImage())
+            let preserved = try await processor.process(irregular, trimsWhitespace: true, quarterTurns: 0)
+            XCTAssertTrue(preserved === irregular)
+        }
+    }
+
     func testRotationChangesOnlyRenderedDimensions() async throws {
         let image = try makeImage(hasContent: true)
         let processor = ReaderImageAppearanceProcessor()

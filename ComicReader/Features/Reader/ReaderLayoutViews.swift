@@ -1093,6 +1093,7 @@ private struct ReaderZoomPresentationView<Content: View>: View {
 
 private struct ReaderPresentationView: View {
     @Environment(\.readerDisplayPreferences) private var displayPreferences
+    @Environment(\.readerPageRotations) private var pageRotations
     @State private var renderedAspectRatio: CGFloat?
     enum Style {
         case continuous
@@ -1176,7 +1177,8 @@ private struct ReaderPresentationView: View {
         }
 
         let ratio = CGFloat(pixelSize.width) / CGFloat(pixelSize.height)
-        return displayPreferences.quarterTurns.isMultiple(of: 2) ? ratio : 1 / ratio
+        let turns = pageRotations[page.id.rawValue] ?? displayPreferences.quarterTurns
+        return turns.isMultiple(of: 2) ? ratio : 1 / ratio
     }
 
     private func accessibilityPriority(

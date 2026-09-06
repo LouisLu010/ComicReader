@@ -93,14 +93,26 @@
     },
     "reader.display.trim" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trim White Margins" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "裁切白色留白" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trim Solid-Color Margins" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "裁切纯色留白" } }
       }
     },
     "reader.display.rotation" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Page Rotation" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "页面旋转" } }
+      }
+    },
+    "reader.display.currentPage" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Current Page Only" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅当前页" } }
+      }
+    },
+    "reader.display.currentPage.reset" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use Default Rotation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复默认旋转" } }
       }
     },
     "reader.display.keepAwake" : {
