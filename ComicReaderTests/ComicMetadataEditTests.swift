@@ -3,6 +3,40 @@ import XCTest
 @testable import ComicReader
 
 final class ComicMetadataEditTests: XCTestCase {
+    func testEditorPersistsAuthorSummaryAndNormalizedTags() async throws {
+        let fixture = try MetadataEditFixture()
+        let metadata = ComicMetadata(
+            author: "  作者  ",
+            summary: "\n第一行\n第二行\n",
+            tags: [" 冒险 ", "", "Fantasy", "fantasy", "冒险", "科幻"]
+        )
+
+        let updated = try await fixture.editor.apply(
+            comicID: fixture.comicID,
+            metadata: metadata
+        )
+        let persisted = try await fixture.editor.loadDescriptor(
+            comicID: fixture.comicID
+        )
+        let catalog = try await FileSystemLibraryCatalogLoader(
+            layout: fixture.layout
+        ).loadCatalog()
+
+        XCTAssertEqual(persisted, updated)
+        XCTAssertEqual(persisted.metadata?.author, "作者")
+        XCTAssertEqual(persisted.metadata?.summary, "第一行\n第二行")
+        XCTAssertEqual(persisted.metadata?.tags, ["冒险", "Fantasy", "科幻"])
+        XCTAssertEqual(catalog.comics.first?.record.metadata, metadata)
+        XCTAssertEqual(
+            catalog.comics.first?.record.importedAt,
+            Date(timeIntervalSince1970: 500)
+        )
+        XCTAssertEqual(updated.sourceRootName, fixture.descriptor.sourceRootName)
+        XCTAssertEqual(updated.workItems, fixture.descriptor.workItems)
+        XCTAssertNotEqual(updated.revision, fixture.descriptor.revision)
+        XCTAssertTrue(fixture.thumbnailGenerator.generatedCoverFileNames.isEmpty)
+    }
+
     func testValidatedDisplayNameTrimsAndRejectsBlank() throws {
         XCTAssertEqual(
             ComicMetadataEditPolicy.validatedDisplayName("  新名字  "),
@@ -10,6 +44,91 @@ final class ComicMetadataEditTests: XCTestCase {
         )
         XCTAssertNil(
             ComicMetadataEditPolicy.validatedDisplayName("   \n\t ")
+        )
+    }
+
+    func testLegacyDescriptorAndCatalogDecodeWithoutMetadata() throws {
+        let fixture = try MetadataEditFixture()
+        let encoder = JSONEncoder()
+        let descriptorData = try encoder.encode(fixture.descriptor)
+        let record = LibraryCatalogRecord(
+            descriptor: fixture.descriptor,
+            importedAt: Date(timeIntervalSince1970: 500)
+        )
+        let recordData = try encoder.encode(record)
+
+        for data in [descriptorData, recordData] {
+            let json = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: data) as? [String: Any]
+            )
+            XCTAssertNil(json["metadata"])
+        }
+        XCTAssertEqual(
+            try JSONDecoder().decode(ManagedComicDescriptor.self, from: descriptorData),
+            fixture.descriptor
+        )
+        XCTAssertEqual(
+            try JSONDecoder().decode(LibraryCatalogRecord.self, from: recordData),
+            record
+        )
+    }
+
+    func testMetadataSurvivesRenameContentUpdateAndCatalogRebuild() async throws {
+        let fixture = try MetadataEditFixture()
+        let metadata = ComicMetadata(author: "Author", summary: "Summary", tags: ["Tag"])
+        let edited = try await fixture.editor.apply(
+            comicID: fixture.comicID,
+            metadata: metadata
+        )
+        let renamed = try await fixture.editor.apply(
+            comicID: fixture.comicID,
+            displayName: "Renamed"
+        )
+        XCTAssertEqual(renamed.metadata, metadata)
+        XCTAssertEqual(
+            renamed.updated(
+                collections: [],
+                chapters: [],
+                workItems: renamed.workItems,
+                coverPageID: renamed.coverPageID
+            ).metadata,
+            metadata
+        )
+        XCTAssertNotEqual(renamed.revision, edited.revision)
+
+        // 仅移除此测试自己的派生索引，验证恢复读取的是描述符。
+        try FileManager.default.removeItem(
+            at: fixture.layout.libraryCatalogURL(for: fixture.comicID)
+        )
+        let catalog = try await FileSystemLibraryCatalogLoader(
+            layout: fixture.layout
+        ).loadCatalog()
+        XCTAssertEqual(catalog.comics.first?.record.metadata, metadata)
+        XCTAssertEqual(catalog.comics.first?.record.displayName, "Renamed")
+        XCTAssertEqual(catalog.ignoredEntryCount, 0)
+    }
+
+    func testEmptyMetadataExplicitlyClearsFields() async throws {
+        let fixture = try MetadataEditFixture()
+        let edited = try await fixture.editor.apply(
+            comicID: fixture.comicID,
+            metadata: ComicMetadata(author: "Author", summary: "Summary", tags: ["Tag"])
+        )
+        let cleared = try await fixture.editor.apply(
+            comicID: fixture.comicID,
+            metadata: ComicMetadata()
+        )
+        let persisted = try await fixture.editor.loadDescriptor(comicID: fixture.comicID)
+        XCTAssertEqual(persisted.metadata, ComicMetadata())
+        XCTAssertEqual(persisted, cleared)
+        XCTAssertNotEqual(cleared.revision, edited.revision)
+    }
+
+    func testTagInputAcceptsChineseEnglishSeparatorsAndNewlines() {
+        let tags = ComicMetadataEditPolicy.tags(from: " 冒险,Fantasy，科幻、日常\nFantasy; ")
+        XCTAssertEqual(
+            ComicMetadata(tags: tags).tags,
+            ["冒险", "Fantasy", "科幻", "日常"]
         )
     }
 

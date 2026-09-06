@@ -22,6 +22,7 @@ enum LibraryComicReadState: Equatable, Hashable, Sendable {
 struct LibrarySortableComic: Equatable, Identifiable, Sendable {
     let id: ManagedComicID
     let displayName: String
+    let additionalSearchTerms: [String]
     let importedAt: Date
     let isFavorite: Bool
     /// 最近一次记录阅读进度的时间；从未阅读为 `nil`。
@@ -31,6 +32,7 @@ struct LibrarySortableComic: Equatable, Identifiable, Sendable {
     init(
         id: ManagedComicID,
         displayName: String,
+        additionalSearchTerms: [String] = [],
         importedAt: Date,
         isFavorite: Bool = false,
         lastReadAt: Date? = nil,
@@ -38,6 +40,7 @@ struct LibrarySortableComic: Equatable, Identifiable, Sendable {
     ) {
         self.id = id
         self.displayName = displayName
+        self.additionalSearchTerms = additionalSearchTerms
         self.importedAt = importedAt
         self.isFavorite = isFavorite
         self.lastReadAt = lastReadAt
@@ -121,7 +124,9 @@ enum LibraryCatalogSearchEngine {
             else {
                 return false
             }
-            return filter.matches(displayName: comic.displayName)
+            return ([comic.displayName] + comic.additionalSearchTerms).contains {
+                filter.matches(displayName: $0)
+            }
         }
 
         return sorted(filtered, by: filter.sort)

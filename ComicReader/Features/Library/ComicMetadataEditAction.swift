@@ -1,35 +1,41 @@
 import SwiftUI
 
-/// 详情页的元数据编辑入口：打开编辑面板（显示名 + 封面选择），
+/// 详情页的元数据编辑入口：打开名称、补充信息与封面编辑面板，
 /// 保存后刷新书库目录；环境读取收敛在本子视图内。
 struct ComicMetadataEditAction: View {
     let comicID: ManagedComicID
 
     @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
-    @State private var isSheetPresented = false
+    @State private var presentation: EditorPresentation?
+
+    private struct EditorPresentation: Identifiable {
+        let id: ManagedComicID
+        let editor: FileSystemComicMetadataEditor
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                isSheetPresented = true
+                if let layout = libraryCatalog.applicationLayout {
+                    presentation = EditorPresentation(
+                        id: comicID,
+                        editor: FileSystemComicMetadataEditor(layout: layout)
+                    )
+                }
             } label: {
                 Label("library.metadata.edit", systemImage: "pencil")
             }
             .accessibilityIdentifier("library.metadata.edit")
+            .disabled(libraryCatalog.applicationLayout == nil)
         }
         .padding(.top, 8)
-        .sheet(isPresented: $isSheetPresented) {
-            if let layout = libraryCatalog.applicationLayout {
-                ComicMetadataEditSheet(
-                    comicID: comicID,
-                    editor: FileSystemComicMetadataEditor(layout: layout)
-                )
-            }
+        .sheet(item: $presentation) { item in
+            ComicMetadataEditSheet(comicID: item.id, editor: item.editor)
         }
     }
 }
 
-/// 元数据编辑面板：显示名文本框 + 封面页选择（可读页面）。
+/// 表单状态只在当前面板内；保存前不改变书库或来源文件。
 struct ComicMetadataEditSheet: View {
     let comicID: ManagedComicID
     let editor: FileSystemComicMetadataEditor
@@ -37,16 +43,24 @@ struct ComicMetadataEditSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
     @State private var displayName = ""
+    @State private var author = ""
+    @State private var summary = ""
+    @State private var tagsText = ""
     @State private var readablePages: [FrozenImportWorkItem] = []
     @State private var selectedCoverID: ImportPageCandidate.ID?
-    @State private var isLoaded = false
+    private enum LoadState {
+        case loading, loaded, failed
+    }
+
+    @State private var loadState: LoadState = .loading
     @State private var isSaving = false
     @State private var isSaveFailedPresented = false
 
     var body: some View {
         NavigationStack {
             Form {
-                if isLoaded {
+                switch loadState {
+                case .loaded:
                     Section("library.metadata.displayName") {
                         TextField(
                             "library.metadata.displayName.placeholder",
@@ -56,6 +70,8 @@ struct ComicMetadataEditSheet: View {
                             "library.metadata.displayName"
                         )
                     }
+
+                    supplementalFields
 
                     Section("library.metadata.cover") {
                         Picker(
@@ -71,13 +87,22 @@ struct ComicMetadataEditSheet: View {
                         .labelsHidden()
                         .accessibilityIdentifier("library.metadata.cover")
                     }
-                } else {
+                case .loading:
                     Section {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     }
+                case .failed:
+                    Section {
+                        Text("library.metadata.loadFailed")
+                        Button("common.retry") {
+                            Task { await load() }
+                        }
+                        .accessibilityIdentifier("library.metadata.retry")
+                    }
                 }
             }
+            .disabled(isSaving)
             .navigationTitle("library.metadata.edit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -85,6 +110,8 @@ struct ComicMetadataEditSheet: View {
                     Button("common.cancel") {
                         dismiss()
                     }
+                    .disabled(isSaving)
+                    .accessibilityIdentifier("library.metadata.cancel")
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -93,7 +120,7 @@ struct ComicMetadataEditSheet: View {
                             await save()
                         }
                     }
-                    .disabled(!isLoaded || isSaving)
+                    .disabled(!canSave)
                     .accessibilityIdentifier("library.metadata.save")
                 }
             }
@@ -107,24 +134,60 @@ struct ComicMetadataEditSheet: View {
                 Button("common.ok", role: .cancel) {}
             }
         }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var supplementalFields: some View {
+        Group {
+            Section("library.metadata.author") {
+                TextField("library.metadata.author", text: $author)
+                    .accessibilityIdentifier("library.metadata.author")
+            }
+            Section {
+                TextField("library.metadata.tags", text: $tagsText)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("library.metadata.tags")
+            } header: {
+                Text("library.metadata.tags")
+            } footer: {
+                Text("library.metadata.tags.hint")
+            }
+            Section("library.metadata.summary") {
+                TextEditor(text: $summary)
+                    .frame(minHeight: 96)
+                    .accessibilityLabel(Text("library.metadata.summary"))
+                    .accessibilityIdentifier("library.metadata.summary")
+            }
+        }
+    }
+
+    private var canSave: Bool {
+        loadState == .loaded && !isSaving && selectedCoverID != nil
+            && ComicMetadataEditPolicy.validatedDisplayName(displayName) != nil
     }
 
     private func load() async {
+        loadState = .loading
         do {
             let descriptor = try await editor.loadDescriptor(comicID: comicID)
+            guard !Task.isCancelled else { return }
             readablePages = descriptor.workItems.filter {
                 $0.pageState == .readable
             }
             selectedCoverID = descriptor.coverPageID
             displayName = descriptor.displayName
-            isLoaded = true
+            author = descriptor.metadata?.author ?? ""
+            summary = descriptor.metadata?.summary ?? ""
+            tagsText = (descriptor.metadata?.tags ?? []).joined(separator: ", ")
+            loadState = .loaded
         } catch {
-            isLoaded = false
+            guard !Task.isCancelled else { return }
+            loadState = .failed
         }
     }
 
     private func save() async {
-        guard let coverPageID = selectedCoverID else {
+        guard canSave, let coverPageID = selectedCoverID else {
             return
         }
 
@@ -135,7 +198,12 @@ struct ComicMetadataEditSheet: View {
             _ = try await editor.apply(
                 comicID: comicID,
                 displayName: displayName,
-                coverPageID: coverPageID
+                coverPageID: coverPageID,
+                metadata: ComicMetadata(
+                    author: author,
+                    summary: summary,
+                    tags: ComicMetadataEditPolicy.tags(from: tagsText)
+                )
             )
             await libraryCatalog.reload()
             dismiss()

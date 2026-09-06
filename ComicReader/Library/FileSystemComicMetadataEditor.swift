@@ -37,7 +37,8 @@ actor FileSystemComicMetadataEditor {
     func apply(
         comicID: ManagedComicID,
         displayName: String? = nil,
-        coverPageID: ImportPageCandidate.ID? = nil
+        coverPageID: ImportPageCandidate.ID? = nil,
+        metadata: ComicMetadata? = nil
     ) async throws -> ManagedComicDescriptor {
         let descriptor = try loadDescriptor(comicID: comicID)
 
@@ -64,6 +65,7 @@ actor FileSystemComicMetadataEditor {
         let updatedDescriptor = ComicMetadataEditPolicy.applying(
             displayName: validatedDisplayName,
             coverPageID: coverPageID,
+            metadata: metadata,
             to: descriptor
         )
 

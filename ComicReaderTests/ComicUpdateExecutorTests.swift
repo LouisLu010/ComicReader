@@ -3,6 +3,22 @@ import XCTest
 @testable import ComicReader
 
 final class ComicUpdateExecutorTests: XCTestCase {
+    func testIncrementalUpdatePreservesEditedMetadata() async throws {
+        let metadata = ComicMetadata(author: "Author", summary: "Summary", tags: ["Adventure"])
+        let fixture = try await UpdateExecutionFixture.make(metadata: metadata)
+        try fixture.sandbox.sourceTree.png("Chapter 3/01.png")
+        let update = try await fixture.makeUpdate(removingMissing: false)
+        let result = try await fixture.apply(update)
+
+        XCTAssertEqual(result.descriptor.metadata, metadata)
+        XCTAssertEqual(result.catalogRecord.metadata, metadata)
+        XCTAssertEqual(result.descriptor.chapters.count, 3)
+        let persisted = try await FileSystemComicMetadataEditor(
+            layout: fixture.layout
+        ).loadDescriptor(comicID: fixture.comicID)
+        XCTAssertEqual(persisted.metadata, metadata)
+    }
+
     func testApplyExecutesAdditionReplacementRemovalAndCleanup()
         async throws {
         let fixture = try await makeImportedComicFixture()
@@ -254,7 +270,7 @@ private final class UpdateExecutionFixture {
         )
     }
 
-    static func make() async throws -> UpdateExecutionFixture {
+    static func make(metadata: ComicMetadata? = nil) async throws -> UpdateExecutionFixture {
         let sandbox = try TemporaryImportSandbox(sourceName: "Update Target")
         try sandbox.sourceTree.png("cover.png")
         try sandbox.sourceTree.png("Chapter 1/01.png")
@@ -294,6 +310,13 @@ private final class UpdateExecutionFixture {
         guard let authorization = ComicSourceAuthorizationStore(layout: layout)
             .load(for: comicID) else {
             throw UpdateExecutionFixtureError.authorizationMissing
+        }
+
+        if let metadata {
+            _ = try await FileSystemComicMetadataEditor(layout: layout).apply(
+                comicID: comicID,
+                metadata: metadata
+            )
         }
 
         let descriptor = try JSONDecoder().decode(

@@ -278,9 +278,36 @@ final class ComicReaderUITests: XCTestCase {
         }
         nameField.typeText("Renamed Comic")
 
+        let authorField = app.textFields["library.metadata.author"]
+        XCTAssertTrue(authorField.waitForExistence(timeout: 5))
+        authorField.tap()
+        authorField.typeText("Test Author")
+        let tagsField = app.textFields["library.metadata.tags"]
+        XCTAssertTrue(tagsField.waitForExistence(timeout: 5))
+        tagsField.tap()
+        tagsField.typeText("Adventure, Fantasy, fantasy")
+
         let saveButton = app.buttons["library.metadata.save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
         saveButton.tap()
+
+        let saved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: saveButton
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 10), .completed)
+
+        // 再次打开编辑器，应读取持久化值而不是上次面板的临时状态。
+        scrollAttempts = 0
+        while !editButton.isHittable, scrollAttempts < 6 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        XCTAssertTrue(editButton.isHittable)
+        editButton.tap()
+        XCTAssertTrue(authorField.waitForExistence(timeout: 5))
+        XCTAssertEqual(authorField.value as? String, "Test Author")
+        XCTAssertEqual(tagsField.value as? String, "Adventure, Fantasy")
+        app.buttons["library.metadata.cancel"].tap()
 
         // 返回书库后网格显示新名称。
         let backButton = app.navigationBars.buttons.firstMatch
@@ -289,6 +316,12 @@ final class ComicReaderUITests: XCTestCase {
 
         let renamedTitle = app.staticTexts["Renamed Comic"]
         XCTAssertTrue(renamedTitle.waitForExistence(timeout: 10))
+
+        let searchField = app.searchFields.firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("Fantasy")
+        XCTAssertTrue(comicButton.waitForExistence(timeout: 5))
     }
 
     func testUnknownFixtureFailsClosed() {

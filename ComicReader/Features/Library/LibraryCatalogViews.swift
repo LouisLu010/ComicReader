@@ -47,7 +47,14 @@ struct ComicDetailView: View {
     let thumbnailURL: URL?
 
     @Environment(LibraryStateRepository.self) private var libraryState
+    @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
     @Environment(\.readerFeatureServices) private var readerFeatureServices
+
+    // 详情页可能仍在导航栈中；编辑保存后从最新目录记录刷新展示。
+    private var record: LibraryCatalogRecord {
+        libraryCatalog.comics.first(where: { $0.id == comic.id })?.record
+            ?? comic.record
+    }
 
     var body: some View {
         ScrollView {
@@ -65,7 +72,7 @@ struct ComicDetailView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .navigationTitle(comic.record.displayName)
+        .navigationTitle(record.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -93,22 +100,22 @@ struct ComicDetailView: View {
                 .frame(width: 164, height: 230)
 
             VStack(alignment: .leading, spacing: 12) {
-                Text(comic.record.displayName)
+                Text(record.displayName)
                     .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.leading)
 
                 Text(
                     String.localizedStringWithFormat(
                         String(localized: "library.detail.summary"),
-                        comic.record.chapterCount,
-                        comic.record.pageCount
+                        record.chapterCount,
+                        record.pageCount
                     )
                 )
                 .font(.headline)
                 .foregroundStyle(.secondary)
 
                 Label {
-                    Text(comic.record.importedAt, style: .date)
+                    Text(record.importedAt, style: .date)
                 } icon: {
                     Image(systemName: "clock")
                 }
@@ -123,13 +130,32 @@ struct ComicDetailView: View {
     private var details: some View {
         GroupBox("library.detail.metadata") {
             VStack(alignment: .leading, spacing: 10) {
+                if let metadata = record.metadata {
+                    if !metadata.author.isEmpty {
+                        LabeledContent("library.metadata.author", value: metadata.author)
+                    }
+                    if !metadata.tags.isEmpty {
+                        LabeledContent(
+                            "library.metadata.tags",
+                            value: metadata.tags.joined(separator: ", ")
+                        )
+                    }
+                    if !metadata.summary.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("library.metadata.summary")
+                                .font(.headline)
+                            Text(metadata.summary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
                 LabeledContent(
                     "library.detail.chapters",
-                    value: comic.record.chapterCount.formatted()
+                    value: record.chapterCount.formatted()
                 )
                 LabeledContent(
                     "library.detail.pages",
-                    value: comic.record.pageCount.formatted()
+                    value: record.pageCount.formatted()
                 )
                 LabeledContent {
                     Text(thumbnailStatusKey)
@@ -151,7 +177,7 @@ struct ComicDetailView: View {
             NavigationLink {
                 ReaderScreen(
                     comicID: comic.id,
-                    title: comic.record.displayName,
+                    title: record.displayName,
                     contentLoader: readerFeatureServices.contentLoader,
                     progressRecorder: libraryState,
                     persistedProgress: readingProgress,
@@ -189,7 +215,7 @@ struct ComicDetailView: View {
             Label("library.detail.contents", systemImage: "point.3.connected.trianglepath.dotted")
                 .font(.headline)
 
-            if comic.record.contentTree.isEmpty {
+            if record.contentTree.isEmpty {
                 ContentUnavailableView {
                     Label(
                         "library.detail.contents.empty.title",
@@ -201,7 +227,7 @@ struct ComicDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
             } else {
-                LibraryContentTree(nodes: comic.record.contentTree)
+                LibraryContentTree(nodes: record.contentTree)
             }
         }
     }

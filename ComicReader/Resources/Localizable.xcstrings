@@ -17,6 +17,12 @@
         }
       }
     },
+    "common.retry" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } }
+      }
+    },
     "common.cancel" : {
       "localizations" : {
         "en" : {
@@ -1363,6 +1369,30 @@
             "value" : "编辑信息"
           }
         }
+      }
+    },
+    "library.metadata.author" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Author" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "作者" } }
+      }
+    },
+    "library.metadata.summary" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Summary" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "简介" } }
+      }
+    },
+    "library.metadata.tags" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tags" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标签" } }
+      }
+    },
+    "library.metadata.tags.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Separate tags with commas. Empty and duplicate tags are removed when saving." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用逗号分隔标签，保存时会移除空白及重复标签。" } }
       }
     },
     "library.metadata.displayName" : {

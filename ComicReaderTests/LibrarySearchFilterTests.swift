@@ -70,6 +70,51 @@ final class LibrarySearchFilterTests: XCTestCase {
         XCTAssertFalse(filter.hasActiveCriteria)
     }
 
+    @MainActor
+    func testSearchUsesMetadataAndOriginalDirectoryAndContentTitles() {
+        let record = LibraryCatalogRecord(
+            id: comicID,
+            displayName: "Renamed Comic",
+            sourceRootName: "Original Folder",
+            importedAt: Date(timeIntervalSince1970: 100),
+            chapterCount: 1,
+            pageCount: 1,
+            contentTree: [
+                LibraryCatalogTreeNode(
+                    id: "collection:1", kind: .collection, title: "Volume A", pageCount: 0
+                ),
+                LibraryCatalogTreeNode(
+                    id: "chapter:1", kind: .chapter, title: "Chapter B", pageCount: 1, depth: 1
+                ),
+            ],
+            metadata: ComicMetadata(author: "Café Writer", tags: ["冒险", "Fantasy"])
+        )
+        let repository = LibraryStateRepository()
+        let comic = repository.sortableComic(
+            for: LibraryCatalogItem(record: record, thumbnailAvailable: false)
+        )
+
+        for query in ["Renamed", "original", "Volume A", "Chapter B", "cafe", "冒险", "fantasy"] {
+            XCTAssertEqual(
+                LibraryCatalogSearchEngine.filter(
+                    [comic], using: LibrarySearchFilter(searchText: query)
+                ).map(\.id),
+                [comicID],
+                "Missing search field: \(query)"
+            )
+        }
+        XCTAssertTrue(
+            LibraryCatalogSearchEngine.filter(
+                [comic], using: LibrarySearchFilter(searchText: "no match")
+            ).isEmpty
+        )
+        XCTAssertTrue(
+            LibraryCatalogSearchEngine.filter(
+                [comic], using: LibrarySearchFilter(searchText: "冒险", favoritesOnly: true)
+            ).isEmpty
+        )
+    }
+
     func testFavoritesOnlyFilter() {
         let comics = [
             makeComic("Favorite", isFavorite: true),

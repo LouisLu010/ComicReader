@@ -15,6 +15,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
     let chapters: [FrozenImportChapter]
     let workItems: [FrozenImportWorkItem]
     let coverPageID: ImportPageCandidate.ID
+    /// 可选字段保持旧版描述符的解码兼容；缺失时尚无用户补充信息。
+    let metadata: ComicMetadata?
 
     init(plan: FrozenImportPlan, journal: ImportJobJournal) {
         schemaVersion = Self.currentSchemaVersion
@@ -28,6 +30,7 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         chapters = plan.chapters
         workItems = plan.workItems
         coverPageID = plan.coverPageID
+        metadata = nil
     }
 
     private init(
@@ -41,7 +44,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         collections: [ImportCollectionCandidate],
         chapters: [FrozenImportChapter],
         workItems: [FrozenImportWorkItem],
-        coverPageID: ImportPageCandidate.ID
+        coverPageID: ImportPageCandidate.ID,
+        metadata: ComicMetadata?
     ) {
         self.schemaVersion = schemaVersion
         self.jobID = jobID
@@ -54,13 +58,15 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         self.chapters = chapters
         self.workItems = workItems
         self.coverPageID = coverPageID
+        self.metadata = metadata
     }
 
-    /// 应用元数据编辑（显示名/封面），生成新修订号的描述符。
+    /// 应用元数据编辑，生成新修订号；nil 表示保留补充信息。
     func with(
         displayName: String,
         workItems: [FrozenImportWorkItem],
-        coverPageID: ImportPageCandidate.ID
+        coverPageID: ImportPageCandidate.ID,
+        metadata: ComicMetadata? = nil
     ) -> ManagedComicDescriptor {
         ManagedComicDescriptor(
             schemaVersion: Self.currentSchemaVersion,
@@ -73,7 +79,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
                 collections: collections,
                 chapters: chapters,
                 workItems: workItems,
-                coverPageID: coverPageID
+                coverPageID: coverPageID,
+                metadata: metadata ?? self.metadata
             ),
             sourceRootName: sourceRootName,
             displayName: displayName,
@@ -81,7 +88,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
             collections: collections,
             chapters: chapters,
             workItems: workItems,
-            coverPageID: coverPageID
+            coverPageID: coverPageID,
+            metadata: metadata ?? self.metadata
         )
     }
 
@@ -104,7 +112,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
                 collections: collections,
                 chapters: chapters,
                 workItems: workItems,
-                coverPageID: coverPageID
+                coverPageID: coverPageID,
+                metadata: metadata
             ),
             sourceRootName: sourceRootName,
             displayName: displayName,
@@ -112,7 +121,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
             collections: collections,
             chapters: chapters,
             workItems: workItems,
-            coverPageID: coverPageID
+            coverPageID: coverPageID,
+            metadata: metadata
         )
     }
 
@@ -123,7 +133,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
         collections: [ImportCollectionCandidate],
         chapters: [FrozenImportChapter],
         workItems: [FrozenImportWorkItem],
-        coverPageID: ImportPageCandidate.ID
+        coverPageID: ImportPageCandidate.ID,
+        metadata: ComicMetadata?
     ) -> ImportPreviewRevision {
         struct RevisionPayload: Encodable {
             let schemaVersion: Int
@@ -134,6 +145,7 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
             let chapters: [FrozenImportChapter]
             let workItems: [FrozenImportWorkItem]
             let coverPageID: ImportPageCandidate.ID
+            let metadata: ComicMetadata?
         }
 
         let payload = RevisionPayload(
@@ -144,7 +156,8 @@ struct ManagedComicDescriptor: Codable, Equatable, Sendable {
             collections: collections,
             chapters: chapters,
             workItems: workItems,
-            coverPageID: coverPageID
+            coverPageID: coverPageID,
+            metadata: metadata
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
@@ -168,6 +181,7 @@ struct LibraryCatalogRecord: Codable, Equatable, Identifiable, Sendable {
     let chapterCount: Int
     let pageCount: Int
     let contentTree: [LibraryCatalogTreeNode]
+    let metadata: ComicMetadata?
 
     init(
         id: ManagedComicID,
@@ -176,7 +190,8 @@ struct LibraryCatalogRecord: Codable, Equatable, Identifiable, Sendable {
         importedAt: Date,
         chapterCount: Int,
         pageCount: Int,
-        contentTree: [LibraryCatalogTreeNode]
+        contentTree: [LibraryCatalogTreeNode],
+        metadata: ComicMetadata? = nil
     ) {
         schemaVersion = Self.currentSchemaVersion
         self.id = id
@@ -186,6 +201,7 @@ struct LibraryCatalogRecord: Codable, Equatable, Identifiable, Sendable {
         self.chapterCount = max(0, chapterCount)
         self.pageCount = max(0, pageCount)
         self.contentTree = contentTree
+        self.metadata = metadata
     }
 
     init(
@@ -221,7 +237,8 @@ struct LibraryCatalogRecord: Codable, Equatable, Identifiable, Sendable {
             contentTree: LibraryCatalogTreeBuilder.makeTree(
                 collections: descriptor.collections,
                 chapters: descriptor.chapters
-            )
+            ),
+            metadata: descriptor.metadata
         )
     }
 

@@ -1042,6 +1042,10 @@ final class LibraryStateRepository {
         return LibrarySortableComic(
             id: item.id,
             displayName: item.record.displayName,
+            additionalSearchTerms: [item.record.sourceRootName]
+                + item.record.contentTree.map(\.title)
+                + [item.record.metadata?.author ?? ""]
+                + (item.record.metadata?.tags ?? []),
             importedAt: item.record.importedAt,
             isFavorite: state.isFavorite,
             lastReadAt: state.progress?.updatedAt,
