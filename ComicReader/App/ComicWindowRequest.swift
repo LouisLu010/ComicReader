@@ -32,6 +32,7 @@ struct ComicWindowContent: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("window.comic")
     }
 }

@@ -49,8 +49,9 @@ final class PrivacyLockCoordinator {
     init(defaults: UserDefaults = .standard, authenticator: any DeviceOwnerAuthenticating) {
         self.defaults = defaults
         self.authenticator = authenticator
-        isEnabled = defaults.bool(forKey: Self.preferenceKey)
-        isLocked = isEnabled
+        let enabled = defaults.bool(forKey: Self.preferenceKey)
+        isEnabled = enabled
+        isLocked = enabled
     }
 
     func updateScene(_ id: UUID, activity: SceneActivity) {
