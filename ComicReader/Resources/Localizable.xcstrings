@@ -1,6 +1,156 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "privacy.authentication.reason" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock your local comic library." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解锁本地漫画书库。" } }
+      }
+    },
+    "privacy.locked" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Library Locked" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "书库已锁定" } }
+      }
+    },
+    "privacy.unlock" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解锁" } }
+      }
+    },
+    "privacy.lockNow" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Lock Now" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即锁定" } }
+      }
+    },
+    "privacy.authentication.failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication was cancelled, unavailable, or unsuccessful. Please try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "认证已取消、不可用或未成功，请重试。" } }
+      }
+    },
+    "privacy.settings.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Lock" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用锁" } }
+      }
+    },
+    "privacy.settings.enabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Require Face ID or Device Passcode" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用 Face ID 或设备密码" } }
+      }
+    },
+    "privacy.settings.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your library is covered whenever this window is inactive. Authentication is required after the app enters the background or restarts." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "窗口失去活跃状态时立即遮盖书库，应用进入后台或重新启动后需要认证。" } }
+      }
+    },
+    "reader.display.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Display" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读显示" } }
+      }
+    },
+    "reader.display.background" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Background" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "背景" } }
+      }
+    },
+    "reader.canvas.black" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Black" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "黑色" } }
+      }
+    },
+    "reader.canvas.white" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "White" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "白色" } }
+      }
+    },
+    "reader.canvas.sepia" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sepia" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暖色" } }
+      }
+    },
+    "reader.display.brightness" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Brightness" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读亮度" } }
+      }
+    },
+    "reader.display.brightness.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dims reading content only; does not change system brightness." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅调整阅读内容亮度，不改变系统亮度。" } }
+      }
+    },
+    "reader.display.trim" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trim White Margins" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "裁切白色留白" } }
+      }
+    },
+    "reader.display.rotation" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page Rotation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "页面旋转" } }
+      }
+    },
+    "reader.display.keepAwake" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Screen Awake While Reading" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "阅读时保持屏幕常亮" } }
+      }
+    },
+    "reader.display.animations" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Page and Thumbnail Animations" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "翻页与缩略图动画" } }
+      }
+    },
+    "reader.display.nonDestructive" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Display settings apply to all reading windows without changing original images. System Reduce Motion always takes priority." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示设置应用于所有阅读窗口，不修改原图。系统“降低动态效果”始终优先。" } }
+      }
+    },
+    "window.new" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New Library Window" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建书库窗口" } }
+      }
+    },
+    "window.openComic" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open in New Window" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在新窗口中打开" } }
+      }
+    },
+    "window.comic.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Comic Window" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "漫画窗口" } }
+      }
+    },
+    "window.comic.unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This comic is unavailable or was removed." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这本漫画不可用或已被移除。" } }
+      }
+    },
+    "app.commands.menu" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Library" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "书库" } }
+      }
+    },
     "app.name" : {
       "localizations" : {
         "en" : {

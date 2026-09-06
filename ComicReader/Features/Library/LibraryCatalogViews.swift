@@ -49,6 +49,10 @@ struct ComicDetailView: View {
     @Environment(LibraryStateRepository.self) private var libraryState
     @Environment(LibraryCatalogCoordinator.self) private var libraryCatalog
     @Environment(\.readerFeatureServices) private var readerFeatureServices
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     // 详情页可能仍在导航栈中；编辑保存后从最新目录记录刷新展示。
     private var record: LibraryCatalogRecord {
@@ -75,6 +79,16 @@ struct ComicDetailView: View {
         .navigationTitle(record.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if supportsMultipleWindows {
+                    Button {
+                        openWindow(id: "comic", value: ComicWindowRequest(comicID: comic.id.rawValue))
+                    } label: {
+                        Label("window.openComic", systemImage: "rectangle.badge.plus")
+                    }
+                    .accessibilityIdentifier("window.openComic")
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     Task {
@@ -95,7 +109,10 @@ struct ComicDetailView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 20) {
+        let layout = dynamicTypeSize.isAccessibilitySize || horizontalSizeClass == .compact
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 20))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 20))
+        return layout {
             LibraryCoverThumbnail(url: thumbnailURL, cornerRadius: 18)
                 .frame(width: 164, height: 230)
 

@@ -1003,6 +1003,8 @@ private struct ReaderContinuousView: View {
 }
 
 private struct ReaderPagedView: View {
+    @Environment(\.readerDisplayPreferences) private var displayPreferences
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let mode: ReadingMode
     let presentations: [ReaderPresentation]
     let assetResolver: ManagedReaderPageAssetResolver
@@ -1046,6 +1048,10 @@ private struct ReaderPagedView: View {
         }
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $visiblePresentationID, anchor: .center)
+        .animation(
+            displayPreferences.allowsAnimation(reduceMotion: reduceMotion) ? .easeInOut(duration: 0.18) : nil,
+            value: visiblePresentationID
+        )
         .scrollDisabled(isScrollDisabled)
         .scrollIndicators(.hidden)
         // 领域层已决定双页的物理左右槽位，避免 Locale 再次反转。
@@ -1086,6 +1092,8 @@ private struct ReaderZoomPresentationView<Content: View>: View {
 }
 
 private struct ReaderPresentationView: View {
+    @Environment(\.readerDisplayPreferences) private var displayPreferences
+    @State private var renderedAspectRatio: CGFloat?
     enum Style {
         case continuous
         case paged
@@ -1144,7 +1152,10 @@ private struct ReaderPresentationView: View {
                 imagePipeline: imagePipeline,
                 imageRequestScale: imageRequestScale
             )
-            .aspectRatio(pageAspectRatio(page.page), contentMode: .fit)
+            .aspectRatio(renderedAspectRatio ?? pageAspectRatio(page.page), contentMode: .fit)
+            .onPreferenceChange(ReaderRenderedAspectRatioKey.self) { ratio in
+                if let ratio, ratio > 0 { renderedAspectRatio = ratio }
+            }
             .frame(maxWidth: .infinity)
         case .paged:
             ReaderPageImageView(
@@ -1164,7 +1175,8 @@ private struct ReaderPresentationView: View {
             return 0.7
         }
 
-        return CGFloat(pixelSize.width) / CGFloat(pixelSize.height)
+        let ratio = CGFloat(pixelSize.width) / CGFloat(pixelSize.height)
+        return displayPreferences.quarterTurns.isMultiple(of: 2) ? ratio : 1 / ratio
     }
 
     private func accessibilityPriority(

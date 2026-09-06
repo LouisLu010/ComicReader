@@ -72,6 +72,7 @@ struct ReaderViewportControls: View {
 }
 
 private struct ReaderZoomControls: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     let value: String
     let canZoomOut: Bool
     let canZoomIn: Bool
@@ -105,11 +106,13 @@ private struct ReaderZoomControls: View {
         .padding(8)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
+        .background(contrast == .increased ? Color.black : Color.clear, in: Capsule())
         .accessibilityElement(children: .contain)
     }
 }
 
 private struct ReaderPanControls: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     let canMoveLeft: Bool
     let canMoveRight: Bool
     let canMoveUp: Bool
@@ -153,6 +156,7 @@ private struct ReaderPanControls: View {
         .padding(8)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: Capsule())
+        .background(contrast == .increased ? Color.black : Color.clear, in: Capsule())
     }
 
     private func panButton(

@@ -521,15 +521,21 @@ private struct LibraryTrashRow: View {
 private struct LibrarySearchModifier: ViewModifier {
     let isActive: Bool
     @Binding var text: String
+    @State private var isPresented = false
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if isActive {
             content.searchable(
                 text: $text,
+                isPresented: $isPresented,
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: Text("library.search.prompt")
             )
+            .focusedSceneValue(\.librarySearchCommand, ReaderCommandAction(
+                isEnabled: true,
+                perform: { isPresented = true }
+            ))
         } else {
             content
         }

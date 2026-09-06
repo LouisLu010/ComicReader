@@ -6,6 +6,8 @@ struct AppView: View {
     @Environment(FolderImportCoordinator.self) private var importCoordinator
     @Environment(LibraryStateRepository.self) private var libraryState
     @Environment(LibraryPersistenceController.self) private var persistence
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     var body: some View {
         NavigationSplitView {
@@ -15,6 +17,14 @@ struct AppView: View {
                 detail
             }
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if supportsMultipleWindows {
+                        Button { openWindow(id: "library") } label: {
+                            Label("window.new", systemImage: "rectangle.badge.plus")
+                        }
+                        .accessibilityIdentifier("window.new")
+                    }
+                }
                 if router.selectedSection != .settings {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
@@ -47,6 +57,10 @@ struct AppView: View {
             }
         )
         .focusedSceneValue(\.importFoldersCommand, importFoldersCommand)
+        .focusedSceneValue(\.librarySettingsCommand, ReaderCommandAction(
+            isEnabled: true,
+            perform: { router.selectedSection = .settings }
+        ))
     }
 
     private var sidebar: some View {
@@ -147,6 +161,8 @@ struct AppView: View {
 
 #Preview {
     AppView(router: AppRouter())
+        .environment(ReaderExperienceSettings())
+        .environment(PrivacyLockCoordinator(authenticator: LocalDeviceOwnerAuthenticator()))
         .environment(FolderImportCoordinator())
         .environment(ImportJobCoordinator())
         .environment(LibraryCatalogCoordinator())

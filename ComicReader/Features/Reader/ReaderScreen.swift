@@ -22,6 +22,11 @@ struct ReaderScreen: View {
     @State private var viewportControlRequest: ReaderViewportControlRequest?
     @State private var viewportControlGeneration: UInt64 = 0
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.readerDisplayPreferences) private var displayPreferences
+    @Environment(\.readerPrivacyLocked) private var privacyLocked
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var awakeLeaseID = UUID()
     @Environment(LibraryStateRepository.self) private var libraryState
     private let preferencesWriter: (any ReaderPreferenceWriting)?
 
@@ -58,8 +63,13 @@ struct ReaderScreen: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black.ignoresSafeArea()
+                displayPreferences.canvas.color.ignoresSafeArea()
                 content(viewportSize: proxy.size)
+                    .overlay {
+                        Color.black.opacity(1 - displayPreferences.brightness)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
 
                 if !controlsAreVisible {
                     ReaderControlsRevealButton(onReveal: toggleControls)
@@ -95,6 +105,16 @@ struct ReaderScreen: View {
             for: .navigationBar
         )
         .preferredColorScheme(.dark)
+        .transaction { transaction in
+            if !displayPreferences.allowsAnimation(reduceMotion: reduceMotion) {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+        .onChange(of: displayPreferences.keepsScreenAwake, initial: true) { _, _ in
+            updateAwakeLease()
+        }
+        .onChange(of: privacyLocked) { _, _ in updateAwakeLease() }
         .task {
             _ = await controller.load()
         }
@@ -106,6 +126,7 @@ struct ReaderScreen: View {
             handleMemoryWarning()
         }
         .onChange(of: scenePhase) { _, phase in
+            updateAwakeLease()
             guard phase != .active else {
                 return
             }
@@ -136,6 +157,7 @@ struct ReaderScreen: View {
             readerOverridesDraft = overrides
         }
         .onDisappear {
+            ReaderAwakeCoordinator.shared.update(awakeLeaseID, enabled: false)
             visibleAssetSnapshot = .empty
             presentedSheet = nil
             viewportControlState = .unavailable
@@ -152,7 +174,7 @@ struct ReaderScreen: View {
                let layout = controller.layout,
                let sessionController = controller.sessionController {
                 VStack(spacing: 8) {
-                    if layout.pageCount > 1 {
+                    if layout.pageCount > 1, !dynamicTypeSize.isAccessibilitySize {
                         ReaderThumbnailStrip(
                             layout: layout,
                             assetResolver: readerContent.assetResolver,
@@ -201,6 +223,8 @@ struct ReaderScreen: View {
         }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
+            case .display:
+                ReaderDisplaySettingsSheet()
             case .chapters:
                 ReaderChapterListView(
                     destinations: controller.navigationIndex?
@@ -289,6 +313,13 @@ struct ReaderScreen: View {
         }
     }
 
+    private func updateAwakeLease() {
+        ReaderAwakeCoordinator.shared.update(
+            awakeLeaseID,
+            enabled: scenePhase == .active && !privacyLocked && displayPreferences.keepsScreenAwake
+        )
+    }
+
     private func requestViewportControl(
         _ action: ReaderViewportControlAction
     ) {
@@ -357,6 +388,14 @@ struct ReaderScreen: View {
     private var readerControlsToolbar: some ToolbarContent {
         if controlsAreVisible,
            controller.sessionController != nil {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    presentedSheet = .display
+                } label: {
+                    Label("reader.display.title", systemImage: "slider.horizontal.3")
+                }
+                .accessibilityIdentifier("reader.display.open")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     presentChapterList()
@@ -474,6 +513,18 @@ struct ReaderScreen: View {
             toggleControls: ReaderCommandAction(
                 isEnabled: presentedSheet == nil,
                 perform: toggleControls
+            ),
+            zoomIn: ReaderCommandAction(
+                isEnabled: navigationEnabled && viewportControlState.canZoomIn,
+                perform: { requestViewportControl(.zoomIn) }
+            ),
+            zoomOut: ReaderCommandAction(
+                isEnabled: navigationEnabled && viewportControlState.canZoomOut,
+                perform: { requestViewportControl(.zoomOut) }
+            ),
+            displaySettings: ReaderCommandAction(
+                isEnabled: navigationEnabled,
+                perform: { if presentedSheet == nil { presentedSheet = .display } }
             )
         )
     }
@@ -600,6 +651,7 @@ struct ReaderScreen: View {
 
 private enum ReaderPresentedSheet: String, Identifiable {
     case chapters
+    case display
 
     var id: String {
         rawValue
@@ -778,6 +830,7 @@ private struct ReaderPageProgress: Equatable {
 }
 
 private struct ReaderPageNavigationView: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     let progress: ReaderPageProgress
     let readingDirection: ReadingDirection
     let canMoveToPreviousPage: Bool
@@ -910,6 +963,7 @@ private struct ReaderPageNavigationView: View {
         .padding(.vertical, 10)
         .foregroundStyle(.white)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(contrast == .increased ? Color.black : Color.clear, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal)
         .onChange(of: progress.currentPage) { _, currentPage in
             guard !isEditing else {

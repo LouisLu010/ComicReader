@@ -12,6 +12,7 @@ struct ReaderPageImageView: View {
     let accessibilityIdentifierPrefix: String
 
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.readerDisplayPreferences) private var displayPreferences
     @Environment(\.readerViewportVisiblePageIDs)
     private var viewportVisiblePageIDs
 
@@ -49,7 +50,9 @@ struct ReaderPageImageView: View {
                     imageScale: CGFloat(imageRequestScale)
                 ),
                 lifecycleGeneration: lifecycle.generation,
-                reloadGeneration: reloadGeneration
+                reloadGeneration: reloadGeneration,
+                trimsWhitespace: displayPreferences.trimsWhitespace,
+                quarterTurns: displayPreferences.quarterTurns
             )
 
             content
@@ -68,6 +71,10 @@ struct ReaderPageImageView: View {
                     lifecycle.didDisappear()
                     releaseRenderedState()
                 }
+                .preference(
+                    key: ReaderRenderedAspectRatioKey.self,
+                    value: renderedImage.map { CGFloat($0.width) / CGFloat($0.height) }
+                )
         }
     }
 
@@ -137,6 +144,11 @@ struct ReaderPageImageView: View {
             return
         }
 
+        if activeRequestID?.trimsWhitespace != requestID.trimsWhitespace
+            || activeRequestID?.quarterTurns != requestID.quarterTurns {
+            renderedImage = nil
+            renderedLocation = nil
+        }
         activeRequestID = requestID
         failedRequestID = nil
 
@@ -171,7 +183,13 @@ struct ReaderPageImageView: View {
 
             if renderedImage == nil
                 || renderedLocation != requestID.location {
-                renderedImage = preview.image
+                let processed = try await ReaderImageAppearanceProcessor.shared.process(
+                    preview.image, trimsWhitespace: requestID.trimsWhitespace,
+                    quarterTurns: requestID.quarterTurns
+                )
+                try Task.checkCancellation()
+                guard acceptsResult(for: requestID) else { return }
+                renderedImage = processed
                 renderedLocation = requestID.location
             }
 
@@ -189,7 +207,13 @@ struct ReaderPageImageView: View {
                 return
             }
 
-            renderedImage = fullImage.image
+            let processed = try await ReaderImageAppearanceProcessor.shared.process(
+                fullImage.image, trimsWhitespace: requestID.trimsWhitespace,
+                quarterTurns: requestID.quarterTurns
+            )
+            try Task.checkCancellation()
+            guard acceptsResult(for: requestID) else { return }
+            renderedImage = processed
             renderedLocation = requestID.location
         } catch is CancellationError {
             return
@@ -251,5 +275,14 @@ struct ReaderPageImageView: View {
         let target: ReaderImageTarget?
         let lifecycleGeneration: UInt64
         let reloadGeneration: UInt64
+        let trimsWhitespace: Bool
+        let quarterTurns: Int
+    }
+}
+
+struct ReaderRenderedAspectRatioKey: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
     }
 }

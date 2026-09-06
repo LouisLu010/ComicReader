@@ -18,11 +18,14 @@ struct ComicReaderApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "library") {
             ComicReaderApplicationRoot(bootstrapState: $bootstrapState)
         }
         .commands {
             ComicReaderCommands()
+        }
+        WindowGroup("window.comic.title", id: "comic", for: ComicWindowRequest.self) { $request in
+            ComicReaderApplicationRoot(bootstrapState: $bootstrapState, comicWindow: request)
         }
     }
 }
@@ -30,6 +33,7 @@ struct ComicReaderApp: App {
 @MainActor
 private struct ComicReaderApplicationRoot: View {
     @Binding var bootstrapState: ApplicationBootstrapState
+    var comicWindow: ComicWindowRequest? = nil
 
     @ViewBuilder
     var body: some View {
@@ -43,11 +47,25 @@ private struct ComicReaderApplicationRoot: View {
             ApplicationRoot(
                 modelContainer: dependencies.persistence.modelContainer,
                 uiTestFixture: dependencies.uiTestFixture,
-                libraryState: dependencies.libraryState
+                libraryState: dependencies.libraryState,
+                comicWindow: comicWindow
             )
             .environment(dependencies.importJobs)
             .environment(dependencies.libraryState)
             .environment(dependencies.persistence)
+            .environment(dependencies.privacyLock)
+            .environment(dependencies.readerExperience)
+            .environment(\.readerDisplayPreferences, dependencies.readerExperience.preferences)
+            .environment(\.readerPrivacyLocked, dependencies.privacyLock.isLocked)
+            .background(PrivacySceneShield(lock: dependencies.privacyLock))
+            .opacity(dependencies.privacyLock.isLocked ? 0 : 1)
+            .disabled(dependencies.privacyLock.isLocked)
+            .accessibilityHidden(dependencies.privacyLock.isLocked)
+            .privacySensitive()
+            .focusedSceneValue(\.privacyLockCommand, ReaderCommandAction(
+                isEnabled: dependencies.privacyLock.isEnabled && !dependencies.privacyLock.isLocked,
+                perform: { dependencies.privacyLock.lock() }
+            ))
             .task {
                 await dependencies.persistence.openApplicationStore()
             }
@@ -99,12 +117,25 @@ private enum ApplicationBootstrapState {
 
 @MainActor
 private struct ApplicationDependencies {
+    let privacyLock: PrivacyLockCoordinator
+    let readerExperience: ReaderExperienceSettings
     let importJobs: ImportJobCoordinator
     let libraryState: LibraryStateRepository
     let persistence: LibraryPersistenceController
     let uiTestFixture: UITestFixtureConfiguration?
 
     init(uiTestFixture: UITestFixtureConfiguration? = nil) {
+        let defaults = uiTestFixture == nil ? UserDefaults.standard
+            : UserDefaults(suiteName: "UITest.Preferences.\(UUID().uuidString)")!
+        readerExperience = ReaderExperienceSettings(defaults: defaults)
+        var authenticator: any DeviceOwnerAuthenticating = LocalDeviceOwnerAuthenticator()
+#if DEBUG
+        if uiTestFixture?.startsPrivacyLocked == true {
+            defaults.set(true, forKey: PrivacyLockCoordinator.preferenceKey)
+            authenticator = UITestDeviceOwnerAuthenticator()
+        }
+#endif
+        privacyLock = PrivacyLockCoordinator(defaults: defaults, authenticator: authenticator)
         self.uiTestFixture = uiTestFixture
         importJobs = uiTestFixture?.importJobs ?? ImportJobCoordinator()
         libraryState = LibraryStateRepository()
@@ -121,6 +152,7 @@ private struct ApplicationRoot: View {
     let modelContainer: ModelContainer?
     let uiTestFixture: UITestFixtureConfiguration?
     let libraryState: LibraryStateRepository
+    let comicWindow: ComicWindowRequest?
 
     var body: some View {
         Group {
@@ -144,7 +176,8 @@ private struct ApplicationRoot: View {
                         )
                     }
                 ),
-            libraryCatalog: uiTestFixture?.libraryCatalog
+            libraryCatalog: uiTestFixture?.libraryCatalog,
+            comicWindow: comicWindow
         )
     }
 }

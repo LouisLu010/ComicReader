@@ -7,6 +7,7 @@ struct UITestFixtureConfiguration {
     let importJobs: ImportJobCoordinator
     let readerFeatureServices: ReaderFeatureServices
     let libraryCatalog: LibraryCatalogCoordinator
+    var startsPrivacyLocked = false
 }
 
 struct UITestFixtureRequest: Equatable, Sendable {
@@ -18,6 +19,7 @@ enum UITestFixtureBootstrap {
     enum Fixture: String, Sendable {
         case emptyLibrary = "empty-library"
         case readerNavigation = "reader-navigation"
+        case privacyLocked = "privacy-locked"
     }
 
     static let environmentKey = "COMICREADER_UI_TEST_FIXTURE"
@@ -83,7 +85,8 @@ enum UITestFixtureBootstrap {
             libraryCatalog: LibraryCatalogCoordinator(
                 loader: FileSystemLibraryCatalogLoader(layout: layout),
                 layout: layout
-            )
+            ),
+            startsPrivacyLocked: fixture == .privacyLocked
         )
 #else
         _ = request
@@ -111,7 +114,7 @@ enum UITestFixtureBootstrap {
             )
         }
 
-        guard fixture == .readerNavigation else {
+        guard fixture == .readerNavigation || fixture == .privacyLocked else {
             return
         }
 

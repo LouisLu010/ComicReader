@@ -153,6 +153,8 @@ struct SettingsView: View {
                 Text("settings.privacy.description")
                     .foregroundStyle(.secondary)
             }
+            PrivacySettingsSection()
+            ReaderDisplaySettings()
         }
         .navigationTitle("settings.title")
         .onChange(
@@ -352,6 +354,8 @@ private extension ReaderTapZoneAction {
 #Preview {
     NavigationStack {
         SettingsView()
+            .environment(ReaderExperienceSettings())
+            .environment(PrivacyLockCoordinator(authenticator: LocalDeviceOwnerAuthenticator()))
             .environment(LibraryCatalogCoordinator())
             .environment(LibraryStateRepository())
             .environment(

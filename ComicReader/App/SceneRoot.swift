@@ -8,6 +8,7 @@ private struct LibraryCatalogRefreshID: Equatable {
 
 @MainActor
 struct SceneRoot: View {
+    let comicWindow: ComicWindowRequest?
     let modelContainer: ModelContainer?
     let readerFeatureServices: ReaderFeatureServices?
 
@@ -19,15 +20,18 @@ struct SceneRoot: View {
     @Environment(ImportJobCoordinator.self) private var importJobs
     @Environment(LibraryStateRepository.self) private var libraryState
     @Environment(LibraryPersistenceController.self) private var persistence
+    @Environment(\.scenePhase) private var scenePhase
 
     init(
         modelContainer: ModelContainer? = nil,
         readerFeatureServices: ReaderFeatureServices?
             = ReaderFeatureServices.applicationSupport(),
         libraryCatalog: LibraryCatalogCoordinator? = nil,
-        libraryTrash: LibraryTrashCoordinator? = nil
+        libraryTrash: LibraryTrashCoordinator? = nil,
+        comicWindow: ComicWindowRequest? = nil
     ) {
         self.modelContainer = modelContainer
+        self.comicWindow = comicWindow
         self.readerFeatureServices = readerFeatureServices
         _libraryCatalog = State(
             initialValue: libraryCatalog ?? LibraryCatalogCoordinator()
@@ -41,12 +45,23 @@ struct SceneRoot: View {
     }
 
     var body: some View {
-        AppView(router: router)
+        Group {
+            if let comicWindow {
+                ComicWindowContent(request: comicWindow)
+            } else {
+                AppView(router: router)
+            }
+        }
             .environment(importCoordinator)
             .environment(importJobs)
             .environment(libraryCatalog)
             .environment(libraryTrash)
             .environment(\.readerFeatureServices, readerFeatureServices)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, allowsIncrementalCatalogRefresh {
+                    Task { await reloadCatalogAndReconcileIfWritable() }
+                }
+            }
             .task {
                 guard !Task.isCancelled else {
                     return
@@ -129,6 +144,8 @@ struct SceneRoot: View {
 
 #Preview {
     SceneRoot()
+        .environment(ReaderExperienceSettings())
+        .environment(PrivacyLockCoordinator(authenticator: LocalDeviceOwnerAuthenticator()))
         .environment(ImportJobCoordinator())
         .environment(LibraryStateRepository())
         .environment(

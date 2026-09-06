@@ -2,6 +2,9 @@ import SwiftUI
 
 @MainActor
 struct ReaderThumbnailStrip: View {
+    @Environment(\.readerDisplayPreferences) private var displayPreferences
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
     let layout: ReaderLayout
     let assetResolver: ManagedReaderPageAssetResolver
     let imagePipeline: ReaderImagePipeline
@@ -35,7 +38,7 @@ struct ReaderThumbnailStrip: View {
                 .frame(height: 102)
                 .onChange(of: scrollRequest, initial: true) {
                     _, request in
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(displayPreferences.allowsAnimation(reduceMotion: reduceMotion) ? .easeInOut(duration: 0.2) : nil) {
                         proxy.scrollTo(
                             request.selectedLocation,
                             anchor: .center
@@ -46,6 +49,7 @@ struct ReaderThumbnailStrip: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .foregroundStyle(.white)
+            .background(contrast == .increased ? Color.black : Color.clear)
             .background(
                 .ultraThinMaterial,
                 in: RoundedRectangle(cornerRadius: 16)
