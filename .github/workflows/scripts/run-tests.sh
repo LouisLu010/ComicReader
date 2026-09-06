@@ -129,6 +129,22 @@ fi
 
 /usr/bin/plutil -lint "$TEST_PRIVACY_MANIFEST"
 
+# 先运行 iPad 体验回归，失败时尽早返回；后续完整回归排除已运行的同一组。
+xcodebuild \
+  -project "$PROJECT" \
+  -scheme "$SCHEME" \
+  -configuration Debug \
+  -destination "$TEST_DESTINATION" \
+  -derivedDataPath "$TEST_DERIVED_DATA" \
+  -enableCodeCoverage YES \
+  -disableAutomaticPackageResolution \
+  -parallel-testing-enabled NO \
+  -resultBundlePath "${RESULT_BUNDLE%.xcresult}-iPad.xcresult" \
+  -only-testing:ComicReaderUITests/IPadExperienceUITests \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO \
+  test-without-building
+
 xcodebuild \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
@@ -139,6 +155,7 @@ xcodebuild \
   -disableAutomaticPackageResolution \
   -parallel-testing-enabled NO \
   -resultBundlePath "$RESULT_BUNDLE" \
+  -skip-testing:ComicReaderUITests/IPadExperienceUITests \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   test-without-building

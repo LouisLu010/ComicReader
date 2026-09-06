@@ -6,7 +6,7 @@ final class IPadExperienceUITests: XCTestCase {
     func testPrivacyShieldCoversOpenSheetAfterBackground() {
         let app = launch(fixture: "privacy-locked")
         let unlock = app.buttons["privacy.unlock"]
-        XCTAssertTrue(unlock.waitForExistence(timeout: 10))
+        XCTAssertTrue(unlock.waitForExistence(timeout: 10), app.debugDescription)
         let comic = app.buttons["library.comic.00000000-0000-0000-0000-000000000901"]
         XCTAssertFalse(comic.exists)
         unlock.tap()
@@ -37,9 +37,11 @@ final class IPadExperienceUITests: XCTestCase {
         let trim = app.switches["reader.display.trim"]
         XCTAssertTrue(trim.waitForExistence(timeout: 5))
         trim.tap()
+        XCTAssertEqual(trim.value as? String, "1", app.debugDescription)
         let animations = app.switches["reader.display.animations"]
         reveal(animations, in: app)
         animations.tap()
+        XCTAssertEqual(animations.value as? String, "0", app.debugDescription)
         app.buttons["reader.display.done"].tap()
         XCTAssertTrue(display.waitForExistence(timeout: 5))
         display.tap()
@@ -61,7 +63,7 @@ final class IPadExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["reader.navigation.nextPage"].exists)
     }
 
-    func testComicCanOpenInIndependentWindow() {
+    func testZComicCanOpenInIndependentWindow() {
         let app = launch(fixture: "reader-navigation")
         let comic = app.buttons["library.comic.00000000-0000-0000-0000-000000000901"]
         XCTAssertTrue(comic.waitForExistence(timeout: 10))
