@@ -90,6 +90,8 @@ final class ShieldInstallerView: UIView {
             let overlay = UIWindow(windowScene: scene)
             overlay.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.alert.rawValue + 1)
             overlay.backgroundColor = .systemBackground
+            // 窗口身份放在 UIKit 层，避免 SwiftUI 容器标识覆盖解锁按钮。
+            overlay.accessibilityIdentifier = "privacy.shield"
             shield = overlay
         }
         for window in scene.windows where window !== shield {
@@ -147,7 +149,6 @@ private struct PrivacyShieldContent: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemBackground))
-        .accessibilityIdentifier("privacy.shield")
     }
 }
 

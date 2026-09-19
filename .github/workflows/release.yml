@@ -37,6 +37,19 @@ jobs:
       - name: Build and run tests
         run: bash .github/workflows/scripts/run-tests.sh
 
+      - name: Collect test diagnostics
+        if: failure()
+        run: bash .github/workflows/scripts/collect-test-diagnostics.sh
+
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: comicreader-test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ComicReaderTestDiagnostics/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Build unsigned release assets
         run: |
           ARTIFACT_LABEL="$GITHUB_REF_NAME" \
