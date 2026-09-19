@@ -52,6 +52,9 @@ struct SceneRoot: View {
                 AppView(router: router)
             }
         }
+            .background(SceneWindowIdentity(
+                identifier: comicWindow == nil ? "window.library" : "window.comic"
+            ))
             .environment(importCoordinator)
             .environment(importJobs)
             .environment(libraryCatalog)
